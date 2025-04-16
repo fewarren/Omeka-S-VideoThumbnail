@@ -1,0 +1,62 @@
+<?php
+$form->prepare();
+$formLabel = $this->plugin('formLabel');
+$formElement = $this->plugin('formElement');
+$formErrors = $this->plugin('formElementErrors');
+?>
+
+<h3><?= $this->translate('Video Thumbnail Configuration') ?></h3>
+
+<div class="configuration-section">
+    <?= $this->form()->openTag($form) ?>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_ffmpeg_path')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_ffmpeg_path')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_ffmpeg_path')) ?>
+            <?= $formErrors($form->get('videothumbnail_ffmpeg_path')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_frames_count')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_frames_count')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_frames_count')) ?>
+            <?= $formErrors($form->get('videothumbnail_frames_count')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_default_frame')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_default_frame')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_default_frame')) ?>
+            <?= $formErrors($form->get('videothumbnail_default_frame')) ?>
+        </div>
+    </div>
+
+    <?php if ($form->has('videothumbnail_debug_mode')): ?>
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_debug_mode')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_debug_mode')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_debug_mode')) ?>
+            <?= $formErrors($form->get('videothumbnail_debug_mode')) ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?= $this->formElement($form->get('csrf')) ?>
+    <?= $this->formSubmit($form->get('submit')) ?>
+    <?= $this->form()->closeTag() ?>
+</div>
