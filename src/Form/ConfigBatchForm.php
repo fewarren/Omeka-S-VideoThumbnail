@@ -64,18 +64,20 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
             ],
         ]);
 
-        $this->add([
-            'name' => 'regenerate_thumbnails',
-            'type' => Checkbox::class,
-            'options' => [
-                'label' => 'Regenerate All Video Thumbnails', // @translate
-                'info' => 'Check this box to regenerate thumbnails for all supported video files using the default frame position above. This will create a background job.', // @translate
-            ],
-            'attributes' => [
-                'id' => 'regenerate_thumbnails',
-                'onclick' => 'return confirm("Are you sure you want to regenerate all video thumbnails? This could take a significant amount of time and resources.");',
-            ],
-        ]);
+       
+            $this->add([
+                'name' => 'regenerate_thumbnails',
+                'type' => Checkbox::class,
+                'options' => [
+               'label' => 'Regenerate All Video Thumbnails', // @translate
+               'info' => 'Check this box to regenerate thumbnails for all supported video files using the default frame position above. This will create a background job.', // @translate
+               ],
+              'attributes' => [
+              'id' => 'regenerate_thumbnails',
+              'data-confirm-message' => 'Are you sure you want to regenerate all video thumbnails? This could take a significant amount of time and resources.',
+              'class' => 'confirmable-checkbox',
+              ],
+          ]);
     }
 
     /**
