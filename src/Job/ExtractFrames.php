@@ -1,4 +1,5 @@
 <?php
+
 namespace VideoThumbnail\Job;
 
 use Omeka\Job\AbstractJob;
@@ -83,8 +84,8 @@ class ExtractFrames extends AbstractJob
                 try {
                     $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
                     
-                    // Get the video file path
-                    $filePath = $media->getStoragePath(); // Updated method
+                    // Get the video file path using getStoragePath
+                    $filePath = $this->getStoragePath('original', $media->storageId()); // Updated to use a helper method
                     
                     if (!file_exists($filePath) || !is_readable($filePath)) {
                         $logger->warn(sprintf('Video file not found or not readable: %s', $filePath));
@@ -154,5 +155,18 @@ class ExtractFrames extends AbstractJob
         if ($this->shouldStop()) {
             throw new \RuntimeException('Job was manually stopped.');
         }
+    }
+
+    /**
+     * Get a storage path.
+     *
+     * @param string $prefix The storage prefix (e.g., 'original', 'thumbnail')
+     * @param string $storageId The unique storage ID of the media
+     * @param string $extension Optional file extension
+     * @return string The constructed storage path
+     */
+    protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
+    {
+        return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
     }
 }
