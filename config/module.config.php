@@ -31,5 +31,9 @@ return [
         'routes' => [
             'admin' => [
                 'child_routes' => [
-                   ](#)
-
+                    // Add valid child routes here if needed
+                ],
+            ],
+        ],
+    ],
+];
