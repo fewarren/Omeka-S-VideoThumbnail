@@ -43,8 +43,8 @@ class ExtractFrames extends AbstractJob
             $args = $this->getJobArguments();
 
             // Validate and set the frame position
-            $defaultFramePercent = isset($args['frame_position']) && is_numeric($args['frame_position']) 
-                ? (float)$args['frame_position'] 
+            $defaultFramePercent = isset($args['frame_position']) && is_numeric($args['frame_position'])
+                ? (float)$args['frame_position']
                 : (float)$settings->get('videothumbnail_default_frame', 10);
 
             $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
@@ -59,7 +59,7 @@ class ExtractFrames extends AbstractJob
             // Query for all supported video formats
             $queryBuilder = $mediaRepository->createQueryBuilder('media');
             $queryBuilder->where($queryBuilder->expr()->in('media.mediaType', ':formats'))
-                         ->setParameter('formats', $supportedFormats);
+                ->setParameter('formats', $supportedFormats);
 
             $medias = $queryBuilder->getQuery()->getResult();
             $totalMedias = count($medias);
@@ -87,8 +87,17 @@ class ExtractFrames extends AbstractJob
                     // Get the video file path using getStoragePath
                     $filePath = $this->getStoragePath('original', $media->getStorageId()); // Updated to use a helper method
 
-                    if (!file_exists($filePath) || !is_readable($filePath)) {
-                        $logger->warn(sprintf('Video file not found or not readable: %s', $filePath));
+                    // Debugging: Log the constructed path
+                    $logger->debug(sprintf('Constructed file path: %s', $filePath));
+
+                    if (!file_exists($filePath)) {
+                        $logger->warn(sprintf('Video file not found: %s', $filePath));
+                        $failed++;
+                        continue;
+                    }
+
+                    if (!is_readable($filePath)) {
+                        $logger->warn(sprintf('Video file not readable: %s', $filePath));
                         $failed++;
                         continue;
                     }
@@ -167,6 +176,8 @@ class ExtractFrames extends AbstractJob
      */
     protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
     {
-        return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
+        $path = sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
+        error_log('Constructed file path: ' . $path); // Debugging
+        return $path;
     }
 }
