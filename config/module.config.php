@@ -15,11 +15,14 @@ return [
     'form_elements' => [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
+            Form\ConfigBatchForm::class => Service\Form\ConfigFormFactory::class,
         ],
     ],
     'controllers' => [
         'factories' => [
-            'VideoThumbnail\Controller\Admin\VideoThumbnail' => Service\Controller\VideoThumbnailControllerFactory::class,
+            'VideoThumbnail\Controller\Admin\VideoThumbnailController' => Service\Controller\VideoThumbnailControllerFactory::class,
+            // Add alias for short name
+            'VideoThumbnailController' => Service\Controller\VideoThumbnailControllerFactory::class,
         ],
     ],
     'controller_plugins' => [
@@ -31,8 +34,31 @@ return [
         'routes' => [
             'admin' => [
                 'child_routes' => [
-                    // Add valid child routes here if needed
+                    'video-thumbnail' => [
+                        'type' => 'Segment',
+                        'options' => [
+                            'route' => '/video-thumbnail[/:action[/:id]]',
+                            'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+                                'action' => 'index',
+                            ],
+                            'constraints' => [
+                                'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
+                                'id' => '\d+',
+                            ],
+                        ],
+                    ],
                 ],
+            ],
+        ],
+    ],
+    'navigation' => [
+        'AdminModule' => [
+            [
+                'label' => 'Video Thumbnail',
+                'route' => 'admin/video-thumbnail',
+                'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
             ],
         ],
     ],

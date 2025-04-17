@@ -15,11 +15,14 @@ class VideoThumbnailController extends AbstractActionController
     protected $settings;
     protected $serviceLocator;
 
-    public function __construct($entityManager, $fileManager, $serviceLocator = null)
+    public function __construct($entityManager, $fileManager = null, $serviceLocator = null)
     {
         $this->entityManager = $entityManager;
         $this->fileManager = $fileManager;
         $this->serviceLocator = $serviceLocator;
+        
+        // Log initialization
+        error_log('VideoThumbnail: Controller initialized');
     }
 
     public function setSettings($settings)
@@ -30,27 +33,60 @@ class VideoThumbnailController extends AbstractActionController
 
     public function indexAction()
     {
+        // Log initialization of action
+        error_log('VideoThumbnail: indexAction started');
+        
         // Initialize the debug system with settings
-        Debug::init($this->settings);
-        Debug::logEntry(__METHOD__);
+        if ($this->settings) {
+            Debug::init($this->settings);
+            Debug::logEntry(__METHOD__);
+        } else {
+            error_log('VideoThumbnail: Settings not available for debug initialization');
+        }
         
         // Get the form from service manager instead of creating it directly
-        $form = $this->serviceLocator->get('FormElementManager')->get(ConfigBatchForm::class);
-        $form->init();
+        try {
+            if (!$this->serviceLocator) {
+                error_log('VideoThumbnail: Service locator is null');
+                $this->serviceLocator = $this->getEvent()->getApplication()->getServiceManager();
+            }
+            $form = $this->serviceLocator->get('FormElementManager')->get(ConfigBatchForm::class);
+            $form->init();
 
-        $supportedFormats = $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
-        if (!is_array($supportedFormats)) {
+            $supportedFormats = $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
+            if (!is_array($supportedFormats)) {
+                $supportedFormats = ['video/mp4', 'video/quicktime'];
+            }
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error initializing form: ' . $e->getMessage());
+            error_log('VideoThumbnail: ' . $e->getTraceAsString());
+            
+            // Fallback to create basic form
+            $form = new ConfigBatchForm();
+            $form->init();
             $supportedFormats = ['video/mp4', 'video/quicktime'];
         }
 
-        // Set debug mode value
-        $debugMode = $this->settings->get('videothumbnail_debug_mode', false);
-        
-        $form->setData([
-            'default_frame_position' => $this->settings->get('videothumbnail_default_frame', 10),
-            'supported_formats' => $supportedFormats,
-            'debug_mode' => $debugMode,
-        ]);
+        // Set debug mode value and other settings with error handling
+        try {
+            $debugMode = $this->settings->get('videothumbnail_debug_mode', false);
+            $defaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
+            
+            $form->setData([
+                'default_frame_position' => $defaultFrame,
+                'supported_formats' => $supportedFormats,
+                'debug_mode' => $debugMode,
+            ]);
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error setting form data: ' . $e->getMessage());
+            
+            // Use defaults if settings access fails
+            $form->setData([
+                'default_frame_position' => 10,
+                'supported_formats' => $supportedFormats,
+                'debug_mode' => false,
+            ]);
+        }
 
         $request = $this->getRequest();
         if ($request->isPost()) {
@@ -134,28 +170,71 @@ class VideoThumbnailController extends AbstractActionController
 
         $view = new ViewModel();
         $view->setVariable('form', $form);
-        $view->setVariable('totalVideos', $this->getTotalVideos());
+        
+        try {
+            $totalVideos = $this->getTotalVideos();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error getting total videos: ' . $e->getMessage());
+            $totalVideos = 0;
+        }
+        
+        $view->setVariable('totalVideos', $totalVideos);
         $view->setVariable('supportedFormats', implode(', ', $supportedFormats));
-        Debug::logExit(__METHOD__);
+        
+        if ($this->settings) {
+            Debug::logExit(__METHOD__);
+        }
+        
+        // Explicitly set view template to ensure it's found
+        $view->setTemplate('video-thumbnail/admin/video-thumbnail/index');
+        
         return $view;
     }
 
     protected function getTotalVideos()
     {
-        Debug::logEntry(__METHOD__);
-        // Assuming you have access to the entity manager to query the database
-        $repository = $this->entityManager->getRepository('Omeka\Entity\Media');
+        if ($this->settings) {
+            Debug::logEntry(__METHOD__);
+        }
         
-        // Query for the total number of videos based on supported formats
-        $supportedFormats = $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
-        $queryBuilder = $repository->createQueryBuilder('media');
-        $queryBuilder->select('COUNT(media.id)')
-                     ->where($queryBuilder->expr()->in('media.mediaType', ':formats'))
-                     ->setParameter('formats', $supportedFormats);
+        try {
+            // Check if entity manager is available
+            if (!$this->entityManager) {
+                error_log('VideoThumbnail: Entity manager is not available');
+                return 0;
+            }
+            
+            // Get the repository
+            $repository = $this->entityManager->getRepository('Omeka\Entity\Media');
+            
+            // Query for the total number of videos based on supported formats
+            $supportedFormats = $this->settings ? 
+                $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']) : 
+                ['video/mp4', 'video/quicktime'];
+                
+            if (!is_array($supportedFormats)) {
+                $supportedFormats = ['video/mp4', 'video/quicktime'];
+            }
+            
+            $queryBuilder = $repository->createQueryBuilder('media');
+            $queryBuilder->select('COUNT(media.id)')
+                        ->where($queryBuilder->expr()->in('media.mediaType', ':formats'))
+                        ->setParameter('formats', $supportedFormats);
 
-        $result = (int) $queryBuilder->getQuery()->getSingleScalarResult();
-        Debug::logExit(__METHOD__, $result);
-        return $result;
+            $result = (int) $queryBuilder->getQuery()->getSingleScalarResult();
+            
+            if ($this->settings) {
+                Debug::logExit(__METHOD__, $result);
+            }
+            return $result;
+            
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error in getTotalVideos: ' . $e->getMessage());
+            if ($this->settings) {
+                Debug::logError('Error in getTotalVideos: ' . $e->getMessage(), __METHOD__);
+            }
+            return 0;
+        }
     }
 
     public function saveFrameAction()

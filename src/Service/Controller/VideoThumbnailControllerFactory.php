@@ -12,23 +12,29 @@ class VideoThumbnailControllerFactory implements FactoryInterface
         $entityManager = $services->get('Omeka\EntityManager');
         $settings = $services->get('Omeka\Settings');
         
-        // Try to get file manager using a more robust approach
+        // Get file manager using a more robust approach - prioritize the primary manager service
         $fileManager = null;
-        $fileManagerServices = [
-            'Omeka\File\Manager',
-            'Omeka\File\Store\Manager',
-            'Omeka\File\TempFileFactory',
-        ];
-        
-        foreach ($fileManagerServices as $service) {
-            if ($services->has($service)) {
-                $fileManager = $services->get($service);
-                break;
+        if ($services->has('Omeka\File\Manager')) {
+            $fileManager = $services->get('Omeka\File\Manager');
+        } else {
+            $fileManagerServices = [
+                'Omeka\File\Store\Manager',
+                'Omeka\File\TempFileFactory',
+            ];
+            
+            foreach ($fileManagerServices as $service) {
+                if ($services->has($service)) {
+                    $fileManager = $services->get($service);
+                    break;
+                }
             }
         }
         
         if (!$fileManager) {
-            throw new \Exception('Could not locate file manager service');
+            // Log error but don't throw exception to prevent fatal error
+            error_log('VideoThumbnail: Could not locate file manager service');
+            // Create controller anyway with null file manager
+            $fileManager = null;
         }
         
         $controller = new VideoThumbnailController(
