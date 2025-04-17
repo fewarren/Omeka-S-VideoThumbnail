@@ -69,6 +69,102 @@ class VideoFrameExtractorFactory implements FactoryInterface
         Debug::logError('FFmpeg not found using any detection method.', __METHOD__);
         return null; // No valid FFmpeg path detected
     }
+    
+    private function detectUsingWhich($settings)
+    {
+        Debug::log('Detecting FFmpeg using \'which\' command', __METHOD__);
+        $output = [];
+        $returnVar = null;
+        exec('which ffmpeg 2>/dev/null', $output, $returnVar);
+        
+        if ($returnVar === 0 && !empty($output)) {
+            $ffmpegPath = trim($output[0]);
+            Debug::log('Found FFmpeg at: ' . $ffmpegPath, __METHOD__);
+            $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+            return $this->validateFfmpegAndCreate($ffmpegPath);
+        }
+        
+        Debug::log('FFmpeg not found using \'which\'', __METHOD__);
+        return null;
+    }
+    
+    private function detectUsingType($settings)
+    {
+        Debug::log('Detecting FFmpeg using \'type\' command', __METHOD__);
+        $output = [];
+        $returnVar = null;
+        exec('type -p ffmpeg 2>/dev/null', $output, $returnVar);
+        
+        if ($returnVar === 0 && !empty($output)) {
+            $ffmpegPath = trim($output[0]);
+            Debug::log('Found FFmpeg at: ' . $ffmpegPath, __METHOD__);
+            $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+            return $this->validateFfmpegAndCreate($ffmpegPath);
+        }
+        
+        Debug::log('FFmpeg not found using \'type\'', __METHOD__);
+        return null;
+    }
+    
+    private function detectUsingCommandExists($settings)
+    {
+        Debug::log('Detecting FFmpeg using \'command -v\'', __METHOD__);
+        $output = [];
+        $returnVar = null;
+        exec('command -v ffmpeg 2>/dev/null', $output, $returnVar);
+        
+        if ($returnVar === 0 && !empty($output)) {
+            $ffmpegPath = trim($output[0]);
+            Debug::log('Found FFmpeg at: ' . $ffmpegPath, __METHOD__);
+            $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+            return $this->validateFfmpegAndCreate($ffmpegPath);
+        }
+        
+        Debug::log('FFmpeg not found using \'command -v\'', __METHOD__);
+        return null;
+    }
+    
+    private function detectUsingEnvPath($settings)
+    {
+        Debug::log('Detecting FFmpeg in PATH environment variable', __METHOD__);
+        $paths = explode(PATH_SEPARATOR, getenv('PATH'));
+        
+        foreach ($paths as $path) {
+            $ffmpegPath = rtrim($path, '/') . '/ffmpeg';
+            if (file_exists($ffmpegPath) && is_executable($ffmpegPath)) {
+                Debug::log('Found FFmpeg at: ' . $ffmpegPath, __METHOD__);
+                $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+                return $this->validateFfmpegAndCreate($ffmpegPath);
+            }
+        }
+        
+        Debug::log('FFmpeg not found in PATH', __METHOD__);
+        return null;
+    }
+    
+    private function detectUsingCommonPaths($settings)
+    {
+        Debug::log('Checking common paths for FFmpeg', __METHOD__);
+        $commonPaths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg',
+            '/opt/bin/ffmpeg',
+            '/usr/sbin/ffmpeg',
+            '/usr/local/sbin/ffmpeg',
+        ];
+        
+        foreach ($commonPaths as $ffmpegPath) {
+            if (file_exists($ffmpegPath) && is_executable($ffmpegPath)) {
+                Debug::log('Found FFmpeg at common path: ' . $ffmpegPath, __METHOD__);
+                $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+                return $this->validateFfmpegAndCreate($ffmpegPath);
+            }
+        }
+        
+        Debug::log('FFmpeg not found in common paths', __METHOD__);
+        return null;
+    }
 
     protected function validateFfmpegAndCreate($ffmpegPath)
     {

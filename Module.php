@@ -235,7 +235,7 @@ class Module extends AbstractModule
             $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path');
 
             $extractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
-            $filePath = $media instanceof MediaRepresentation ? $media->originalFilePath() : $media->getFilePath();
+            $filePath = $media instanceof MediaRepresentation ? $media->originalFilePath() : $media->originalFilePath();
             $mediaId = $media instanceof MediaRepresentation ? $media->id() : $media->getId();
 
             $duration = $extractor->getVideoDuration($filePath);

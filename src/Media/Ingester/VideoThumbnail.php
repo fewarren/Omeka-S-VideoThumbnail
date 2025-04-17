@@ -70,7 +70,7 @@ class VideoThumbnail implements MutableIngesterInterface
         // Now extract frame for thumbnail if it's a video
         $mediaType = $media->getMediaType();
         if ($this->isVideoMedia($mediaType)) {
-            $filePath = $media->getFilePath();
+            $filePath = $media->originalFilePath();
             $this->extractAndSetDefaultThumbnail($filePath, $media);
         }
 
@@ -210,7 +210,7 @@ class VideoThumbnail implements MutableIngesterInterface
         // Now extract frame for thumbnail if it's a video
         $mediaType = $media->getMediaType();
         if ($this->isVideoMedia($mediaType)) {
-            $filePath = $media->getFilePath();
+            $filePath = $media->originalFilePath();
             $this->extractAndSetDefaultThumbnail($filePath, $media);
         }
 

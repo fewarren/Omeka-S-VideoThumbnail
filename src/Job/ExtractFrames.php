@@ -1,5 +1,5 @@
 <?php
-namespace Omeka\Job;
+namespace VideoThumbnail\Job;
 
 use Omeka\Job\AbstractJob;
 
@@ -46,8 +46,21 @@ class ExtractFrames extends AbstractJob
                 ? (float)$args['frame_position'] 
                 : (float)$settings->get('videothumbnail_default_frame', 10);
 
-            $mediaRepository = $this->getServiceLocator()->get('Omeka\EntityManager')->getRepository('Omeka\Entity\Media');
-            $medias = $mediaRepository->findBy(['mediaType' => 'video/mp4']);
+            $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
+            $mediaRepository = $entityManager->getRepository('Omeka\Entity\Media');
+            
+            // Get supported video formats from settings
+            $supportedFormats = $settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
+            if (!is_array($supportedFormats)) {
+                $supportedFormats = ['video/mp4', 'video/quicktime'];
+            }
+            
+            // Query for all supported video formats
+            $queryBuilder = $mediaRepository->createQueryBuilder('media');
+            $queryBuilder->where($queryBuilder->expr()->in('media.mediaType', ':formats'))
+                        ->setParameter('formats', $supportedFormats);
+            
+            $medias = $queryBuilder->getQuery()->getResult();
             $totalMedias = count($medias);
 
             $logger->info(sprintf('VideoThumbnail: Starting thumbnail regeneration for %d videos', $totalMedias));
@@ -56,18 +69,63 @@ class ExtractFrames extends AbstractJob
                 $logger->info('VideoThumbnail: No video files found to process');
                 return;
             }
+            
+            // Get the video frame extractor service
+            $videoFrameExtractor = $this->getServiceLocator()->get('VideoThumbnail\VideoFrameExtractor');
+            $processed = 0;
+            $failed = 0;
 
             foreach ($medias as $index => $media) {
                 // Add periodic memory and stop checks
                 $this->checkMemoryUsage();
                 $this->stopIfRequested();
 
-                // Processing logic (placeholder)
-                $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
-                // Add actual frame extraction logic here
+                try {
+                    $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
+                    
+                    // Get the video file path
+                    $filePath = $media->originalFilePath();
+                    
+                    if (!file_exists($filePath) || !is_readable($filePath)) {
+                        $logger->warn(sprintf('Video file not found or not readable: %s', $filePath));
+                        $failed++;
+                        continue;
+                    }
+                    
+                    // Calculate frame position based on settings
+                    $position = $defaultFramePercent;
+                    
+                    // Extract a frame at the specified position
+                    $framePath = $videoFrameExtractor->extractFrame($filePath, $position);
+                    
+                    if (!$framePath) {
+                        $logger->warn(sprintf('Failed to extract frame from video: %s', $filePath));
+                        $failed++;
+                        continue;
+                    }
+                    
+                    // Getting existing media data
+                    $mediaData = $media->getData() ?: [];
+                    
+                    // Update just the videothumbnail_frame field
+                    $mediaData['videothumbnail_frame'] = $position;
+                    
+                    // Set the updated data back to the media
+                    $media->setData($mediaData);
+                    
+                    // Save the changes
+                    $entityManager->persist($media);
+                    $entityManager->flush();
+                    
+                    $processed++;
+                    $logger->info(sprintf('Extracted thumbnail for video %d at position %f seconds', $media->getId(), $position));
+                } catch (\Exception $e) {
+                    $logger->err(sprintf('Error processing video %d: %s', $media->getId(), $e->getMessage()));
+                    $failed++;
+                }
             }
-
-            $logger->info('VideoThumbnail: Job completed successfully.');
+            
+            $logger->info(sprintf('VideoThumbnail: Job completed. Processed %d videos successfully, %d failed.', $processed, $failed));
         } catch (\Exception $e) {
             $logger->err('Fatal error in thumbnail regeneration job: ' . $e->getMessage());
         }
@@ -93,7 +151,7 @@ class ExtractFrames extends AbstractJob
      */
     protected function stopIfRequested()
     {
-        if ($this->job->isStopped()) {
+        if ($this->shouldStop()) {
             throw new \RuntimeException('Job was manually stopped.');
         }
     }
