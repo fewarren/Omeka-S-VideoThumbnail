@@ -3,9 +3,22 @@ namespace VideoThumbnail\Job\DispatchStrategy;
 
 use Omeka\Job\DispatchStrategy\StrategyInterface;
 use Omeka\Entity\Job;
+use Omeka\File\Manager;
 
 class VideoThumbnailStrategy implements StrategyInterface
 {
+    private $fileManager;
+
+    /**
+     * Constructor to inject dependencies.
+     *
+     * @param Manager $fileManager
+     */
+    public function __construct(Manager $fileManager)
+    {
+        $this->fileManager = $fileManager;
+    }
+
     /**
      * Start a new job process.
      *
@@ -29,6 +42,9 @@ class VideoThumbnailStrategy implements StrategyInterface
 
             // Set the job status
             $job->setStatus(Job::STATUS_STARTING);
+
+            // Example usage of fileManager
+            $this->fileManager->doSomethingWithFiles($job);
 
             // Log that we've dispatched the job
             error_log(sprintf('VideoThumbnail job %s queued for background processing', $jobId));
