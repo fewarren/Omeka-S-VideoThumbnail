@@ -84,7 +84,7 @@ class ExtractFrames extends AbstractJob
                     $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
                     
                     // Get the video file path
-                    $filePath = $media->originalFilePath();
+                    $filePath = $media->getStoragePath(); // Updated method
                     
                     if (!file_exists($filePath) || !is_readable($filePath)) {
                         $logger->warn(sprintf('Video file not found or not readable: %s', $filePath));
