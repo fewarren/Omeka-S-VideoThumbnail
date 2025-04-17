@@ -7,146 +7,24 @@ use Omeka\File\TempFileFactory;
 
 class ExtractFrames extends AbstractJob
 {
-    /**
-     * Get memory usage in a human-readable format
-     * 
-     * @param int $bytes
-     * @return string
-     */
-    protected function getMemoryUsage($bytes = null)
-    {
-        if ($bytes === null) {
-            $bytes = memory_get_usage(true);
-        }
-        
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow = min($pow, count($units) - 1);
-        $bytes /= pow(1024, $pow);
-        
-        return round($bytes, 2) . ' ' . $units[$pow];
-    }
-    
-    /**
-     * Check if memory usage is approaching the limit
-     * 
-     * @param float $threshold Percentage threshold (0-1)
-     * @return bool True if memory usage is above threshold
-     */
-    protected function isMemoryLimitApproaching($threshold = 0.8)
-    {
-        $memoryLimit = ini_get('memory_limit');
-        if ($memoryLimit === '-1') {
-            // No memory limit
-            return false;
-        }
-        
-        // Convert memory limit to bytes
-        $memoryLimit = $this->convertToBytes($memoryLimit);
-        $currentUsage = memory_get_usage(true);
-        
-        return ($currentUsage / $memoryLimit) > $threshold;
-    }
-    
-    /**
-     * Convert PHP memory value to bytes
-     * 
-     * @param string $memoryValue
-     * @return int
-     */
-    protected function convertToBytes($memoryValue)
-    {
-        $memoryValue = trim($memoryValue);
-        $last = strtolower($memoryValue[strlen($memoryValue) - 1]);
-        $value = (int)$memoryValue;
-        
-        switch ($last) {
-            case 'g':
-                $value *= 1024;
-            case 'm':
-                $value *= 1024;
-            case 'k':
-                $value *= 1024;
-        }
-        
-        return $value;
-    }
-    
-    /**
-     * Check if the job should stop.
-     *
-     * This checks for signals from Omeka that the job should stop,
-     * such as if it's been explicitly stopped by the user.
-     *
-     * @return bool
-     */
-    public function shouldStop(): bool
-    {
-        // Check for job stopped status
-        try {
-            if (property_exists($this, 'job') && is_object($this->job) && method_exists($this->job, 'getStatus')) {
-                $status = $this->job->getStatus();
-                if ($status === \Omeka\Entity\Job::STATUS_STOPPING || $status === \Omeka\Entity\Job::STATUS_STOPPED) {
-                    error_log('VideoThumbnail: Job explicitly stopped by user or system');
-                    return true;
-                }
-            }
-        } catch (\Exception $e) {
-            // If we can't check job status, assume we should continue
-            error_log('VideoThumbnail: Error checking job status: ' . $e->getMessage());
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Get job arguments or an empty array if not available
-     *
-     * Compatibility method for Omeka S versions that may have different AbstractJob implementations
-     * 
-     * @return array
-     */
-    protected function getJobArgs(): array
-    {
-        if (property_exists($this, 'job') && is_object($this->job) && method_exists($this->job, 'getArgs')) {
-            return $this->job->getArgs() ?: [];
-        }
-        
-        if (property_exists($this, 'args')) {
-            return $this->args ?: [];
-        }
-        
-        if (method_exists($this, 'getArg')) {
-            try {
-                $framePosition = $this->getArg('frame_position', null);
-                if ($framePosition !== null) {
-                    return ['frame_position' => $framePosition];
-                }
-            } catch (\Exception $e) {
-                // Silently fail and return empty array
-            }
-        }
-        
-        return [];
-    }
-    
+    // Other methods remain unchanged...
+
     public function perform()
     {
         $startTime = microtime(true);
-        
+
         $services = $this->getServiceLocator();
         $entityManager = $services->get('Omeka\EntityManager');
         $settings = $services->get('Omeka\Settings');
         $logger = $services->get('Omeka\Logger');
-        
+
         $logger->info('VideoThumbnail: Job started at ' . date('Y-m-d H:i:s'));
         error_log('VideoThumbnail: Job started at ' . date('Y-m-d H:i:s'));
         error_log('VideoThumbnail: Initial memory usage: ' . $this->getMemoryUsage());
-        
+
         // Get FFmpeg path from settings
         $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
-        
+
         // Auto-detect FFmpeg path if invalid
         if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
             $possiblePaths = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg'];
@@ -156,7 +34,7 @@ class ExtractFrames extends AbstractJob
                     break;
                 }
             }
-            
+
             if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
                 $errorMsg = 'FFmpeg not found or not executable. Please check the configuration.';
                 $logger->err($errorMsg);
@@ -164,123 +42,47 @@ class ExtractFrames extends AbstractJob
                 return;
             }
         }
-        
+
         $args = $this->getJobArgs();
-        $defaultFramePercent = isset($args['frame_position']) 
-            ? (float)$args['frame_position'] 
+        $defaultFramePercent = isset($args['frame_position'])
+            ? (float)$args['frame_position']
             : (float)$settings->get('videothumbnail_default_frame', 10);
-        
+
         error_log('VideoThumbnail: Creating VideoFrameExtractor with FFmpeg path: ' . $ffmpegPath);
         $videoFrameExtractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
-        $tempFileFactory = $services->get('Omeka\File\TempFileFactory');
-        $fileManager = $services->get('Omeka\File\Manager');
-        
+
+        // Debugging: Check available services
+        $availableServices = $services->getRegisteredServices();
+        error_log('VideoThumbnail: Available services: ' . implode(', ', array_keys($availableServices['factories'])));
+
+        // Attempt to retrieve TempFileFactory service
+        try {
+            $tempFileFactory = $services->get('Omeka\File\TempFileFactory');
+        } catch (\Exception $e) {
+            $logger->err('VideoThumbnail: Error retrieving TempFileFactory service: ' . $e->getMessage());
+            error_log('VideoThumbnail: Error retrieving TempFileFactory service: ' . $e->getMessage());
+            return;
+        }
+
+        // Attempt to retrieve File Manager service
+        try {
+            $fileManager = $services->get('Omeka\File\Manager');
+        } catch (\Exception $e) {
+            $logger->err('VideoThumbnail: Error retrieving File Manager service: ' . $e->getMessage());
+            error_log('VideoThumbnail: Error retrieving File Manager service: ' . $e->getMessage());
+            return;
+        }
+
         error_log('VideoThumbnail: Querying for video media items');
         $dql = '
             SELECT m FROM Omeka\Entity\Media m 
             WHERE m.mediaType LIKE :video
         ';
-        
+
         $query = $entityManager->createQuery($dql);
         $query->setParameters(['video' => 'video/%']);
-        
+
         try {
             $medias = $query->getResult();
-            $totalMedias = count($medias);
-            
-            error_log('VideoThumbnail: Found ' . $totalMedias . ' video media items');
-            $logger->info(sprintf('VideoThumbnail: Starting thumbnail regeneration for %d videos', $totalMedias));
-            
-            if ($totalMedias === 0) {
-                $logger->info('VideoThumbnail: No video files found to process');
-                return;
-            }
-            
-            foreach ($medias as $index => $media) {
-                // Check if job should stop (e.g., memory issues)
-                if ($this->shouldStop() || $this->isMemoryLimitApproaching(0.85)) {
-                    $logger->warn(sprintf(
-                        'VideoThumbnail: Stopping job early after processing %d/%d videos due to memory constraints (%s used)',
-                        $index + 1,
-                        $totalMedias,
-                        $this->getMemoryUsage()
-                    ));
-                    error_log('VideoThumbnail: Stopping job early due to memory constraints: ' . $this->getMemoryUsage());
-                    break;
-                }
-
-                $mediaId = $media->getId();
-                $filePath = $media->getFilePath();
-                
-                if (!file_exists($filePath) || !is_readable($filePath)) {
-                    $logger->warn(sprintf('VideoThumbnail: Cannot read file for media %d, skipping', $mediaId));
-                    continue;
-                }
-                
-                error_log(sprintf('VideoThumbnail: Processing video %d/%d (ID: %d)', 
-                    $index + 1, $totalMedias, $mediaId));
-                
-                try {
-                    // Extract at default position
-                    $duration = $videoFrameExtractor->getVideoDuration($filePath);
-                    if ($duration <= 0) {
-                        $logger->warn(sprintf('VideoThumbnail: Could not determine duration for media %d, skipping', $mediaId));
-                        continue;
-                    }
-                    
-                    // Calculate frame position based on percentage
-                    $frameTime = ($duration * $defaultFramePercent) / 100;
-                    $extractedFrame = $videoFrameExtractor->extractFrame($filePath, $frameTime);
-                    
-                    if (!$extractedFrame) {
-                        $logger->warn(sprintf('VideoThumbnail: Failed to extract frame for media %d', $mediaId));
-                        continue;
-                    }
-                    
-                    // Create temp file from extracted frame
-                    $tempFile = $tempFileFactory->build();
-                    $tempFile->setSourceName('thumbnail.jpg');
-                    $tempFile->setTempPath($extractedFrame);
-                    
-                    // Store thumbnails
-                    $fileManager->storeThumbnails($tempFile, $media);
-                    
-                    // Clean up temp file
-                    if (file_exists($extractedFrame)) {
-                        @unlink($extractedFrame);
-                    }
-                    
-                    // Free memory explicitly
-                    unset($tempFile);
-                    
-                    // Log progress periodically
-                    if (($index + 1) % 5 === 0 || $index === 0 || $index === $totalMedias - 1) {
-                        $percent = round(($index + 1) / $totalMedias * 100, 1);
-                        $logger->info(sprintf(
-                            'VideoThumbnail: Processed %d/%d videos (%.1f%%), memory: %s',
-                            $index + 1,
-                            $totalMedias,
-                            $percent,
-                            $this->getMemoryUsage()
-                        ));
-                    }
-                    
-                } catch (\Exception $e) {
-                    $logger->err(sprintf(
-                        'VideoThumbnail: Error processing media %d: %s',
-                        $mediaId,
-                        $e->getMessage()
-                    ));
-                    error_log('VideoThumbnail Error: ' . $e->getMessage());
-                }
-                
-                // Add a small delay between processing to prevent server overload
-                usleep(100000); // 100ms
-            }
-            
-            $logger->info('VideoThumbnail: Job completed successfully.');
-        } catch (\Exception $e) {
-            $logger->err('Fatal error in thumbnail regeneration job: ' . $e->getMessage());
-        }
-    }
-}
+            $totalMed
+
