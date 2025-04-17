@@ -56,6 +56,17 @@ return [
                             ],
                         ],
                     ],
+                    'video-thumbnail-extract-frame' => [
+                        'type' => 'Segment',
+                        'options' => [
+                            'route' => '/video-thumbnail/extract-frame',
+                            'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                'controller' => 'VideoThumbnail',
+                                'action' => 'extract-frame',
+                            ],
+                        ],
+                    ],
                 ],
             ],
         ],
@@ -71,5 +82,41 @@ return [
     ],
     'media_ingesters' => [
         'factories' => [
-            '](#)
-
+            'videothumbnail' => Service\Media\IngesterFactory::class,
+        ],
+    ],
+    'media_renderers' => [
+        'factories' => [
+            'videothumbnail' => Service\Media\RendererFactory::class,
+        ],
+        // Aliases are now registered dynamically based on the configured formats
+    ],
+    'js_translate_strings' => [
+        'Select Frame', 
+        'Generating thumbnails...', 
+        'Error loading video frames', 
+        'Select this frame as thumbnail',
+    ],
+    'assets' => [
+        'module_paths' => [
+            'VideoThumbnail' => 'VideoThumbnail/asset',
+        ],
+    ],
+    'job' => [
+        'dispatcher_strategies' => [
+            'factories' => [
+                Job\DispatchStrategy\VideoThumbnailStrategy::class => Service\Job\DispatchStrategy\VideoThumbnailStrategyFactory::class,
+            ],
+        ],
+    ],
+    'service_manager' => [
+        'factories' => [
+            'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+        ],
+        'delegators' => [
+            'Omeka\File\Store\Manager' => [
+                Service\FileManagerDelegatorFactory::class,
+            ],
+        ],
+    ],
+];
