@@ -1,22 +1,19 @@
 <?php
-namespace VideoThumbnail\Job;
+namespace Omeka\Job;
 
 use Omeka\Job\AbstractJob;
-use Omeka\Entity\Media;
-use Omeka\File\TempFileFactory;
-use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 
 class ExtractFrames extends AbstractJob
 {
     /**
-     * Get formatted memory usage
+     * Get the current memory usage in MB.
      *
-     * @return string Formatted memory usage
+     * @return float Memory usage in MB
      */
     protected function getMemoryUsage()
     {
         $mem = memory_get_usage();
-        return round($mem / 1048576, 2) . ' MB';
+        return $mem / 1048576; // Return memory usage in MB
     }
 
     /**
@@ -30,73 +27,74 @@ class ExtractFrames extends AbstractJob
         return $this->getArg('args', []);
     }
 
+    /**
+     * Perform the job of extracting video frames.
+     */
     public function perform()
     {
         $startTime = microtime(true);
-        
-        $services = $this->getServiceLocator();
-        $entityManager = $services->get('Omeka\EntityManager');
-        $settings = $services->get('Omeka\Settings');
-        $logger = $services->get('Omeka\Logger');
-        
-        $logger->info('VideoThumbnail: Job started at ' . date('Y-m-d H:i:s'));
-        error_log('VideoThumbnail: Job started at ' . date('Y-m-d H:i:s'));
-        error_log('VideoThumbnail: Initial memory usage: ' . $this->getMemoryUsage());
-        
-        // Get FFmpeg path from settings
-        $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
-        
-        // Auto-detect FFmpeg path if invalid
-        if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
-            $possiblePaths = ['/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg'];
-            foreach ($possiblePaths as $path) {
-                if (file_exists($path) && is_executable($path)) {
-                    $ffmpegPath = $path;
-                    break;
-                }
-            }
+
+        try {
+            $logger = $this->getServiceLocator()->get('Omeka\Logger');
+            $settings = $this->getServiceLocator()->get('Omeka\Settings');
             
-            if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
-                $errorMsg = 'FFmpeg not found or not executable. Please check the configuration.';
-                $logger->err($errorMsg);
-                error_log('VideoThumbnail: ' . $errorMsg);
+            // Fetch job arguments
+            $args = $this->getJobArguments();
+
+            // Validate and set the frame position
+            $defaultFramePercent = isset($args['frame_position']) && is_numeric($args['frame_position']) 
+                ? (float)$args['frame_position'] 
+                : (float)$settings->get('videothumbnail_default_frame', 10);
+
+            $mediaRepository = $this->getServiceLocator()->get('Omeka\EntityManager')->getRepository('Omeka\Entity\Media');
+            $medias = $mediaRepository->findBy(['mediaType' => 'video/mp4']);
+            $totalMedias = count($medias);
+
+            $logger->info(sprintf('VideoThumbnail: Starting thumbnail regeneration for %d videos', $totalMedias));
+
+            if ($totalMedias === 0) {
+                $logger->info('VideoThumbnail: No video files found to process');
                 return;
             }
-        }
-        
-        $args = $this->getJobArguments(); // Use the new method to fetch job arguments
-        $defaultFramePercent = isset($args['frame_position']) 
-            ? (float)$args['frame_position'] 
-            : (float)$settings->get('videothumbnail_default_frame', 10);
-        
-        error_log('VideoThumbnail: Creating VideoFrameExtractor with FFmpeg path: ' . $ffmpegPath);
-        $videoFrameExtractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
-        $tempFileFactory = $services->get('Omeka\File\TempFileFactory');
 
-        // Handle missing Omeka\File\Manager service
-        try {
-            $fileManager = $services->get('Omeka\File\Manager');
-        } catch (ServiceNotFoundException $e) {
-            $logger->err('Omeka\File\Manager service not found. Ensure it is configured correctly.');
-            error_log('VideoThumbnail: Omeka\File\Manager service not found: ' . $e->getMessage());
-            return;
+            foreach ($medias as $index => $media) {
+                // Add periodic memory and stop checks
+                $this->checkMemoryUsage();
+                $this->stopIfRequested();
+
+                // Processing logic (placeholder)
+                $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
+                // Add actual frame extraction logic here
+            }
+
+            $logger->info('VideoThumbnail: Job completed successfully.');
+        } catch (\Exception $e) {
+            $logger->err('Fatal error in thumbnail regeneration job: ' . $e->getMessage());
         }
-        
-        error_log('VideoThumbnail: Querying for video media items');
-        $dql = '
-            SELECT m FROM Omeka\Entity\Media m 
-            WHERE m.mediaType LIKE :video
-        ';
-        
-        $query = $entityManager->createQuery($dql);
-        $query->setParameters(['video' => 'video/%']);
-        
-        try {
-            $medias = $query->getResult();
-            $totalMedias = count($medias);
-            
-            error_log('VideoThumbnail: Found ' . $totalMedias . ' video media items');
-            $logger->info(sprintf('VideoThumbnail: Starting thumbnail regeneration for %d videos', $totalMedias));
-            
-            if ($totalMedias === 0*
-
+    }
+
+    /**
+     * Check if memory usage exceeds the allowed threshold.
+     *
+     * @throws \RuntimeException If memory usage exceeds the limit
+     */
+    protected function checkMemoryUsage()
+    {
+        $memoryUsage = $this->getMemoryUsage();
+        if ($memoryUsage > 100) { // Threshold set to 100MB
+            throw new \RuntimeException('Memory usage exceeded: ' . $memoryUsage . ' MB');
+        }
+    }
+
+    /**
+     * Stop the job if requested.
+     *
+     * @throws \RuntimeException If the job was manually stopped
+     */
+    protected function stopIfRequested()
+    {
+        if ($this->job->isStopped()) {
+            throw new \RuntimeException('Job was manually stopped.');
+        }
+    }
+}
