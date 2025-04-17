@@ -5,10 +5,15 @@ use Omeka\Job\AbstractJob;
 
 class ExtractFrames extends AbstractJob
 {
+    /**
+     * Get the current memory usage in MB.
+     *
+     * @return float Memory usage in MB
+     */
     protected function getMemoryUsage()
     {
         $mem = memory_get_usage();
-        return round($mem / 1048576, 2) . ' MB';
+        return $mem / 1048576; // Return memory usage in MB
     }
 
     /**
@@ -22,6 +27,9 @@ class ExtractFrames extends AbstractJob
         return $this->getArg('args', []);
     }
 
+    /**
+     * Perform the job of extracting video frames.
+     */
     public function perform()
     {
         $startTime = microtime(true);
@@ -31,9 +39,10 @@ class ExtractFrames extends AbstractJob
             $settings = $this->getServiceLocator()->get('Omeka\Settings');
             
             // Fetch job arguments
-            $args = $this->getJobArguments(); // Use the new method to fetch job arguments
-            
-            $defaultFramePercent = isset($args['frame_position']) 
+            $args = $this->getJobArguments();
+
+            // Validate and set the frame position
+            $defaultFramePercent = isset($args['frame_position']) && is_numeric($args['frame_position']) 
                 ? (float)$args['frame_position'] 
                 : (float)$settings->get('videothumbnail_default_frame', 10);
 
@@ -47,14 +56,15 @@ class ExtractFrames extends AbstractJob
                 $logger->info('VideoThumbnail: No video files found to process');
                 return;
             }
-            
+
             foreach ($medias as $index => $media) {
                 // Add periodic memory and stop checks
                 $this->checkMemoryUsage();
                 $this->stopIfRequested();
 
-                // Processing logic remains unchanged
+                // Processing logic (placeholder)
                 $logger->info(sprintf('Processing video %d of %d', $index + 1, $totalMedias));
+                // Add actual frame extraction logic here
             }
 
             $logger->info('VideoThumbnail: Job completed successfully.');
@@ -63,14 +73,24 @@ class ExtractFrames extends AbstractJob
         }
     }
 
+    /**
+     * Check if memory usage exceeds the allowed threshold.
+     *
+     * @throws \RuntimeException If memory usage exceeds the limit
+     */
     protected function checkMemoryUsage()
     {
         $memoryUsage = $this->getMemoryUsage();
-        if ($memoryUsage > 100) {
-            throw new \RuntimeException('Memory usage exceeded: ' . $memoryUsage);
+        if ($memoryUsage > 100) { // Threshold set to 100MB
+            throw new \RuntimeException('Memory usage exceeded: ' . $memoryUsage . ' MB');
         }
     }
 
+    /**
+     * Stop the job if requested.
+     *
+     * @throws \RuntimeException If the job was manually stopped
+     */
     protected function stopIfRequested()
     {
         if ($this->job->isStopped()) {
