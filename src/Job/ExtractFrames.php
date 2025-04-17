@@ -85,4 +85,4 @@ class ExtractFrames extends AbstractJob
         try {
             $medias = $query->getResult();
             $totalMed
-
+        }
