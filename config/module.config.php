@@ -27,39 +27,5 @@ return [
     ],
     'controller_plugins' => [
         'factories' => [
-            'extractVideoFrames' => Service\ControllerPlugin\ExtractVideoFramesFactory::class,
-        ],
-    ],
-    'router' => [
-        'routes' => [
-            'admin' => [
-                'child_routes' => [
-                    'video-thumbnail' => [
-                        'type' => 'Segment',
-                        'options' => [
-                            'route' => '/video-thumbnail[/:action[/:id]]',
-                            'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
-                                'action' => 'index',
-                            ],
-                            'constraints' => [
-                                'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
-                                'id' => '\d+',
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ],
-    ],
-    'navigation' => [
-        'AdminModule' => [
-            [
-                'label' => 'Video Thumbnail',
-                'route' => 'admin/video-thumbnail',
-                'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
-            ],
-        ],
-    ],
-];
+            'extractVideoFrames' => Service\ControllerPlugin\ExtractVideoFramesFactory::class](#)
+
