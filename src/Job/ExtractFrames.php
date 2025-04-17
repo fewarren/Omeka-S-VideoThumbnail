@@ -19,6 +19,17 @@ class ExtractFrames extends AbstractJob
         return round($mem / 1048576, 2) . ' MB';
     }
 
+    /**
+     * Retrieve job arguments
+     *
+     * @return array The job arguments
+     */
+    protected function getJobArguments()
+    {
+        // Replace with actual logic to fetch job arguments
+        return $this->getArg('args', []);
+    }
+
     public function perform()
     {
         $startTime = microtime(true);
@@ -53,7 +64,7 @@ class ExtractFrames extends AbstractJob
             }
         }
         
-        $args = $this->getArgs();
+        $args = $this->getJobArguments(); // Use the new method to fetch job arguments
         $defaultFramePercent = isset($args['frame_position']) 
             ? (float)$args['frame_position'] 
             : (float)$settings->get('videothumbnail_default_frame', 10);
@@ -87,19 +98,5 @@ class ExtractFrames extends AbstractJob
             error_log('VideoThumbnail: Found ' . $totalMedias . ' video media items');
             $logger->info(sprintf('VideoThumbnail: Starting thumbnail regeneration for %d videos', $totalMedias));
             
-            if ($totalMedias === 0) {
-                $logger->info('VideoThumbnail: No video files found to process');
-                return;
-            }
-            
-            foreach ($medias as $index => $media) {
-                // Add periodic memory and stop checks
-                // Processing logic remains unchanged
-            }
-            
-            $logger->info('VideoThumbnail: Job completed successfully.');
-        } catch (\Exception $e) {
-            $logger->err('Fatal error in thumbnail regeneration job: ' . $e->getMessage());
-        }
-    }
-}
+            if ($totalMedias === 0*
+
