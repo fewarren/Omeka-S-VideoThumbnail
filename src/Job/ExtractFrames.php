@@ -8,7 +8,16 @@ use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 
 class ExtractFrames extends AbstractJob
 {
-    // Other methods remain unchanged...
+    /**
+     * Get formatted memory usage
+     *
+     * @return string Formatted memory usage
+     */
+    protected function getMemoryUsage()
+    {
+        $mem = memory_get_usage();
+        return round($mem / 1048576, 2) . ' MB';
+    }
 
     public function perform()
     {
@@ -44,7 +53,7 @@ class ExtractFrames extends AbstractJob
             }
         }
         
-        $args = $this->getJobArgs();
+        $args = $this->getArgs();
         $defaultFramePercent = isset($args['frame_position']) 
             ? (float)$args['frame_position'] 
             : (float)$settings->get('videothumbnail_default_frame', 10);

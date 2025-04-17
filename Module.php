@@ -103,6 +103,9 @@ class Module extends AbstractModule
         
         // Register CSS and JS assets
         $this->attachListenersForAssets($event);
+        
+        // Add ACL rules
+        $this->addAclRules($serviceManager);
     }
     
     /**
@@ -271,6 +274,18 @@ class Module extends AbstractModule
             }
             rmdir($directory);
         }
+    }
+    
+    /**
+     * Add ACL rules for this module
+     */
+    protected function addAclRules($serviceManager): void
+    {
+        $acl = $serviceManager->get('Omeka\Acl');
+        $acl->allow(
+            null,
+            ['VideoThumbnail\Controller\Admin\VideoThumbnail']
+        );
     }
 }
 
