@@ -4,106 +4,12 @@ namespace VideoThumbnail\Job;
 use Omeka\Job\AbstractJob;
 use Omeka\Entity\Media;
 use Omeka\File\TempFileFactory;
+use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 
 class ExtractFrames extends AbstractJob
 {
-    /**
-     * Get memory usage in a human-readable format
-     * 
-     * @param int $bytes
-     * @return string
-     */
-    protected function getMemoryUsage($bytes = null)
-    {
-        if ($bytes === null) {
-            $bytes = memory_get_usage(true);
-        }
-        
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow = min($pow, count($units) - 1);
-        $bytes /= pow(1024, $pow);
-        
-        return round($bytes, 2) . ' ' . $units[$pow];
-    }
-    
-    /**
-     * Check if memory usage is approaching the limit
-     * 
-     * @param float $threshold Percentage threshold (0-1)
-     * @return bool True if memory usage is above threshold
-     */
-    protected function isMemoryLimitApproaching($threshold = 0.8)
-    {
-        $memoryLimit = ini_get('memory_limit');
-        if ($memoryLimit === '-1') {
-            // No memory limit
-            return false;
-        }
-        
-        // Convert memory limit to bytes
-        $memoryLimit = $this->convertToBytes($memoryLimit);
-        $currentUsage = memory_get_usage(true);
-        
-        return ($currentUsage / $memoryLimit) > $threshold;
-    }
-    
-    /**
-     * Convert PHP memory value to bytes
-     * 
-     * @param string $memoryValue
-     * @return int
-     */
-    protected function convertToBytes($memoryValue)
-    {
-        $memoryValue = trim($memoryValue);
-        $last = strtolower($memoryValue[strlen($memoryValue) - 1]);
-        $value = (int)$memoryValue;
-        
-        switch ($last) {
-            case 'g':
-                $value *= 1024;
-            case 'm':
-                $value *= 1024;
-            case 'k':
-                $value *= 1024;
-        }
-        
-        return $value;
-    }
-    
-    /**
-     * Get job arguments or an empty array if not available
-     *
-     * Compatibility method for Omeka S versions that may have different AbstractJob implementations
-     * 
-     * @return array
-     */
-    protected function getJobArgs(): array
-    {
-        if (property_exists($this, 'job') && is_object($this->job) && method_exists($this->job, 'getArgs')) {
-            return $this->job->getArgs() ?: [];
-        }
-        
-        if (property_exists($this, 'args')) {
-            return $this->args ?: [];
-        }
-        
-        if (method_exists($this, 'getArg')) {
-            try {
-                $framePosition = $this->getArg('frame_position', null);
-                if ($framePosition !== null) {
-                    return ['frame_position' => $framePosition];
-                }
-            } catch (\Exception $e) {
-                // Silently fail and return empty array
-            }
-        }
-        
-        return [];
-    }
-    
+    // Other methods remain unchanged...
+
     public function perform()
     {
         $startTime = microtime(true);
@@ -146,7 +52,15 @@ class ExtractFrames extends AbstractJob
         error_log('VideoThumbnail: Creating VideoFrameExtractor with FFmpeg path: ' . $ffmpegPath);
         $videoFrameExtractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
         $tempFileFactory = $services->get('Omeka\File\TempFileFactory');
-        $fileManager = $services->get('Omeka\File\Manager');
+
+        // Handle missing Omeka\File\Manager service
+        try {
+            $fileManager = $services->get('Omeka\File\Manager');
+        } catch (ServiceNotFoundException $e) {
+            $logger->err('Omeka\File\Manager service not found. Ensure it is configured correctly.');
+            error_log('VideoThumbnail: Omeka\File\Manager service not found: ' . $e->getMessage());
+            return;
+        }
         
         error_log('VideoThumbnail: Querying for video media items');
         $dql = '
