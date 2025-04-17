@@ -31,45 +31,5 @@ return [
         'routes' => [
             'admin' => [
                 'child_routes' => [
-                    'video-thumbnail' => [
-                        'type' => 'Segment',
-                        'options' => [
-                            'route' => '/video-thumbnail[/:action]',
-                            'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
-                                'action' => 'index',
-                            ],
-                        ],
-                    ],
-                    'video-thumbnail-select-frame' => [
-                        'type' => 'Segment',
-                        'options' => [
-                            'route' => '/video-thumbnail/select-frame/:id',
-                            'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
-                                'action' => 'select-frame',
-                            ],
-                            'constraints' => [
-                                'id' => '\d+',
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ],
-    ],
-    'navigation' => [
-        'AdminModule' => [
-            [
-                'label' => 'Video Thumbnail', 
-                'route' => 'admin/video-thumbnail',
-                'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnail',
-            ],
-        ],
-    ],
-    'media_ingesters' => [
-        'factories' => [
-            '](#)
+                   ](#)
 
