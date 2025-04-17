@@ -74,6 +74,33 @@ class ExtractFrames extends AbstractJob
     }
     
     /**
+     * Check if the job should stop.
+     *
+     * This checks for signals from Omeka that the job should stop,
+     * such as if it's been explicitly stopped by the user.
+     *
+     * @return bool
+     */
+    public function shouldStop(): bool
+    {
+        // Check for job stopped status
+        try {
+            if (property_exists($this, 'job') && is_object($this->job) && method_exists($this->job, 'getStatus')) {
+                $status = $this->job->getStatus();
+                if ($status === \Omeka\Entity\Job::STATUS_STOPPING || $status === \Omeka\Entity\Job::STATUS_STOPPED) {
+                    error_log('VideoThumbnail: Job explicitly stopped by user or system');
+                    return true;
+                }
+            }
+        } catch (\Exception $e) {
+            // If we can't check job status, assume we should continue
+            error_log('VideoThumbnail: Error checking job status: ' . $e->getMessage());
+        }
+        
+        return false;
+    }
+    
+    /**
      * Get job arguments or an empty array if not available
      *
      * Compatibility method for Omeka S versions that may have different AbstractJob implementations
@@ -170,8 +197,85 @@ class ExtractFrames extends AbstractJob
             }
             
             foreach ($medias as $index => $media) {
-                // Add periodic memory and stop checks
-                // Processing logic remains unchanged
+                // Check if job should stop (e.g., memory issues)
+                if ($this->shouldStop() || $this->isMemoryLimitApproaching(0.85)) {
+                    $logger->warn(sprintf(
+                        'VideoThumbnail: Stopping job early after processing %d/%d videos due to memory constraints (%s used)',
+                        $index + 1,
+                        $totalMedias,
+                        $this->getMemoryUsage()
+                    ));
+                    error_log('VideoThumbnail: Stopping job early due to memory constraints: ' . $this->getMemoryUsage());
+                    break;
+                }
+
+                $mediaId = $media->getId();
+                $filePath = $media->getFilePath();
+                
+                if (!file_exists($filePath) || !is_readable($filePath)) {
+                    $logger->warn(sprintf('VideoThumbnail: Cannot read file for media %d, skipping', $mediaId));
+                    continue;
+                }
+                
+                error_log(sprintf('VideoThumbnail: Processing video %d/%d (ID: %d)', 
+                    $index + 1, $totalMedias, $mediaId));
+                
+                try {
+                    // Extract at default position
+                    $duration = $videoFrameExtractor->getVideoDuration($filePath);
+                    if ($duration <= 0) {
+                        $logger->warn(sprintf('VideoThumbnail: Could not determine duration for media %d, skipping', $mediaId));
+                        continue;
+                    }
+                    
+                    // Calculate frame position based on percentage
+                    $frameTime = ($duration * $defaultFramePercent) / 100;
+                    $extractedFrame = $videoFrameExtractor->extractFrame($filePath, $frameTime);
+                    
+                    if (!$extractedFrame) {
+                        $logger->warn(sprintf('VideoThumbnail: Failed to extract frame for media %d', $mediaId));
+                        continue;
+                    }
+                    
+                    // Create temp file from extracted frame
+                    $tempFile = $tempFileFactory->build();
+                    $tempFile->setSourceName('thumbnail.jpg');
+                    $tempFile->setTempPath($extractedFrame);
+                    
+                    // Store thumbnails
+                    $fileManager->storeThumbnails($tempFile, $media);
+                    
+                    // Clean up temp file
+                    if (file_exists($extractedFrame)) {
+                        @unlink($extractedFrame);
+                    }
+                    
+                    // Free memory explicitly
+                    unset($tempFile);
+                    
+                    // Log progress periodically
+                    if (($index + 1) % 5 === 0 || $index === 0 || $index === $totalMedias - 1) {
+                        $percent = round(($index + 1) / $totalMedias * 100, 1);
+                        $logger->info(sprintf(
+                            'VideoThumbnail: Processed %d/%d videos (%.1f%%), memory: %s',
+                            $index + 1,
+                            $totalMedias,
+                            $percent,
+                            $this->getMemoryUsage()
+                        ));
+                    }
+                    
+                } catch (\Exception $e) {
+                    $logger->err(sprintf(
+                        'VideoThumbnail: Error processing media %d: %s',
+                        $mediaId,
+                        $e->getMessage()
+                    ));
+                    error_log('VideoThumbnail Error: ' . $e->getMessage());
+                }
+                
+                // Add a small delay between processing to prevent server overload
+                usleep(100000); // 100ms
             }
             
             $logger->info('VideoThumbnail: Job completed successfully.');

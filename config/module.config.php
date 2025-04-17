@@ -15,6 +15,7 @@ return [
     'form_elements' => [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
+            Form\ConfigBatchForm::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
         ],
     ],
     'controllers' => [
@@ -49,7 +50,7 @@ return [
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
                                 'controller' => 'VideoThumbnail',
-                                'action' => 'select-frame',
+                                'action' => 'selectFrame',
                             ],
                             'constraints' => [
                                 'id' => '\d+',
@@ -99,11 +100,19 @@ return [
             'factories' => [
                 Job\DispatchStrategy\VideoThumbnailStrategy::class => Service\Job\DispatchStrategy\VideoThumbnailStrategyFactory::class,
             ],
+            'aliases' => [
+                'VideoThumbnail\Job\ExtractFrames' => Job\DispatchStrategy\VideoThumbnailStrategy::class,
+            ],
         ],
     ],
     'service_manager' => [
         'factories' => [
             'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+        ],
+        'delegators' => [
+            'Omeka\File\Store\Manager' => [
+                Service\FileManagerDelegatorFactory::class,
+            ],
         ],
     ],
 ];

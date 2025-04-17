@@ -33,7 +33,8 @@ class VideoThumbnailControllerFactory implements FactoryInterface
         
         $controller = new VideoThumbnailController(
             $entityManager,
-            $fileManager
+            $fileManager,
+            $services
         );
         $controller->setSettings($settings);
         

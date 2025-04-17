@@ -13,11 +13,13 @@ class VideoThumbnailController extends AbstractActionController
     protected $entityManager;
     protected $fileManager;
     protected $settings;
+    protected $serviceLocator;
 
-    public function __construct($entityManager, $fileManager)
+    public function __construct($entityManager, $fileManager, $serviceLocator = null)
     {
         $this->entityManager = $entityManager;
         $this->fileManager = $fileManager;
+        $this->serviceLocator = $serviceLocator;
     }
 
     public function setSettings($settings)
@@ -32,7 +34,8 @@ class VideoThumbnailController extends AbstractActionController
         Debug::init($this->settings);
         Debug::logEntry(__METHOD__);
         
-        $form = new ConfigBatchForm();
+        // Get the form from service manager instead of creating it directly
+        $form = $this->serviceLocator->get('FormElementManager')->get(ConfigBatchForm::class);
         $form->init();
 
         $supportedFormats = $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
@@ -40,9 +43,13 @@ class VideoThumbnailController extends AbstractActionController
             $supportedFormats = ['video/mp4', 'video/quicktime'];
         }
 
+        // Set debug mode value
+        $debugMode = $this->settings->get('videothumbnail_debug_mode', false);
+        
         $form->setData([
             'default_frame_position' => $this->settings->get('videothumbnail_default_frame', 10),
             'supported_formats' => $supportedFormats,
+            'debug_mode' => $debugMode,
         ]);
 
         $request = $this->getRequest();
@@ -63,16 +70,60 @@ class VideoThumbnailController extends AbstractActionController
                 $this->messenger()->addSuccess('Video thumbnail settings updated.');
 
                 if (!empty($formData['regenerate_thumbnails'])) {
-                    $dispatcher = $this->jobDispatcher();
-                    $job = $dispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
-                        'frame_position' => $formData['default_frame_position'],
-                    ]);
-
-                    $message = new Message(
-                        'Regenerating video thumbnails in the background (job %s). This may take a while.',
-                        $job->getId()
-                    );
-                    $this->messenger()->addSuccess($message);
+                    try {
+                        $dispatcher = $this->jobDispatcher();
+                        
+                        // Log job dispatch attempt
+                        Debug::log('Attempting to dispatch video thumbnail job with frame_position: ' . $formData['default_frame_position'], __METHOD__);
+                        error_log('VideoThumbnail: Attempting to dispatch video thumbnail job');
+                        
+                        $job = $dispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
+                            'frame_position' => $formData['default_frame_position'],
+                        ]);
+                        
+                        $message = new Message(
+                            'Regenerating video thumbnails in the background (job %s). This may take a while.',
+                            $job->getId()
+                        );
+                        $this->messenger()->addSuccess($message);
+                        
+                        Debug::log('Job dispatched successfully: ' . $job->getId(), __METHOD__);
+                        error_log('VideoThumbnail: Job dispatched successfully, ID: ' . $job->getId());
+                    } catch (\Exception $e) {
+                        // Log detailed error
+                        Debug::logError('Job dispatch failed: ' . $e->getMessage(), __METHOD__);
+                        error_log('VideoThumbnail: Job dispatch failed: ' . $e->getMessage());
+                        error_log('VideoThumbnail: ' . $e->getTraceAsString());
+                        
+                        // Try fallback to default strategy
+                        try {
+                            Debug::log('Attempting fallback to default PhpCli strategy', __METHOD__);
+                            
+                            // Attempt to get the default PHP CLI strategy
+                            $dispatcher = $this->jobDispatcher();
+                            $serviceLocator = $this->serviceLocator;
+                            
+                            // Force the strategy to PhpCli
+                            $job = $dispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
+                                'frame_position' => $formData['default_frame_position'],
+                                'force_strategy' => 'PhpCli',
+                            ]);
+                            
+                            $message = new Message(
+                                'Using default job strategy. Regenerating video thumbnails in the background (job %s). This may take a while.',
+                                $job->getId()
+                            );
+                            $this->messenger()->addSuccess($message);
+                            
+                            Debug::log('Job dispatched with fallback strategy: ' . $job->getId(), __METHOD__);
+                            error_log('VideoThumbnail: Job dispatched with fallback strategy, ID: ' . $job->getId());
+                        } catch (\Exception $fallbackException) {
+                            Debug::logError('Fallback strategy also failed: ' . $fallbackException->getMessage(), __METHOD__);
+                            error_log('VideoThumbnail: Fallback strategy also failed: ' . $fallbackException->getMessage());
+                            
+                            $this->messenger()->addError('Failed to start thumbnail regeneration job. Check server logs for details.');
+                        }
+                    }
                 }
 
                 return $this->redirect()->toRoute('admin/video-thumbnail');
@@ -219,7 +270,13 @@ class VideoThumbnailController extends AbstractActionController
             $ffmpegPath = $this->settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
             $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
             
-            $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+            // Get the extractor from service manager properly
+            if ($this->serviceLocator) {
+                $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+            } else {
+                // Fallback to use controller plugin
+                $extractor = $this->extractVideoFrames();
+            }
             $filePath = $media->originalFilePath();
             
             Debug::log('Extracting frames from video: ' . $filePath, __METHOD__);
