@@ -15,7 +15,6 @@ return [
     'form_elements' => [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
-            Form\ConfigBatchForm::class => \Laminas\ServiceManager\Factory\InvokableFactory::class,
         ],
     ],
     'controllers' => [
@@ -50,7 +49,7 @@ return [
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
                                 'controller' => 'VideoThumbnail',
-                                'action' => 'selectFrame',
+                                'action' => 'select-frame',
                             ],
                             'constraints' => [
                                 'id' => '\d+',
@@ -72,47 +71,5 @@ return [
     ],
     'media_ingesters' => [
         'factories' => [
-            'videothumbnail' => Service\Media\IngesterFactory::class,
-        ],
-    ],
-    'media_renderers' => [
-        'factories' => [
-            'videothumbnail' => Service\Media\RendererFactory::class,
-        ],
-        'aliases' => [
-            'video/mp4' => 'videothumbnail',
-            'video/quicktime' => 'videothumbnail',
-        ],
-    ],
-    'js_translate_strings' => [
-        'Select Frame', 
-        'Generating thumbnails...', 
-        'Error loading video frames', 
-        'Select this frame as thumbnail',
-    ],
-    'assets' => [
-        'module_paths' => [
-            'VideoThumbnail' => 'VideoThumbnail/asset',
-        ],
-    ],
-    'job' => [
-        'dispatcher_strategies' => [
-            'factories' => [
-                Job\DispatchStrategy\VideoThumbnailStrategy::class => Service\Job\DispatchStrategy\VideoThumbnailStrategyFactory::class,
-            ],
-            'aliases' => [
-                'VideoThumbnail\Job\ExtractFrames' => Job\DispatchStrategy\VideoThumbnailStrategy::class,
-            ],
-        ],
-    ],
-    'service_manager' => [
-        'factories' => [
-            'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
-        ],
-        'delegators' => [
-            'Omeka\File\Store\Manager' => [
-                Service\FileManagerDelegatorFactory::class,
-            ],
-        ],
-    ],
-];
+            '](#)
+
