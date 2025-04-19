@@ -10,14 +10,14 @@ class VideoThumbnailStrategy implements StrategyInterface
     /**
      * @var \Omeka\Job\DispatchStrategy\PhpCli
      */
-    protected $phpCliStrategy;
+    protected \Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy;
 
     /**
      * Constructor.
      *
      * @param \Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy
      */
-    public function __construct($phpCliStrategy)
+    public function __construct(\Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy)
     {
         $this->phpCliStrategy = $phpCliStrategy;
     }
