@@ -103,6 +103,9 @@ class Module extends AbstractModule
         
         // Register CSS and JS assets
         $this->attachListenersForAssets($event);
+        
+        // Add ACL rules
+        $this->addAclRules($serviceManager);
     }
     
     /**
@@ -232,7 +235,16 @@ class Module extends AbstractModule
             $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path');
 
             $extractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
-            $filePath = $media instanceof MediaRepresentation ? $media->originalFilePath() : $media->getFilePath();
+            $fileStore = $serviceLocator->get('Omeka\File\Store');
+            if ($media instanceof MediaRepresentation) {
+                // For MediaRepresentation objects
+                $filename = $media->filename();
+            } else {
+                // For Media entity objects
+                $filename = $media->getFilename();
+            }
+            $storagePath = sprintf('original/%s', $filename);
+            $filePath = $fileStore->getLocalPath($storagePath);
             $mediaId = $media instanceof MediaRepresentation ? $media->id() : $media->getId();
 
             $duration = $extractor->getVideoDuration($filePath);
@@ -271,6 +283,24 @@ class Module extends AbstractModule
             }
             rmdir($directory);
         }
+    }
+    
+    /**
+     * Add ACL rules for this module
+     */
+    protected function addAclRules($serviceManager): void
+    {
+        $acl = $serviceManager->get('Omeka\Acl');
+        $acl->allow(
+            null,
+            ['VideoThumbnail\Controller\Admin\VideoThumbnail']
+        );
+        
+        // Add ACL rule for navigation
+        $acl->allow(
+            null,
+            'Omeka\Api\Adapter\ModuleAdapter'
+        );
     }
 }
 

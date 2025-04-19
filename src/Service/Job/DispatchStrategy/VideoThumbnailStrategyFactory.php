@@ -9,6 +9,9 @@ class VideoThumbnailStrategyFactory implements FactoryInterface
 {
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
-        return new VideoThumbnailStrategy();
+        // Get the PHP CLI strategy from the service manager to delegate job execution
+        $phpCliStrategy = $services->get('Omeka\Job\DispatchStrategy\PhpCli');
+        
+        return new VideoThumbnailStrategy($phpCliStrategy);
     }
 }

@@ -3,20 +3,23 @@ namespace VideoThumbnail\Job\DispatchStrategy;
 
 use Omeka\Job\DispatchStrategy\StrategyInterface;
 use Omeka\Entity\Job;
-use Omeka\File\Manager;
+use Omeka\Job\Exception\RuntimeException;
 
 class VideoThumbnailStrategy implements StrategyInterface
 {
-    private $fileManager;
+    /**
+     * @var \Omeka\Job\DispatchStrategy\PhpCli
+     */
+    protected $phpCliStrategy;
 
     /**
-     * Constructor to inject dependencies.
+     * Constructor.
      *
-     * @param Manager $fileManager
+     * @param \Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy
      */
-    public function __construct(Manager $fileManager)
+    public function __construct($phpCliStrategy)
     {
-        $this->fileManager = $fileManager;
+        $this->phpCliStrategy = $phpCliStrategy;
     }
 
     /**
@@ -26,7 +29,30 @@ class VideoThumbnailStrategy implements StrategyInterface
      */
     public function start(Job $job)
     {
-        $this->dispatchJob($job);
+        try {
+            // Get the job ID
+            $jobId = $job->getId();
+
+            // Set the job status
+            $job->setStatus(Job::STATUS_STARTING);
+
+            // Log that we're dispatching the job
+            error_log(sprintf('VideoThumbnail job %s starting execution via PhpCli strategy', $jobId));
+            
+            // Use the PhpCli strategy to actually execute the job
+            $this->phpCliStrategy->start($job);
+            
+        } catch (\Exception $e) {
+            // Log the exception
+            error_log(sprintf('Error dispatching VideoThumbnail job: %s', $e->getMessage()));
+            error_log($e->getTraceAsString());
+            
+            // Set job status to error
+            $job->setStatus(Job::STATUS_ERROR);
+            
+            // Rethrow the exception
+            throw new RuntimeException($e->getMessage(), 0, $e);
+        }
     }
 
     /**
@@ -36,25 +62,6 @@ class VideoThumbnailStrategy implements StrategyInterface
      */
     public function dispatchJob(Job $job)
     {
-        try {
-            // Get the job ID
-            $jobId = $job->getId();
-
-            // Set the job status
-            $job->setStatus(Job::STATUS_STARTING);
-
-            // Example usage of fileManager
-            $this->fileManager->doSomethingWithFiles($job);
-
-            // Log that we've dispatched the job
-            error_log(sprintf('VideoThumbnail job %s queued for background processing', $jobId));
-        } catch (\Exception $e) {
-            // Log the exception
-            error_log(sprintf('Error dispatching VideoThumbnail job: %s', $e->getMessage()));
-            error_log($e->getTraceAsString());
-
-            // Optionally, you can rethrow the exception or handle it as needed
-            throw $e;
-        }
+        $this->start($job);
     }
 }

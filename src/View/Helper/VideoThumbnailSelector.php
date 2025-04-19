@@ -28,11 +28,28 @@ class VideoThumbnailSelector extends AbstractHelper
             return '';
         }
         
-        // Get data
-        $mediaData = $media->data();
-        $currentFrame = isset($mediaData['thumbnail_frame_percentage']) 
-            ? $mediaData['thumbnail_frame_percentage'] 
-            : null;
+        // Get data from Omeka S MediaRepresentation
+        // In Omeka S, we need to get data using jsonSerialize 
+        $mediaData = $media->jsonSerialize();
+        $currentFrame = null;
+        
+        // First check 'o:data' which is standard in Omeka S
+        if (isset($mediaData['o:data']) && is_array($mediaData['o:data'])) {
+            if (isset($mediaData['o:data']['thumbnail_frame_percentage'])) {
+                $currentFrame = $mediaData['o:data']['thumbnail_frame_percentage'];
+            } elseif (isset($mediaData['o:data']['videothumbnail_frame_percentage'])) {
+                $currentFrame = $mediaData['o:data']['videothumbnail_frame_percentage'];
+            }
+        }
+        
+        // Fallback if not found in 'o:data' - try direct properties
+        if ($currentFrame === null) {
+            if (method_exists($media, 'value') && $media->value('thumbnail_frame_percentage')) {
+                $currentFrame = $media->value('thumbnail_frame_percentage');
+            } elseif (method_exists($media, 'value') && $media->value('videothumbnail_frame_percentage')) {
+                $currentFrame = $media->value('videothumbnail_frame_percentage');
+            }
+        }
         
         return $view->partial(
             'common/video-thumbnail-selector',
