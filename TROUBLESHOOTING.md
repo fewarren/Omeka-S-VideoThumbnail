@@ -69,4 +69,10 @@ The plugin now uses a more robust job execution system that:
 4. Can be interrupted safely without corrupting the system
 5. Handles FFmpeg timeouts better to prevent server hangs
 
++### Common Error Messages
++
++* `FFmpeg process timed out` - This indicates that the video processing took longer than expected. Try increasing timeouts or processing a smaller video.
++* `PHP CLI not available` - Ensure PHP is installed and available in the command line on your server.
++* `Cannot allocate memory` - Increase PHP memory_limit setting in your php.ini file.
+
 If job scheduling continues to fail after these improvements, please report the exact error message from your logs.
