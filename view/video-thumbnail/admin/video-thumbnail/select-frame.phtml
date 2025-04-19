@@ -51,6 +51,6 @@ $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail.js', 'VideoT
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    VideoThumbnail.initFrameSelector('<?= $this->escapeHtml($this->url('admin/video-thumbnail', ['action' => 'save-frame'])); ?>');
+      VideoThumbnail.initFrameSelector('<?= $this->escapeHtml($this->url('admin/video-thumbnail', ['action' => 'save-frame'])); ?>');
 });
 </script>
