@@ -7,6 +7,16 @@ use VideoThumbnail\Media\Ingester\VideoThumbnail;
 
 class IngesterFactory implements FactoryInterface
 {
+    /**
+     * Creates and returns a configured VideoThumbnail ingester instance.
+     *
+     * Retrieves required dependencies from the service container and constructs a VideoThumbnail object for handling video thumbnail ingestion.
+     *
+     * @param ContainerInterface $services Service container providing dependencies.
+     * @param string $requestedName The requested service name.
+     * @param array|null $options Optional configuration options.
+     * @return VideoThumbnail Configured VideoThumbnail ingester instance.
+     */
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
         $tempFileFactory = $services->get('Omeka\File\TempFileFactory');

@@ -11,11 +11,13 @@ class ExtractFrames extends AbstractJob
      */
     protected $lastMemoryUsage = 0;
     
-    /**
-     * Get the peak memory usage in MB.
+    /****
+     * Returns the peak memory usage in megabytes.
      *
-     * @param bool $reset Whether to reset the peak tracking for monitoring purposes
-     * @return float Peak memory usage in MB
+     * Optionally records the current memory usage to track new peaks from this point forward.
+     *
+     * @param bool $reset If true, records current memory usage for future peak tracking.
+     * @return float Peak memory usage in megabytes.
      */
     protected function getMemoryUsage($reset = false)
     {
@@ -33,9 +35,11 @@ class ExtractFrames extends AbstractJob
     }
 
     /**
-     * Retrieve job arguments
+     * Retrieves the frame extraction job arguments if provided.
      *
-     * @return array The job arguments
+     * Returns an associative array containing the 'frame_position' and 'force_strategy' arguments if they are set for the job.
+     *
+     * @return array Associative array of job arguments.
      */
     protected function getJobArguments()
     {
@@ -55,8 +59,10 @@ class ExtractFrames extends AbstractJob
         return $args;
     }
 
-    /**
-     * Perform the job of extracting video frames.
+    /****
+     * Executes the batch job to extract video frames and generate thumbnails for all supported video media.
+     *
+     * Iterates through all video media entities of supported formats, extracts a frame at a configurable position (with fallbacks), and stores the resulting image as thumbnails. Handles memory usage checks, job stop requests, error logging, and updates media metadata with thumbnail information.
      */
     public function perform()
     {
@@ -333,9 +339,11 @@ class ExtractFrames extends AbstractJob
     }
 
     /**
-     * Check if memory usage exceeds the allowed threshold.
+     * Checks if the current peak memory usage exceeds the configured limit.
      *
-     * @throws \RuntimeException If memory usage exceeds the limit
+     * Retrieves the memory usage threshold from settings (default 100 MB, minimum 50 MB), logs current usage, and throws a RuntimeException if the limit is exceeded.
+     *
+     * @throws \RuntimeException If memory usage exceeds the configured limit.
      */
     protected function checkMemoryUsage()
     {
@@ -362,10 +370,10 @@ class ExtractFrames extends AbstractJob
         }
     }
 
-    /**
-     * Stop the job if requested.
+    /****
+     * Throws an exception to halt execution if the job has been manually stopped.
      *
-     * @throws \RuntimeException If the job was manually stopped
+     * @throws \RuntimeException If the job was manually stopped.
      */
     protected function stopIfRequested()
     {

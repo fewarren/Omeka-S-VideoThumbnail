@@ -16,7 +16,11 @@ class VideoFrameExtractor
     protected $defaultTimeout = 15;
 
     /**
-     * @param string $ffmpegPath
+     * Initializes the VideoFrameExtractor with the specified FFmpeg binary path.
+     *
+     * Attempts to verify the provided FFmpeg path is executable, or auto-detects the FFmpeg binary if not. Throws a RuntimeException if FFmpeg cannot be found or is not executable.
+     *
+     * @param string $ffmpegPath Path to the FFmpeg executable.
      */
     public function __construct($ffmpegPath)
     {
@@ -39,9 +43,9 @@ class VideoFrameExtractor
     protected $ffprobePath = null;
     
     /**
-     * Get the path to ffprobe executable
+     * Returns the path to the FFprobe executable, detecting it if necessary.
      *
-     * @return string|null Path to ffprobe or null if not found
+     * @return string|null The path to FFprobe, or null if it cannot be found.
      */
     public function getFfprobePath()
     {
@@ -54,9 +58,11 @@ class VideoFrameExtractor
     }
     
     /**
-     * Detect the path to ffprobe executable using multiple methods
+     * Attempts to locate the ffprobe executable using several detection strategies.
      *
-     * @return string|null Path to ffprobe or null if not found
+     * Checks the same directory as ffmpeg, common system paths, system commands, and directories in the system PATH. Returns the detected ffprobe path or null if not found.
+     *
+     * @return string|null Absolute path to ffprobe if found, or null otherwise.
      */
     protected function detectFfprobePath()
     {
@@ -137,9 +143,11 @@ class VideoFrameExtractor
     }
     
     /**
-     * Attempt to auto-detect FFmpeg/FFprobe paths.
+     * Attempts to automatically locate the FFmpeg executable on the system.
      *
-     * @return string|null Path to ffmpeg or null if not found
+     * Searches common installation paths, uses system commands, and scans directories in the system PATH to find an executable FFmpeg binary.
+     *
+     * @return string|null The path to the FFmpeg executable if found, or null if not detected.
      */
     protected function autoDetectPaths()
     {
@@ -353,10 +361,12 @@ class VideoFrameExtractor
     }
 
     /**
-     * Get video duration in seconds with enhanced error handling and debug logging
+     * Determines the duration of a video file in seconds using multiple detection strategies and fallbacks.
      *
-     * @param string $videoPath
-     * @return float
+     * Attempts to retrieve the most accurate duration by prioritizing ffprobe, then ffmpeg, and finally various heuristics and metadata extraction methods. If all methods fail, estimates duration based on file size or returns a conservative default.
+     *
+     * @param string $videoPath Path to the video file.
+     * @return float Duration of the video in seconds, or a reasonable estimate if precise detection fails.
      */
     public function getVideoDuration($videoPath)
     {
@@ -663,13 +673,15 @@ class VideoFrameExtractor
         return $defaultDuration;
     }
 
-    /**
-     * Extract a single frame from a video file at the specified time
-     * 
-     * @param string $videoPath Path to the video file
-     * @param float $timeInSeconds Time in seconds to extract the frame from
-     * @param int $timeout Maximum execution time in seconds
-     * @return string|null Path to the extracted frame (jpg) or null on failure
+    /****
+     * Extracts a single JPEG frame from a video file at a specified time offset.
+     *
+     * Attempts multiple extraction strategies tailored to the video format (including MOV and AVI), with adaptive timeouts and fallbacks for improved reliability. Returns the path to the extracted frame on success, or null if extraction fails.
+     *
+     * @param string $videoPath Path to the video file.
+     * @param float $timeInSeconds Time offset in seconds from which to extract the frame.
+     * @param int|null $timeout Optional maximum execution time in seconds; dynamically scaled if not provided.
+     * @return string|null Path to the extracted JPEG frame, or null on failure.
      */
     public function extractFrame($videoPath, $timeInSeconds, $timeout = null)
     {

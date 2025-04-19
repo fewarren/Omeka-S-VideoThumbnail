@@ -15,6 +15,13 @@ class VideoThumbnailController extends AbstractActionController
     protected $settings;
     protected $serviceLocator;
 
+    /**
+     * Initializes the VideoThumbnailController with required dependencies.
+     *
+     * @param mixed $entityManager The entity manager for database operations.
+     * @param mixed|null $fileManager Optional file manager for file operations.
+     * @param mixed|null $serviceLocator Optional service locator for retrieving services.
+     */
     public function __construct($entityManager, $fileManager = null, $serviceLocator = null)
     {
         $this->entityManager = $entityManager;
@@ -25,12 +32,25 @@ class VideoThumbnailController extends AbstractActionController
         error_log('VideoThumbnail: Controller initialized');
     }
 
+    /**
+     * Sets the settings object for the controller.
+     *
+     * @param mixed $settings The settings object to assign.
+     * @return self Returns the controller instance for method chaining.
+     */
     public function setSettings($settings)
     {
         $this->settings = $settings;
         return $this;
     }
 
+    /****
+     * Handles the video thumbnail configuration page in the admin interface.
+     *
+     * Initializes the configuration form, loads and validates supported video formats, manages debug mode, and processes form submissions to update settings. If requested, dispatches a background job to regenerate video thumbnails, with error handling and fallback strategies. Returns a view with the configuration form, total number of supported videos, and current settings.
+     *
+     * @return \Laminas\View\Model\ViewModel The view model for the configuration page.
+     */
     public function indexAction()
     {
         // Log initialization of action
@@ -203,6 +223,13 @@ class VideoThumbnailController extends AbstractActionController
         return $view;
     }
 
+    /**
+     * Returns the total number of media entities with video formats supported by the current settings.
+     *
+     * If settings are unavailable or an error occurs, returns 0.
+     *
+     * @return int Total count of supported video media entities.
+     */
     protected function getTotalVideos()
     {
         if ($this->settings) {
@@ -260,6 +287,13 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Saves a selected video frame as the media's thumbnail based on a specified position.
+     *
+     * Handles a POST request to extract a frame from a video at a given percentage position, stores it as the media's thumbnail, updates media metadata with frame information, and returns a JSON response indicating success or failure.
+     *
+     * @return \Laminas\View\Model\JsonModel JSON response with success status and message.
+     */
     public function saveFrameAction()
     {
         Debug::logEntry(__METHOD__);
@@ -418,6 +452,13 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Prepares and displays selectable video frames for a given media item.
+     *
+     * Retrieves the specified video media, extracts a configured number of frames at evenly spaced intervals, and makes them available for selection in the admin interface. Handles errors by redirecting with appropriate messages if the media is invalid or processing fails.
+     *
+     * @return \Laminas\View\Model\ViewModel|\Laminas\Http\Response View with frame data for selection, or redirect response on error.
+     */
     public function selectFrameAction()
     {
         Debug::logEntry(__METHOD__);
@@ -506,6 +547,13 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Generates and returns preview frames for a video media entity as a JSON response.
+     *
+     * Handles a POST request to extract a configured number of frames from a video, copies them to a temporary web-accessible directory, and returns their URLs and timing information. Cleans up temporary files after use. Returns an error message if extraction fails or if the request is invalid.
+     *
+     * @return \Laminas\View\Model\JsonModel JSON response containing frame data or error information.
+     */
     public function generateFramesAction()
     {
         Debug::logEntry(__METHOD__);

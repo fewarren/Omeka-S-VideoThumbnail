@@ -13,9 +13,9 @@ class VideoThumbnailStrategy implements StrategyInterface
     protected $phpCliStrategy;
 
     /**
-     * Constructor.
+     * Initializes the VideoThumbnailStrategy with a PhpCli dispatch strategy.
      *
-     * @param \Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy
+     * @param \Omeka\Job\DispatchStrategy\PhpCli $phpCliStrategy The dispatch strategy used to execute jobs.
      */
     public function __construct($phpCliStrategy)
     {
@@ -23,9 +23,13 @@ class VideoThumbnailStrategy implements StrategyInterface
     }
 
     /**
-     * Start a new job process.
+     * Initiates execution of a job using the PhpCli strategy, updating job status and handling errors.
      *
-     * @param Job $job
+     * Sets the job status to starting, logs the initiation, and delegates execution to the PhpCli strategy.
+     * If an exception occurs, logs the error, updates the job status to error, and rethrows the exception wrapped in a RuntimeException.
+     *
+     * @param Job $job The job to be executed.
+     * @throws RuntimeException If job execution fails.
      */
     public function start(Job $job)
     {
@@ -55,10 +59,10 @@ class VideoThumbnailStrategy implements StrategyInterface
         }
     }
 
-    /**
-     * Dispatch a job to be processed.
+    /****
+     * Dispatches a job for processing by delegating to the start method.
      *
-     * @param Job $job
+     * @param Job $job The job instance to be dispatched.
      */
     public function dispatchJob(Job $job)
     {

@@ -30,6 +30,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return $videoFrameExtractor;
     }
 
+    /**
+     * Validates the configured FFmpeg path or attempts auto-detection if invalid.
+     *
+     * If the provided FFmpeg path is missing, stale, or not executable, clears the stored path and tries to auto-detect a valid FFmpeg binary. Returns a validated VideoFrameExtractor instance if successful, or null if detection and validation fail.
+     *
+     * @return ?VideoFrameExtractor Validated VideoFrameExtractor instance or null if FFmpeg cannot be found or validated.
+     */
     private function detectAndValidateFfmpeg($settings, $ffmpegPath)
     {
         if (!empty($ffmpegPath) && (strpos($ffmpegPath, '/nix/store') !== false)) {
@@ -50,11 +57,9 @@ class VideoFrameExtractorFactory implements FactoryInterface
     }
     
     /**
-     * Helper to persist the FFmpeg path only when it changes
-     * 
-     * @param \Omeka\Settings\Settings $settings
-     * @param string $newPath
-     * @return void
+     * Persists the FFmpeg path in settings only if it differs from the current value.
+     *
+     * Updates the stored FFmpeg path to the new value if it has changed; otherwise, no action is taken.
      */
     private function persistPathIfChanged($settings, $newPath)
     {
@@ -68,6 +73,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
         }
     }
 
+    /**
+     * Attempts to locate and validate the FFmpeg executable using multiple detection strategies.
+     *
+     * Tries several methods in order to find a usable FFmpeg binary, returning a validated VideoFrameExtractor instance if successful, or null if detection fails.
+     *
+     * @return VideoFrameExtractor|null Validated extractor instance if FFmpeg is found, or null if not detected.
+     */
     private function autoDetectFfmpeg($settings)
     {
         $detectionMethods = [
@@ -89,6 +101,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null; // No valid FFmpeg path detected
     }
     
+    /**
+     * Attempts to locate the FFmpeg executable using the 'which' command.
+     *
+     * If found, persists the detected path and returns a validated VideoFrameExtractor instance; otherwise, returns null.
+     *
+     * @return VideoFrameExtractor|null Validated VideoFrameExtractor instance if FFmpeg is found and valid, or null if not found.
+     */
     private function detectUsingWhich($settings)
     {
         Debug::log('Detecting FFmpeg using \'which\' command', __METHOD__);
@@ -105,6 +124,14 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null;
     }
     
+    /**
+     * Attempts to detect the FFmpeg executable using the 'type -p ffmpeg' shell command.
+     *
+     * If found, persists the detected path in settings and returns a validated VideoFrameExtractor instance.
+     * Returns null if FFmpeg is not found or validation fails.
+     *
+     * @return VideoFrameExtractor|null Validated extractor instance if detection and validation succeed, or null otherwise.
+     */
     private function detectUsingType($settings)
     {
         Debug::log('Detecting FFmpeg using \'type\' command', __METHOD__);
@@ -121,6 +148,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null;
     }
     
+    /**
+     * Attempts to detect the FFmpeg executable using the 'command -v' shell command.
+     *
+     * If FFmpeg is found, persists the detected path in settings and returns a validated VideoFrameExtractor instance. Returns null if FFmpeg is not found or validation fails.
+     *
+     * @return VideoFrameExtractor|null Validated VideoFrameExtractor instance if detection and validation succeed, or null otherwise.
+     */
     private function detectUsingCommandExists($settings)
     {
         Debug::log('Detecting FFmpeg using \'command -v\'', __METHOD__);
@@ -137,6 +171,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null;
     }
     
+    /**
+     * Attempts to locate the FFmpeg executable by searching directories listed in the PATH environment variable.
+     *
+     * Returns a validated VideoFrameExtractor instance if FFmpeg is found and usable, or null if not found.
+     *
+     * @return VideoFrameExtractor|null Instance if FFmpeg is detected and validated, or null on failure.
+     */
     private function detectUsingEnvPath($settings)
     {
         Debug::log('Detecting FFmpeg in PATH environment variable', __METHOD__);
@@ -155,6 +196,14 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null;
     }
     
+    /**
+     * Attempts to locate the FFmpeg executable by checking a list of common installation paths.
+     *
+     * If a valid and executable FFmpeg binary is found in any of the predefined locations, the path is persisted to settings and validated. Returns a `VideoFrameExtractor` instance if successful, or `null` if FFmpeg is not found in these paths.
+     *
+     * @param \Omeka\Settings\Settings $settings Application settings used to persist the detected FFmpeg path.
+     * @return ?VideoFrameExtractor Instance if FFmpeg is found and validated, or null otherwise.
+     */
     private function detectUsingCommonPaths($settings)
     {
         Debug::log('Checking common paths for FFmpeg', __METHOD__);
@@ -180,11 +229,13 @@ class VideoFrameExtractorFactory implements FactoryInterface
     }
 
     /**
-     * Validates FFmpeg with timeout and creates a VideoFrameExtractor instance
+     * Validates the specified FFmpeg executable and returns a VideoFrameExtractor instance if successful.
      *
-     * @param string $ffmpegPath Path to FFmpeg executable
-     * @param int $timeout Timeout in seconds
-     * @return VideoFrameExtractor|null
+     * Runs `ffmpeg -version` with a timeout to ensure the executable is valid and responsive.
+     *
+     * @param string $ffmpegPath Path to the FFmpeg executable.
+     * @param int $timeout Maximum time in seconds to wait for validation.
+     * @return VideoFrameExtractor|null Instance if validation succeeds, or null if validation fails.
      */
     protected function validateFfmpegAndCreate($ffmpegPath, $timeout = 10)
     {
@@ -208,12 +259,15 @@ class VideoFrameExtractorFactory implements FactoryInterface
         return null; // Return null if validation fails
     }
     
-    /**
-     * Execute a command with timeout using proc_open
+    /****
+     * Executes a shell command with a specified timeout and returns its output.
      *
-     * @param string $command The command to execute
-     * @param int $timeout Timeout in seconds
-     * @return array|null Array of output lines or null if timeout or error
+     * Runs the given command using `proc_open`, enforcing the timeout by terminating the process if exceeded.
+     * Returns an array of output lines on success, or null if the command fails, times out, or returns a non-zero exit code.
+     *
+     * @param string $command The shell command to execute.
+     * @param int $timeout Timeout in seconds before forcibly terminating the process.
+     * @return array|null Output lines from the command, or null on failure or timeout.
      */
     private function executeWithTimeout($command, $timeout)
     {

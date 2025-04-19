@@ -93,6 +93,13 @@ class Module extends AbstractModule
         ];
     }
 
+    /**
+     * Initializes the module during application bootstrap.
+     *
+     * Sets up view helper aliases, registers CSS and JS assets for the admin interface, and adds ACL rules for module access.
+     *
+     * @param MvcEvent $event The MVC bootstrap event.
+     */
     public function onBootstrap(MvcEvent $event): void
     {
         parent::onBootstrap($event);
@@ -227,6 +234,14 @@ class Module extends AbstractModule
         return $mediaType && strpos($mediaType, 'video/') === 0;
     }
 
+    /**
+     * Extracts a video frame at a specified percentage and updates the media's thumbnail.
+     *
+     * Calculates the frame time based on the selected percentage of the video's duration, extracts the frame using ffmpeg, and stores it as the media's thumbnail. Cleans up temporary files after processing. Exceptions are logged but do not interrupt execution.
+     *
+     * @param mixed $media Media entity or representation to update.
+     * @param int $selectedFrame Percentage (0–100) indicating the point in the video to extract the frame.
+     */
     protected function updateVideoThumbnail($media, $selectedFrame): void
     {
         try {
@@ -271,6 +286,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Recursively deletes all files and subdirectories within the specified directory, then removes the directory itself.
+     *
+     * @param string $directory Absolute path to the directory to remove.
+     */
     protected function recursiveRemoveDirectory($directory): void
     {
         if (is_dir($directory)) {
@@ -285,8 +305,10 @@ class Module extends AbstractModule
         }
     }
     
-    /**
-     * Add ACL rules for this module
+    /****
+     * Grants all roles access to the module's admin controller and the module API adapter.
+     *
+     * @param mixed $serviceManager Service manager used to retrieve the ACL service.
      */
     protected function addAclRules($serviceManager): void
     {

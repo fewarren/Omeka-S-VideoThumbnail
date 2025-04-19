@@ -9,6 +9,11 @@ use Laminas\InputFilter\InputFilterProviderInterface;
 
 class ConfigBatchForm extends Form implements InputFilterProviderInterface
 {
+    /**
+     * Initializes the form fields for configuring batch video thumbnail generation settings.
+     *
+     * Adds fields for default frame position, supported video formats, debug mode, thumbnail regeneration, and a submit button.
+     */
     public function init()
     {
         $this->add([

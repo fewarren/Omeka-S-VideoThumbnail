@@ -19,11 +19,8 @@ class ThumbnailSynchronizer
      */
     protected $entityManager;
     
-    /**
-     * Constructor
-     *
-     * @param \Omeka\File\Store $fileManager
-     * @param \Doctrine\ORM\EntityManager $entityManager
+    /****
+     * Initializes the ThumbnailSynchronizer with file storage and database managers.
      */
     public function __construct($fileManager, $entityManager)
     {
@@ -32,10 +29,11 @@ class ThumbnailSynchronizer
     }
     
     /**
-     * Update the storage paths for thumbnails in the database
+     * Synchronizes the database records for a media entity to reflect the presence of standard thumbnail files.
      *
-     * @param Media $media The media entity to update
-     * @return void
+     * For the given media entity, checks for the existence of 'large', 'medium', and 'square' thumbnail files and updates the database to indicate their presence. Sets the media's `hasThumbnails` flag to true and persists the change.
+     *
+     * @param Media $media The media entity whose thumbnail storage paths are to be synchronized.
      */
     public function updateThumbnailStoragePaths(Media $media)
     {
@@ -68,13 +66,12 @@ class ThumbnailSynchronizer
         }
     }
     
-    /**
-     * Force re-association of thumbnail with media by updating database thumbnail reference
+    /****
+     * Ensures the database reflects the presence of a thumbnail file for a media entity by updating the `has_thumbnails` flag if the file exists on disk.
      *
-     * @param Media $media The media entity
-     * @param string $type Thumbnail type (large, medium, square)
-     * @param string $storagePath Path where thumbnail is stored
-     * @return void
+     * @param Media $media The media entity to update.
+     * @param string $type The thumbnail type (e.g., large, medium, square).
+     * @param string $storagePath The storage path of the thumbnail file.
      */
     private function forceStorageLinkage(Media $media, $type, $storagePath)
     {
@@ -104,13 +101,15 @@ class ThumbnailSynchronizer
         }
     }
     
-    /**
-     * Get a storage path.
+    /****
+     * Constructs a storage path for a media file or thumbnail.
      *
-     * @param string $prefix The storage prefix (e.g., 'original', 'thumbnail')
-     * @param string $storageId The unique storage ID of the media
-     * @param string $extension Optional file extension
-     * @return string The constructed storage path
+     * Returns a path in the format "{prefix}/{storageId}" or "{prefix}/{storageId}.{extension}" if an extension is provided.
+     *
+     * @param string $prefix Directory or type prefix for the storage path.
+     * @param string $storageId Unique identifier for the stored file.
+     * @param string $extension Optional file extension (without dot).
+     * @return string The resulting storage path.
      */
     protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
     {
