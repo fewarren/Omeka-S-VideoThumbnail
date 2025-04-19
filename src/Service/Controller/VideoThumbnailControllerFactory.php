@@ -37,11 +37,16 @@ class VideoThumbnailControllerFactory implements FactoryInterface
             $fileManager = null;
         }
         
-        $controller = new VideoThumbnailController(
-            $entityManager,
-            $fileManager,
-            $services
-        );
+        $logger = $services->has('Logger') ? $services->get('Logger') : null;
++        $tempFileFactory = $services->has('Omeka\File\TempFileFactory') ? 
++            $services->get('Omeka\File\TempFileFactory') : null;
++        
++        $controller = new VideoThumbnailController(
++            $entityManager,
++            $fileManager,
++            $logger,
++            $tempFileFactory
++        );
         $controller->setSettings($settings);
         
         return $controller;
