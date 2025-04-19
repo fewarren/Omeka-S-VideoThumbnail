@@ -21,10 +21,30 @@ $form->prepare();
     
     <?php echo $this->form()->openTag($form); ?>
     
-    <?php echo $this->formCollection($form); ?>
+    <?php 
+    // Manually render form elements instead of using formCollection to avoid passing string values to FormInput
+    foreach ($form as $element):
+        if ($element->getName() != 'submit' && $element instanceof \Laminas\Form\ElementInterface) {
+    ?>
+        <div class="field">
+            <div class="field-meta">
+                <?php echo $this->formLabel($element); ?>
+                <?php if ($element->getOption('info')): ?>
+                <div class="field-description"><?php echo $this->translate($element->getOption('info')); ?></div>
+                <?php endif; ?>
+            </div>
+            <div class="inputs">
+                <?php echo $this->formElement($element); ?>
+                <?php echo $this->formElementErrors($element); ?>
+            </div>
+        </div>
+    <?php
+        }
+    endforeach;
+    ?>
     
     <div class="form-actions">
-        <button type="submit"><?= $this->translate('Save settings'); ?></button>
+        <?php echo $this->formElement($form->get('submit')); ?>
     </div>
     
     <?php echo $this->form()->closeTag(); ?>

@@ -78,6 +78,17 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
               'class' => 'confirmable-checkbox',
               ],
           ]);
+          
+        // Add submit button
+        $this->add([
+            'name' => 'submit',
+            'type' => 'Submit',
+            'attributes' => [
+                'value' => 'Save Settings', // @translate
+                'id' => 'submit',
+                'class' => 'button',
+            ],
+        ]);
     }
 
     /**

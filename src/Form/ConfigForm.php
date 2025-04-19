@@ -45,7 +45,7 @@ class ConfigForm extends Form
             'type' => Number::class,
             'options' => [
                 'label' => 'Default Frame Position (% of video duration)', // @translate
-                'info' => 'Default position for thumbnail extraction as percentage of video duration (0-100)', // @translate
+                'info' => 'Default position for thumbnail extraction as percentage of video duration. Must be between 0 and 100. Values outside this range will be clamped.', // @translate
             ],
             'attributes' => [
                 'required' => true,
@@ -54,6 +54,24 @@ class ConfigForm extends Form
                 'step' => 1,
                 'value' => 10,
                 'id' => 'videothumbnail_default_frame',
+            ],
+        ]);
+        
+        // Add memory limit for batch processing
+        $this->add([
+            'name' => 'videothumbnail_memory_limit',
+            'type' => Number::class,
+            'options' => [
+                'label' => 'Memory Limit for Batch Processing (MB)', // @translate
+                'info' => 'Maximum allowed memory usage for batch thumbnail generation in MB. Increase for processing large batches or videos, decrease for limited environments.', // @translate
+            ],
+            'attributes' => [
+                'required' => true,
+                'min' => 50,
+                'max' => 1024,
+                'step' => 10,
+                'value' => 100,
+                'id' => 'videothumbnail_memory_limit',
             ],
         ]);
         
@@ -67,6 +85,17 @@ class ConfigForm extends Form
             ],
             'attributes' => [
                 'id' => 'videothumbnail_debug_mode',
+            ],
+        ]);
+        
+        // Add submit button
+        $this->add([
+            'name' => 'submit',
+            'type' => 'Submit',
+            'attributes' => [
+                'value' => 'Save Settings', // @translate
+                'id' => 'submit',
+                'class' => 'button',
             ],
         ]);
     }

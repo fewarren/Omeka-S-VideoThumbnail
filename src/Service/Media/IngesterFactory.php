@@ -11,6 +11,9 @@ class IngesterFactory implements FactoryInterface
     {
         $tempFileFactory = $services->get('Omeka\File\TempFileFactory');
         $settings = $services->get('Omeka\Settings');
+        $uploader = $services->get('Omeka\File\Uploader');
+        $fileStore = $services->get('Omeka\File\Store');
+        $entityManager = $services->get('Omeka\EntityManager');
         $videoFrameExtractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor(
             $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg')
         );
@@ -18,7 +21,10 @@ class IngesterFactory implements FactoryInterface
         return new VideoThumbnail(
             $tempFileFactory,
             $settings,
-            $videoFrameExtractor
+            $videoFrameExtractor,
+            $uploader,
+            $fileStore,
+            $entityManager
         );
     }
 }

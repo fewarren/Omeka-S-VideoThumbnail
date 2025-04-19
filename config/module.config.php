@@ -112,6 +112,7 @@ return [
     'service_manager' => [
         'factories' => [
             'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+            'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
