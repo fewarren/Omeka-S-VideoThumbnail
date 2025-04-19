@@ -6,11 +6,13 @@ use Omeka\Api\Representation\MediaRepresentation;
 
 class VideoThumbnailSelector extends AbstractHelper
 {
-    /**
-     * Render the video thumbnail selector
+    /****
+     * Renders a video thumbnail selector interface for supported video media types.
      *
-     * @param MediaRepresentation $media
-     * @return string
+     * Returns a partial view that allows users to select a thumbnail frame for the given media, if it is an MP4 or QuickTime video. The current thumbnail frame percentage is determined from the media's data or property values.
+     *
+     * @param MediaRepresentation $media The media object to render the thumbnail selector for.
+     * @return string The rendered HTML for the thumbnail selector, or an empty string if the media type is not supported.
      */
     public function __invoke(MediaRepresentation $media)
     {

@@ -8,6 +8,11 @@ use Laminas\Form\Element\Checkbox;
 
 class ConfigForm extends Form
 {
+    /**
+     * Initializes the configuration form with fields for video thumbnail settings.
+     *
+     * Adds form elements for specifying the FFmpeg path, number of frames to extract, default frame position, memory limit for batch processing, debug mode toggle, and a submit button.
+     */
     public function init()
     {
         $this->add([
