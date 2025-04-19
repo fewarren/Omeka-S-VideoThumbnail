@@ -69,5 +69,16 @@ class ConfigForm extends Form
                 'id' => 'videothumbnail_debug_mode',
             ],
         ]);
+        
+        // Add submit button
+        $this->add([
+            'name' => 'submit',
+            'type' => 'Submit',
+            'attributes' => [
+                'value' => 'Save Settings', // @translate
+                'id' => 'submit',
+                'class' => 'button',
+            ],
+        ]);
     }
 }

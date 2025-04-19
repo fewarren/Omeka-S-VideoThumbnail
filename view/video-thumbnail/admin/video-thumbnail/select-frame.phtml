@@ -34,7 +34,7 @@ $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail.js', 'VideoT
                 </div>
                 <div class="frame-info">
                     <span class="frame-time"><?= gmdate('H:i:s', $frame['time']); ?> (<?= round($frame['percent']); ?>%)</span>
-                    <button class="select-frame" data-media-id="<?= $this->escapeHtml($media->id()); ?>" data-position="<?= $this->escapeHtml($frame['time']); ?>">
+                    <button class="select-frame" data-media-id="<?= $this->escapeHtml($media->id()); ?>" data-position="<?= $this->escapeHtml($frame['percent']); ?>">
                         <?= $this->translate('Select'); ?>
                     </button>
                 </div>
@@ -51,6 +51,6 @@ $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail.js', 'VideoT
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    VideoThumbnail.initFrameSelector('<?= $this->escapeJs($this->url('admin/video-thumbnail', ['action' => 'save-frame'])); ?>');
+    VideoThumbnail.initFrameSelector('<?= $this->escapeHtml($this->url('admin/video-thumbnail', ['action' => 'save-frame'])); ?>');
 });
 </script>

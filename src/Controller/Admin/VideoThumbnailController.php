@@ -53,9 +53,20 @@ class VideoThumbnailController extends AbstractActionController
             $form = $this->serviceLocator->get('FormElementManager')->get(ConfigBatchForm::class);
             $form->init();
 
-            $supportedFormats = $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
-            if (!is_array($supportedFormats)) {
-                $supportedFormats = ['video/mp4', 'video/quicktime'];
+            $defaultSupportedFormats = [
+                'video/mp4',          // MP4 files
+                'video/quicktime',    // MOV files
+                'video/x-msvideo',    // AVI files
+                'video/x-ms-wmv',     // WMV files
+                'video/x-matroska',   // MKV files
+                'video/webm',         // WebM files
+                'video/3gpp',         // 3GP files
+                'video/3gpp2',        // 3G2 files
+                'video/x-flv'         // FLV files
+            ];
+            $supportedFormats = $this->settings->get('videothumbnail_supported_formats', $defaultSupportedFormats);
+            if (!is_array($supportedFormats) || empty($supportedFormats)) {
+                $supportedFormats = $defaultSupportedFormats;
             }
         } catch (\Exception $e) {
             error_log('VideoThumbnail: Error initializing form: ' . $e->getMessage());
@@ -208,12 +219,23 @@ class VideoThumbnailController extends AbstractActionController
             $repository = $this->entityManager->getRepository('Omeka\Entity\Media');
             
             // Query for the total number of videos based on supported formats
+            $defaultSupportedFormats = [
+                'video/mp4',          // MP4 files
+                'video/quicktime',    // MOV files
+                'video/x-msvideo',    // AVI files
+                'video/x-ms-wmv',     // WMV files
+                'video/x-matroska',   // MKV files
+                'video/webm',         // WebM files
+                'video/3gpp',         // 3GP files
+                'video/3gpp2',        // 3G2 files
+                'video/x-flv'         // FLV files
+            ];
             $supportedFormats = $this->settings ? 
-                $this->settings->get('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']) : 
-                ['video/mp4', 'video/quicktime'];
+                $this->settings->get('videothumbnail_supported_formats', $defaultSupportedFormats) : 
+                $defaultSupportedFormats;
                 
-            if (!is_array($supportedFormats)) {
-                $supportedFormats = ['video/mp4', 'video/quicktime'];
+            if (!is_array($supportedFormats) || empty($supportedFormats)) {
+                $supportedFormats = $defaultSupportedFormats;
             }
             
             $queryBuilder = $repository->createQueryBuilder('media');
@@ -267,10 +289,118 @@ class VideoThumbnailController extends AbstractActionController
                 ]);
             }
             
-            // Update the media with the selected frame position
-            $response = $this->api()->update('media', $mediaId, [
-                'videothumbnail_frame' => (int) $position,
-            ]);
+            // Get the file store and video frame extractor to process the video
+            $fileStore = $this->serviceLocator->get('Omeka\File\Store');
+            $videoFrameExtractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+            
+            // Get the file path
+            $storagePath = sprintf('original/%s', $media->filename());
+            $filePath = $fileStore->getLocalPath($storagePath);
+            
+            // Get video duration
+            $duration = $videoFrameExtractor->getVideoDuration($filePath);
+            if ($duration <= 0) {
+                Debug::logError('Could not determine video duration for: ' . $filePath, __METHOD__);
+                $duration = 1.0; // Use a minimal duration for very short videos
+            } else if ($duration < 5.0) {
+                Debug::log('Very short video detected: ' . $filePath . ' (duration: ' . $duration . ' seconds)', __METHOD__);
+            } else if ($duration === 60.0) {
+                // Check if this is likely the default fallback value
+                $fileSize = filesize($filePath);
+                if ($fileSize < 10485760) { // Less than 10MB
+                    Debug::log('Default duration (60s) may be inaccurate for small video: ' . $filePath . 
+                        ' (' . ($fileSize / 1048576) . ' MB)', __METHOD__);
+                    // For small files with default duration, use a smaller estimate
+                    $duration = 5.0;
+                }
+            }
+            
+            // Calculate time in seconds from the percentage
+            $percentagePosition = (float) $position;
+            $timeInSeconds = ($duration * $percentagePosition) / 100;
+            
+            // Ensure the position is within valid range (at least 0.1s from start)
+            $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
+            
+            Debug::log(sprintf('Saving frame at %.2f%% (%.2f seconds of %.2f seconds duration)', 
+                $percentagePosition, $timeInSeconds, $duration), __METHOD__);
+            
+            // Extract the frame at the selected position
+            $framePath = $videoFrameExtractor->extractFrame($filePath, $timeInSeconds);
+            
+            if (!$framePath) {
+                Debug::logError('Failed to extract frame from video: ' . $filePath, __METHOD__);
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Failed to extract frame from video',
+                ]);
+            }
+            
+            // Store the frame in Omeka's thumbnail system
+            try {
+                // Get the temp file factory
+                $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
+                $tempFile = $tempFileFactory->build();
+                
+                // Get the entity manager for direct entity manipulation
+                $entityManager = $this->entityManager;
+                
+                // Get the actual media entity
+                $mediaEntity = $entityManager->find('Omeka\Entity\Media', $mediaId);
+                
+                if (!$mediaEntity) {
+                    Debug::logError('Media entity not found: ' . $mediaId, __METHOD__);
+                    return new JsonModel([
+                        'success' => false,
+                        'message' => 'Media entity not found',
+                    ]);
+                }
+                
+                // Copy the extracted frame to the temp file
+                if (copy($framePath, $tempFile->getTempPath())) {
+                    // Set the storage ID to match the media's
+                    $tempFile->setStorageId($mediaEntity->getStorageId());
+                    
+                    // Store thumbnails using Omeka's built-in system
+                    $hasThumbnails = $tempFile->storeThumbnails();
+                    
+                    // Set the hasThumbnails flag on the media entity
+                    $mediaEntity->setHasThumbnails($hasThumbnails);
+                    
+                    // Update media data to store the frame position
+                    $mediaData = $mediaEntity->getData() ?: [];
+                    $mediaData['videothumbnail_frame_percentage'] = $percentagePosition;
+                    $mediaData['videothumbnail_frame_time'] = $timeInSeconds;
+                    $mediaEntity->setData($mediaData);
+                    
+                    // Ensure thumbnail paths are properly stored in the database
+                    $this->updateThumbnailStoragePaths($mediaEntity);
+                    
+                    // Persist the entity changes
+                    $entityManager->persist($mediaEntity);
+                    $entityManager->flush();
+                    
+                    // Clean up temporary files
+                    $tempFile->delete();
+                    @unlink($framePath);
+                    
+                    Debug::log('Successfully stored thumbnails for media ' . $mediaId, __METHOD__);
+                } else {
+                    Debug::logError('Failed to copy extracted frame to temp file for media ' . $mediaId, __METHOD__);
+                    @unlink($framePath);
+                    return new JsonModel([
+                        'success' => false,
+                        'message' => 'Failed to process extracted frame',
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Debug::logError('Error storing thumbnails: ' . $e->getMessage(), __METHOD__);
+                @unlink($framePath);
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Error storing thumbnails: ' . $e->getMessage(),
+                ]);
+            }
             
             Debug::logExit(__METHOD__, 'Success');
             return new JsonModel([
@@ -305,9 +435,67 @@ class VideoThumbnailController extends AbstractActionController
                 return $this->redirect()->toRoute('admin');
             }
             
+            // Get the file store service
+            $fileStore = $this->serviceLocator ? 
+                $this->serviceLocator->get('Omeka\File\Store') : 
+                $this->getServiceLocator()->get('Omeka\File\Store');
+                
+            // Get the video frame extractor
+            $extractor = $this->serviceLocator ? 
+                $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor') : 
+                $this->extractVideoFrames();
+                
+            // Construct storage path
+            $storagePath = sprintf('original/%s', $media->filename());
+            $filePath = $fileStore->getLocalPath($storagePath);
+            
+            // Get video duration
+            $duration = $extractor->getVideoDuration($filePath);
+            if ($duration <= 0) {
+                Debug::log('Could not determine video duration, using minimum fallback value', __METHOD__);
+                $duration = 1.0; // Use a minimal duration for very short videos
+            }
+            
+            // Get number of frames to extract
+            $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
+            
+            // Extract frames
+            $extractedFrames = $extractor->extractFrames($filePath, $frameCount);
+            
+            // Prepare frame data for the view
+            $frames = [];
+            foreach ($extractedFrames as $index => $framePath) {
+                // Create a URL that can be accessed by the browser
+                $tempFilename = 'temp-' . basename($framePath);
+                $tempFilePath = OMEKA_PATH . '/files/temp/' . $tempFilename;
+                
+                // Copy the frame to the Omeka temp directory for web access
+                copy($framePath, $tempFilePath);
+                
+                $frameUrl = $this->url()->fromRoute('asset', [
+                    'asset' => $tempFilename,
+                ]);
+                
+                // Calculate the position as a percentage of video duration
+                $percentPosition = ($index + 1) * (100 / ($frameCount + 1));
+                $timeInSeconds = ($duration * $percentPosition) / 100;
+                
+                // Add frame data
+                $frames[] = [
+                    'image' => $frameUrl,
+                    'time' => $timeInSeconds,
+                    'percent' => $percentPosition,
+                ];
+                
+                // Clean up the original frame
+                @unlink($framePath);
+            }
+            
             $view = new ViewModel();
             $view->setVariable('media', $media);
-            $view->setVariable('frameCount', $this->settings->get('videothumbnail_frames_count', 5));
+            $view->setVariable('frameCount', $frameCount);
+            $view->setVariable('duration', $duration);
+            $view->setVariable('frames', $frames);
             Debug::logExit(__METHOD__, 'Success');
             return $view;
         } catch (\Exception $e) {
@@ -315,6 +503,96 @@ class VideoThumbnailController extends AbstractActionController
             $this->messenger()->addError('Error loading media: ' . $e->getMessage());
             return $this->redirect()->toRoute('admin');
         }
+    }
+
+    /**
+     * Update the storage paths for thumbnails in the database
+     *
+     * @param \Omeka\Entity\Media $media The media entity to update
+     * @return void
+     */
+    protected function updateThumbnailStoragePaths($media)
+    {
+        try {
+            Debug::log(sprintf('Updating thumbnail storage paths for media %d', $media->getId()), __METHOD__);
+            
+            $storageId = $media->getStorageId();
+            
+            // Standard Omeka S thumbnail sizes
+            $thumbnailTypes = ['large', 'medium', 'square'];
+            
+            foreach ($thumbnailTypes as $type) {
+                // Construct expected path for this thumbnail type 
+                $storagePath = $this->getStoragePath($type, $storageId);
+                
+                // Update thumbnail info in database if needed
+                Debug::log(sprintf('Ensuring thumbnail path exists for %s: %s', $type, $storagePath), __METHOD__);
+                
+                // Force re-association of thumbnail with media
+                $this->forceStorageLinkage($media, $type, $storagePath);
+            }
+            
+            // Also make sure original/thumbnails flags are set properly
+            $media->setHasThumbnails(true);
+            $this->entityManager->persist($media);
+            
+            Debug::log(sprintf('Thumbnail storage paths updated for media %d', $media->getId()), __METHOD__);
+        } catch (\Exception $e) {
+            Debug::logError(sprintf('Error updating thumbnail paths: %s', $e->getMessage()), __METHOD__);
+        }
+    }
+    
+    /**
+     * Force re-association of thumbnail with media by updating database thumbnail reference
+     *
+     * @param \Omeka\Entity\Media $media The media entity
+     * @param string $type Thumbnail type (large, medium, square)
+     * @param string $storagePath Path where thumbnail is stored
+     * @return void
+     */
+    private function forceStorageLinkage($media, $type, $storagePath)
+    {
+        if (!$this->fileManager) {
+            $this->fileManager = $this->getServiceLocator()->get('Omeka\File\Store');
+        }
+        
+        // Get the local file path
+        $localPath = $this->fileManager->getLocalPath($storagePath);
+        
+        // Check if the file exists using standard PHP function
+        if (file_exists($localPath)) {
+            Debug::log(sprintf('Thumbnail file exists for %s: %s', $type, $storagePath), __METHOD__);
+            
+            // Force database to recognize the thumbnail paths
+            $mediaId = $media->getId();
+            $connection = $this->entityManager->getConnection();
+            
+            try {
+                // Update the media entity's has_thumbnails flag directly
+                $stmt = $connection->prepare('UPDATE media SET has_thumbnails = 1 WHERE id = :id');
+                $stmt->bindValue('id', $mediaId, \PDO::PARAM_INT);
+                $stmt->execute();
+                
+                Debug::log(sprintf('Updated has_thumbnails flag for media %d', $mediaId), __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError(sprintf('Database update error: %s', $e->getMessage()), __METHOD__);
+            }
+        } else {
+            Debug::logError(sprintf('Thumbnail file not found: %s', $storagePath), __METHOD__);
+        }
+    }
+    
+    /**
+     * Get a storage path.
+     *
+     * @param string $prefix The storage prefix (e.g., 'original', 'thumbnail')
+     * @param string $storageId The unique storage ID of the media
+     * @param string $extension Optional file extension
+     * @return string The constructed storage path
+     */
+    protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
+    {
+        return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
     }
 
     public function generateFramesAction()
@@ -356,22 +634,75 @@ class VideoThumbnailController extends AbstractActionController
                 // Fallback to use controller plugin
                 $extractor = $this->extractVideoFrames();
             }
-            $filePath = $media->originalFilePath();
+            // Get the file store service
+            $fileStore = $this->serviceLocator ? 
+                $this->serviceLocator->get('Omeka\File\Store') : 
+                $this->getServiceLocator()->get('Omeka\File\Store');
+                
+            // Construct storage path
+            $storagePath = sprintf('original/%s', $media->filename());
+            $filePath = $fileStore->getLocalPath($storagePath);
             
-            Debug::log('Extracting frames from video: ' . $filePath, __METHOD__);
+            // Get video duration first
+            $duration = $extractor->getVideoDuration($filePath);
+            if ($duration <= 0) {
+                Debug::log('Could not determine video duration, using minimum fallback value', __METHOD__);
+                $duration = 1.0; // Use a minimal duration for very short videos
+            } else if ($duration < 5.0) {
+                Debug::log('Very short video detected: ' . $filePath . ' (duration: ' . $duration . ' seconds)', __METHOD__);
+            } else if ($duration === 60.0) {
+                // Check if this is likely the default fallback value
+                $fileSize = filesize($filePath);
+                if ($fileSize < 10485760) { // Less than 10MB
+                    Debug::log('Default duration (60s) may be inaccurate for small video: ' . $filePath . 
+                        ' (' . ($fileSize / 1048576) . ' MB)', __METHOD__);
+                    // For small files with default duration, use a smaller estimate
+                    $duration = 5.0;
+                }
+            }
+            
+            Debug::log(sprintf('Extracting frames from video: %s (duration: %.2f seconds)', $filePath, $duration), __METHOD__);
             $frames = $extractor->extractFrames($filePath, $frameCount);
             
             $framePaths = [];
             foreach ($frames as $index => $framePath) {
+                // Create a URL that can be accessed by the browser
+                $tempFilename = 'temp-' . basename($framePath);
+                $tempFilePath = OMEKA_PATH . '/files/temp/' . $tempFilename;
+                
+                // Copy the frame to the Omeka temp directory for web access
+                copy($framePath, $tempFilePath);
+                
                 $frameUrl = $this->url()->fromRoute('asset', [
-                    'asset' => 'temp-' . basename($framePath),
+                    'asset' => $tempFilename,
                 ]);
+                
+                // Calculate the position as a percentage of video duration
+                $percentPosition = ($index + 1) * (100 / ($frameCount + 1));
+                $timeInSeconds = ($duration * $percentPosition) / 100;
+                
+                // Ensure the position is within valid range (at least 0.1s from start)
+                $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
+                
+                // Store both the percentage and the actual time in seconds
                 $framePaths[] = [
                     'index' => $index,
                     'path' => $frameUrl,
-                    'position' => ($index + 1) * (100 / ($frameCount + 1)),
+                    'position' => $percentPosition,
+                    'time' => $timeInSeconds, // Time in seconds
+                    'original_path' => $framePath, // Keep track of the original path for cleanup
                 ];
             }
+            
+            // Register a shutdown function to clean up the original frame files
+            $originalPaths = array_column($framePaths, 'original_path');
+            register_shutdown_function(function() use ($originalPaths) {
+                foreach ($originalPaths as $path) {
+                    if (file_exists($path)) {
+                        @unlink($path);
+                    }
+                }
+            });
             
             Debug::logExit(__METHOD__, 'Generated ' . count($framePaths) . ' frames');
             return new JsonModel([
