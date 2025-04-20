@@ -8,6 +8,14 @@ $formErrors = $this->plugin('formElementErrors');
 <h3><?= $this->translate('Video Thumbnail Configuration') ?></h3>
 
 <div class="configuration-section">
+    <?php if ($this->messenger()->hasMessages()): ?>
+        <div class="admin-feedback-messages" role="alert" aria-live="assertive">
+            <?php foreach ($this->messenger()->getMessages() as $message): ?>
+                <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
     <?= $this->form()->openTag($form) ?>
 
     <div class="field">

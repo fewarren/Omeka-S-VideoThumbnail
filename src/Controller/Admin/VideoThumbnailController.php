@@ -418,6 +418,98 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    protected function validateAndExtractFrame($media, $position = null)
+    {
+        $fileStore = $this->serviceLocator->get('Omeka\File\Store');
+        $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+        $settings = $this->settings;
+
+        try {
+            $storagePath = sprintf('original/%s', $media->filename());
+            $filePath = $fileStore->getLocalPath($storagePath);
+
+            if (!file_exists($filePath) || !is_readable($filePath)) {
+                throw new \RuntimeException('Video file not found or not readable');
+            }
+
+            // Validate video format
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $mimeType = $finfo->file($filePath);
+            if (strpos($mimeType, 'video/') !== 0) {
+                throw new \RuntimeException('Invalid file type: ' . $mimeType);
+            }
+
+            // Get video duration with enhanced error checking
+            $duration = $extractor->getVideoDuration($filePath);
+            if ($duration <= 0) {
+                // For very small files, use minimum duration
+                if (filesize($filePath) < 1048576) { // Less than 1MB
+                    $duration = 1.0;
+                } else {
+                    throw new \RuntimeException('Could not determine video duration');
+                }
+            }
+
+            // Calculate frame position
+            if ($position === null) {
+                $defaultPosition = (float)$settings->get('videothumbnail_default_frame', 10);
+                $position = max(0, min(100, $defaultPosition));
+            }
+
+            $timeInSeconds = ($duration * $position) / 100;
+            $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
+
+            // Extract frame with multiple fallback attempts
+            $framePath = $this->extractFrameWithFallback($extractor, $filePath, $timeInSeconds, $duration);
+            
+            if (!$framePath) {
+                throw new \RuntimeException('Failed to extract frame from video');
+            }
+
+            return [
+                'success' => true,
+                'framePath' => $framePath,
+                'position' => $position,
+                'duration' => $duration
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
+        }
+    }
+
+    protected function extractFrameWithFallback($extractor, $filePath, $timeInSeconds, $duration)
+    {
+        // First attempt at specified position
+        $framePath = $extractor->extractFrame($filePath, $timeInSeconds);
+        if ($this->isValidFrame($framePath)) {
+            return $framePath;
+        }
+
+        // Try at 25% of duration
+        $earlierTime = $duration * 0.25;
+        $framePath = $extractor->extractFrame($filePath, $earlierTime);
+        if ($this->isValidFrame($framePath)) {
+            return $framePath;
+        }
+
+        // Try at start of video
+        $framePath = $extractor->extractFrame($filePath, 1.0);
+        if ($this->isValidFrame($framePath)) {
+            return $framePath;
+        }
+
+        return null;
+    }
+
+    protected function isValidFrame($framePath)
+    {
+        return $framePath && file_exists($framePath) && filesize($framePath) > 0;
+    }
+
     public function selectFrameAction()
     {
         Debug::logEntry(__METHOD__);
@@ -526,15 +618,13 @@ class VideoThumbnailController extends AbstractActionController
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
-            
             if (!$media || strpos($media->mediaType(), 'video/') !== 0) {
-                Debug::logError('Invalid media type or media not found', __METHOD__);
                 return new JsonModel([
                     'success' => false,
-                    'message' => 'Invalid media type or media not found',
+                    'message' => 'This media is not a supported video format. Please check the supported formats in the Video Thumbnail settings.',
+                    'help' => 'See the Troubleshooting Guide for supported formats and solutions.'
                 ]);
             }
-            
             $ffmpegPath = $this->settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
             $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
             
@@ -620,10 +710,12 @@ class VideoThumbnailController extends AbstractActionController
                 'frames' => $framePaths,
             ]);
         } catch (\Exception $e) {
-            Debug::logError('Error generating frames: ' . $e->getMessage(), __METHOD__);
+            Debug::logError('Error loading media: ' . $e->getMessage(), __METHOD__);
             return new JsonModel([
                 'success' => false,
-                'message' => 'Error generating frames: ' . $e->getMessage(),
+                'message' => 'Error loading media. Please check file permissions and try again. If the problem persists, see the Troubleshooting Guide.',
+                'details' => $e->getMessage(),
+                'help' => 'See TROUBLESHOOTING.md for more information.'
             ]);
         }
     }

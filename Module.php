@@ -15,6 +15,8 @@ use Omeka\Api\Representation\MediaRepresentation;
 
 class Module extends AbstractModule
 {
+    const NAMESPACE = __NAMESPACE__;
+
     public function getConfig(): array
     {
         return include __DIR__ . '/config/module.config.php';
@@ -106,6 +108,14 @@ class Module extends AbstractModule
         
         // Add ACL rules
         $this->addAclRules($serviceManager);
+
+        $this->initializeDebugMode($serviceManager);
+    }
+
+    protected function initializeDebugMode($serviceManager)
+    {
+        $settings = $serviceManager->get('Omeka\Settings');
+        \VideoThumbnail\Stdlib\Debug::init($settings);
     }
     
     /**
@@ -137,30 +147,122 @@ class Module extends AbstractModule
     public function install(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
-        $settings->set('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
-        $settings->set('videothumbnail_frames_count', 5);
-        $settings->set('videothumbnail_default_frame', 10);
-        $settings->set('videothumbnail_debug_mode', false);
-        $settings->set('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
+        
+        // Set default settings
+        $defaults = [
+            'videothumbnail_ffmpeg_path' => $this->detectFfmpegPath(),
+            'videothumbnail_default_frame' => 10,
+            'videothumbnail_frames_count' => 5,
+            'videothumbnail_memory_limit' => 512,
+            'videothumbnail_process_timeout' => 3600,
+            'videothumbnail_debug_mode' => false,
+            'videothumbnail_log_level' => 'info',
+            'videothumbnail_supported_formats' => [
+                'video/mp4',
+                'video/quicktime',
+                'video/x-msvideo',
+                'video/x-ms-wmv',
+                'video/x-matroska',
+                'video/webm',
+                'video/3gpp',
+                'video/3gpp2',
+                'video/x-flv'
+            ]
+        ];
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
+        foreach ($defaults as $key => $value) {
+            $settings->set($key, $value);
+        }
+
+        $this->createRequiredDirectories();
+    }
+
+    protected function detectFfmpegPath()
+    {
+        $possiblePaths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+            'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+            'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe'
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Try to detect using which command on Unix-like systems
+        if (function_exists('exec')) {
+            $output = [];
+            $returnVar = null;
+            exec('which ffmpeg 2>/dev/null', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+        }
+
+        return '';
+    }
+
+    protected function createRequiredDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails',
+            OMEKA_PATH . '/logs'
+        ];
+
+        foreach ($directories as $dir) {
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
         }
     }
 
     public function uninstall(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
+        
+        // Remove all module settings
         $settings->delete('videothumbnail_ffmpeg_path');
-        $settings->delete('videothumbnail_frames_count');
         $settings->delete('videothumbnail_default_frame');
+        $settings->delete('videothumbnail_frames_count');
+        $settings->delete('videothumbnail_memory_limit');
+        $settings->delete('videothumbnail_process_timeout');
         $settings->delete('videothumbnail_debug_mode');
+        $settings->delete('videothumbnail_log_level');
         $settings->delete('videothumbnail_supported_formats');
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (is_dir($tempDir)) {
-            $this->recursiveRemoveDirectory($tempDir);
+        // Clean up temporary directories
+        $this->cleanupTempDirectories();
+    }
+
+    protected function cleanupTempDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails'
+        ];
+
+        foreach ($directories as $dir) {
+            if (file_exists($dir)) {
+                $this->recursiveRemoveDirectory($dir);
+            }
+        }
+    }
+
+    protected function recursiveRemoveDirectory($directory): void
+    {
+        if (is_dir($directory)) {
+            $objects = scandir($directory);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    $path = $directory . DIRECTORY_SEPARATOR . $object;
+                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
+                }
+            }
+            rmdir($directory);
         }
     }
 
@@ -268,20 +370,6 @@ class Module extends AbstractModule
             }
         } catch (\Exception $e) {
             error_log($e->getMessage());
-        }
-    }
-
-    protected function recursiveRemoveDirectory($directory): void
-    {
-        if (is_dir($directory)) {
-            $objects = scandir($directory);
-            foreach ($objects as $object) {
-                if ($object != "." && $object != "..") {
-                    $path = $directory . DIRECTORY_SEPARATOR . $object;
-                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
-                }
-            }
-            rmdir($directory);
         }
     }
     

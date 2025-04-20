@@ -9,111 +9,183 @@ use VideoThumbnail\Stdlib\Debug;
  */
 class ThumbnailSynchronizer
 {
-    /**
-     * @var \Omeka\File\Store
-     */
     protected $fileManager;
-    
-    /**
-     * @var \Doctrine\ORM\EntityManager
-     */
     protected $entityManager;
-    
-    /**
-     * Constructor
-     *
-     * @param \Omeka\File\Store $fileManager
-     * @param \Doctrine\ORM\EntityManager $entityManager
-     */
-    public function __construct($fileManager, $entityManager)
+    protected $logger;
+    protected $settings;
+    protected $thumbnailTypes = ['large', 'medium', 'square'];
+
+    public function __construct($fileManager, $entityManager, $logger, $settings)
     {
         $this->fileManager = $fileManager;
         $this->entityManager = $entityManager;
+        $this->logger = $logger;
+        $this->settings = $settings;
     }
-    
-    /**
-     * Update the storage paths for thumbnails in the database
-     *
-     * @param Media $media The media entity to update
-     * @return void
-     */
-    public function updateThumbnailStoragePaths(Media $media)
+
+    public function updateThumbnailStoragePaths($media)
     {
         try {
-            Debug::log(sprintf('Updating thumbnail storage paths for media %d', $media->getId()), __METHOD__);
+            \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__, ['mediaId' => $media->getId()]);
             
             $storageId = $media->getStorageId();
-            
-            // Standard Omeka S thumbnail sizes
-            $thumbnailTypes = ['large', 'medium', 'square'];
-            
-            foreach ($thumbnailTypes as $type) {
-                // Construct expected path for this thumbnail type 
-                $storagePath = $this->getStoragePath($type, $storageId, 'jpg');
+            $hasThumbnails = false;
+
+            // Check each thumbnail type
+            foreach ($this->thumbnailTypes as $type) {
+                $path = $this->getThumbnailPath($type, $storageId);
+                $exists = $this->validateThumbnail($path);
                 
-                // Update thumbnail info in database if needed
-                Debug::log(sprintf('Ensuring thumbnail path exists for %s: %s', $type, $storagePath), __METHOD__);
-                
-                // Force re-association of thumbnail with media
-                $this->forceStorageLinkage($media, $type, $storagePath);
+                if ($exists) {
+                    $hasThumbnails = true;
+                    \VideoThumbnail\Stdlib\Debug::log(
+                        sprintf('Found valid thumbnail: %s', $path),
+                        __METHOD__
+                    );
+                } else {
+                    \VideoThumbnail\Stdlib\Debug::logWarning(
+                        sprintf('Missing thumbnail: %s', $path),
+                        __METHOD__
+                    );
+                }
             }
-            
-            // Also make sure original/thumbnails flags are set properly
-            $media->setHasThumbnails(true);
-            $this->entityManager->persist($media);
-            
-            Debug::log(sprintf('Thumbnail storage paths updated for media %d', $media->getId()), __METHOD__);
+
+            // Update media entity
+            if ($hasThumbnails !== $media->hasThumbnails()) {
+                $media->setHasThumbnails($hasThumbnails);
+                $this->entityManager->persist($media);
+                $this->entityManager->flush();
+                
+                \VideoThumbnail\Stdlib\Debug::log(
+                    sprintf('Updated hasThumbnails flag to %s for media %d', 
+                        $hasThumbnails ? 'true' : 'false',
+                        $media->getId()
+                    ),
+                    __METHOD__
+                );
+            }
+
+            return $hasThumbnails;
+
         } catch (\Exception $e) {
-            Debug::logError(sprintf('Error updating thumbnail paths: %s', $e->getMessage()), __METHOD__);
+            \VideoThumbnail\Stdlib\Debug::logError(
+                sprintf('Error updating thumbnail paths: %s', $e->getMessage()),
+                __METHOD__
+            );
+            throw $e;
         }
     }
-    
-    /**
-     * Force re-association of thumbnail with media by updating database thumbnail reference
-     *
-     * @param Media $media The media entity
-     * @param string $type Thumbnail type (large, medium, square)
-     * @param string $storagePath Path where thumbnail is stored
-     * @return void
-     */
-    private function forceStorageLinkage(Media $media, $type, $storagePath)
+
+    public function regenerateThumbnails($media)
     {
-        // Get the local file path
-        $localPath = $this->fileManager->getLocalPath($storagePath);
-        
-        // Check if the file exists using standard PHP function
-        if (file_exists($localPath)) {
-            Debug::log(sprintf('Thumbnail file exists for %s: %s', $type, $storagePath), __METHOD__);
-            
-            // Force database to recognize the thumbnail paths
-            $mediaId = $media->getId();
-            $connection = $this->entityManager->getConnection();
-            
-            try {
-                // Update the media entity's has_thumbnails flag directly
-                $stmt = $connection->prepare('UPDATE media SET has_thumbnails = 1 WHERE id = :id');
-                $stmt->bindValue('id', $mediaId, \PDO::PARAM_INT);
-                $stmt->execute();
-                
-                Debug::log(sprintf('Updated has_thumbnails flag for media %d', $mediaId), __METHOD__);
-            } catch (\Exception $e) {
-                Debug::logError(sprintf('Database update error: %s', $e->getMessage()), __METHOD__);
+        try {
+            \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__, ['mediaId' => $media->getId()]);
+
+            // Get the video file path
+            $originalPath = $this->getOriginalFilePath($media);
+            if (!file_exists($originalPath)) {
+                throw new \RuntimeException('Original video file not found');
             }
-        } else {
-            Debug::logError(sprintf('Thumbnail file not found: %s', $storagePath), __METHOD__);
+
+            // Get video metadata
+            $mediaData = $media->getData() ?: [];
+            $framePosition = $mediaData['videothumbnail_frame'] ?? null;
+            
+            if ($framePosition === null) {
+                $framePosition = $this->settings->get('videothumbnail_default_frame', 10);
+            }
+
+            // Extract frame
+            $extractor = $this->getVideoFrameExtractor();
+            $duration = $extractor->getVideoDuration($originalPath);
+            $timeInSeconds = ($duration * $framePosition) / 100;
+            
+            $framePath = $extractor->extractFrame($originalPath, $timeInSeconds);
+            if (!$framePath || !file_exists($framePath)) {
+                throw new \RuntimeException('Failed to extract video frame');
+            }
+
+            try {
+                // Generate thumbnails
+                $tempFile = $this->createTempFile($framePath);
+                $this->generateThumbnails($tempFile, $media);
+
+                // Update media entity
+                $media->setHasThumbnails(true);
+                $this->entityManager->persist($media);
+                $this->entityManager->flush();
+
+                \VideoThumbnail\Stdlib\Debug::log(
+                    sprintf('Successfully regenerated thumbnails for media %d', $media->getId()),
+                    __METHOD__
+                );
+
+                return true;
+
+            } finally {
+                // Clean up temporary files
+                if (isset($tempFile) && method_exists($tempFile, 'delete')) {
+                    $tempFile->delete();
+                }
+                if (file_exists($framePath)) {
+                    @unlink($framePath);
+                }
+            }
+
+        } catch (\Exception $e) {
+            \VideoThumbnail\Stdlib\Debug::logError(
+                sprintf('Error regenerating thumbnails: %s', $e->getMessage()),
+                __METHOD__
+            );
+            throw $e;
         }
     }
-    
-    /**
-     * Get a storage path.
-     *
-     * @param string $prefix The storage prefix (e.g., 'original', 'thumbnail')
-     * @param string $storageId The unique storage ID of the media
-     * @param string $extension Optional file extension
-     * @return string The constructed storage path
-     */
-    protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
+
+    protected function getThumbnailPath($type, $storageId)
     {
-        return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
+        return sprintf('%s/%s.jpg', $type, $storageId);
+    }
+
+    protected function validateThumbnail($path)
+    {
+        try {
+            $localPath = $this->fileManager->getLocalPath($path);
+            return file_exists($localPath) && filesize($localPath) > 0;
+        } catch (\Exception $e) {
+            \VideoThumbnail\Stdlib\Debug::logError(
+                sprintf('Error validating thumbnail %s: %s', $path, $e->getMessage()),
+                __METHOD__
+            );
+            return false;
+        }
+    }
+
+    protected function getOriginalFilePath($media)
+    {
+        $storagePath = sprintf('original/%s', $media->getFilename());
+        return $this->fileManager->getLocalPath($storagePath);
+    }
+
+    protected function createTempFile($sourcePath)
+    {
+        $tempFile = new \Omeka\File\TempFile;
+        $tempFile->setSourceName(basename($sourcePath));
+        $tempFile->setTempPath($sourcePath);
+        return $tempFile;
+    }
+
+    protected function generateThumbnails($tempFile, $media)
+    {
+        $tempFile->setStorageId($media->getStorageId());
+        
+        if (!$tempFile->storeThumbnails()) {
+            throw new \RuntimeException('Failed to store thumbnails');
+        }
+    }
+
+    protected function getVideoFrameExtractor()
+    {
+        $ffmpegPath = $this->settings->get('videothumbnail_ffmpeg_path');
+        return new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
     }
 }

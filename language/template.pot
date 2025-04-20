@@ -1,14 +1,9 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# Translation template for the VideoThumbnail module
 #
-#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2023-01-01 00:00+0000\n"
+"Project-Id-Version: VideoThumbnail\n"
+"POT-Creation-Date: 2025-04-20 12:00-0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -65,24 +60,88 @@ msgstr ""
 msgid "Video Thumbnail"
 msgstr ""
 
+#: view/common/video-thumbnail-selector.phtml:5
+msgid "Current Thumbnail"
+msgstr ""
+
 #: view/common/video-thumbnail-selector.phtml:8
 msgid "The thumbnail currently used for this video."
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:11
+msgid "Current video thumbnail"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:14
+msgid "No thumbnail set"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:18
+msgid "Video Information"
 msgstr ""
 
 #: view/common/video-thumbnail-selector.phtml:19
 msgid "Thumbnail Frame Selection"
 msgstr ""
 
+#: view/common/video-thumbnail-selector.phtml:20
+msgid "Format"
+msgstr ""
+
 #: view/common/video-thumbnail-selector.phtml:22
 msgid "Select a different frame to use as thumbnail for this video."
 msgstr ""
 
+#: view/common/video-thumbnail-selector.phtml:24
+msgid "Duration"
+msgstr ""
+
 #: view/common/video-thumbnail-selector.phtml:27
-msgid "Select Frame"
+msgid "Size"
 msgstr ""
 
 #: view/common/video-thumbnail-selector.phtml:30
 msgid "Current frame position"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:35
+msgid "Select Thumbnail Frame"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:37
+msgid "Click on a frame to set it as the video thumbnail."
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:40
+msgid "Video frame previews"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:45
+msgid "Loading video frames"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:46
+msgid "Processing video frames..."
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:52
+msgid "Advanced Options"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:56
+msgid "Regenerate Thumbnails"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:57
+msgid "Regenerate all thumbnails for this video"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:62
+msgid "Regenerate All Video Thumbnails"
+msgstr ""
+
+#: view/common/video-thumbnail-selector.phtml:63
+msgid "Regenerate thumbnails for all videos"
 msgstr ""
 
 #: src/Form/ConfigForm.php:19
@@ -90,6 +149,14 @@ msgid "FFmpeg Path"
 msgstr ""
 
 #: src/Form/ConfigForm.php:20
+msgid "Full path to FFmpeg executable (e.g., /usr/bin/ffmpeg)"
+msgstr ""
+
+#: src/Form/ConfigForm.php:23
+msgid "FFmpeg Path"
+msgstr ""
+
+#: src/Form/ConfigForm.php:24
 msgid "Full path to FFmpeg executable (e.g., /usr/bin/ffmpeg)"
 msgstr ""
 
@@ -101,12 +168,48 @@ msgstr ""
 msgid "Number of frames to extract for selection (higher values require more processing time)"
 msgstr ""
 
+#: src/Form/ConfigForm.php:35
+msgid "Default Frame Position"
+msgstr ""
+
+#: src/Form/ConfigForm.php:36
+msgid "Default position (in percent) to extract thumbnail frame"
+msgstr ""
+
 #: src/Form/ConfigForm.php:48
 msgid "Default Frame Position (%)"
 msgstr ""
 
 #: src/Form/ConfigForm.php:49
 msgid "Default position for thumbnail extraction as percentage of video duration (0-100)"
+msgstr ""
+
+#: src/Form/ConfigForm.php:51
+msgid "Supported Video Formats"
+msgstr ""
+
+#: src/Form/ConfigForm.php:53
+msgid "Select which video formats to process"
+msgstr ""
+
+#: src/Form/ConfigForm.php:65
+msgid "Memory Limit (MB)"
+msgstr ""
+
+#: src/Form/ConfigForm.php:66
+msgid "Maximum memory limit for video processing (in MB)"
+msgstr ""
+
+#: src/Form/ConfigForm.php:80
+msgid "Enable Debug Mode"
+msgstr ""
+
+#: src/Form/ConfigForm.php:81
+msgid "Log detailed debug information"
+msgstr ""
+
+#: src/Form/ConfigForm.php:89
+msgid "Log Level"
 msgstr ""
 
 #: src/Controller/Admin/VideoThumbnailController.php:61
@@ -117,10 +220,6 @@ msgstr ""
 msgid "This media is not a supported video format."
 msgstr ""
 
-#: src/Controller/Admin/VideoThumbnailController.php:206
-msgid "Thumbnail updated successfully"
-msgstr ""
-
 #: src/Controller/Admin/VideoThumbnailController.php:137
 msgid "Missing required parameters"
 msgstr ""
@@ -129,6 +228,46 @@ msgstr ""
 msgid "Media not found"
 msgstr ""
 
+#: src/Controller/Admin/VideoThumbnailController.php:157
+msgid "Error loading video"
+msgstr ""
+
 #: src/Controller/Admin/VideoThumbnailController.php:170
 msgid "Failed to extract frame"
+msgstr ""
+
+#: src/Controller/Admin/VideoThumbnailController.php:172
+msgid "Error extracting frame"
+msgstr ""
+
+#: src/Controller/Admin/VideoThumbnailController.php:184
+msgid "Thumbnail updated successfully"
+msgstr ""
+
+#: src/Controller/Admin/VideoThumbnailController.php:206
+msgid "Thumbnail updated successfully"
+msgstr ""
+
+#: asset/js/video-thumbnail.js:156
+msgid "Select Frame"
+msgstr ""
+
+#: asset/js/video-thumbnail.js:157
+msgid "Generating thumbnails..."
+msgstr ""
+
+#: asset/js/video-thumbnail.js:158
+msgid "Error loading video frames"
+msgstr ""
+
+#: asset/js/video-thumbnail.js:159
+msgid "Select this frame as thumbnail"
+msgstr ""
+
+#: asset/js/video-thumbnail.js:160
+msgid "Thumbnail update failed"
+msgstr ""
+
+#: asset/js/video-thumbnail.js:161
+msgid "Frame extraction failed"
 msgstr ""
