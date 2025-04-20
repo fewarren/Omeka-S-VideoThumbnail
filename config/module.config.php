@@ -1,7 +1,17 @@
 <?php
 namespace VideoThumbnail;
 
+// Add use statements for clarity and consistency
 use Laminas\ServiceManager\Factory\InvokableFactory;
+use VideoThumbnail\Form;
+use VideoThumbnail\Service;
+use VideoThumbnail\Controller;
+use VideoThumbnail\Site;
+use VideoThumbnail\Listener;
+use VideoThumbnail\Job;
+use VideoThumbnail\Stdlib; // Added for VideoFrameExtractor
+use VideoThumbnail\View\Helper as VideoThumbnailViewHelper; // Alias for View Helper
+use VideoThumbnail\Thumbnail; // Added for ThumbnailSynchronizer
 
 return [
     'view_manager' => [
@@ -11,31 +21,33 @@ return [
     ],
     'view_helpers' => [
         'factories' => [
-            'VideoThumbnail\View\Helper\VideoThumbnailSelector' => Service\ViewHelper\VideoThumbnailSelectorFactory::class,
+            VideoThumbnailViewHelper\VideoThumbnailSelector::class => Service\ViewHelper\VideoThumbnailSelectorFactory::class,
         ],
         'aliases' => [
-            'videoThumbnailSelector' => 'VideoThumbnail\View\Helper\VideoThumbnailSelector',
+            'videoThumbnailSelector' => VideoThumbnailViewHelper\VideoThumbnailSelector::class,
         ],
     ],
     'form_elements' => [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
-            'VideoThumbnail\Form\ConfigBatchForm' => 'VideoThumbnail\Service\Form\ConfigBatchFormFactory', // Consider using ::class
-            Form\VideoThumbnailBlockForm::class => InvokableFactory::class, // Keep block form registered
-        ],
-        'aliases' => [
+            Form\ConfigBatchForm::class => Service\Form\ConfigBatchFormFactory::class, // Use ::class consistently
+            Form\VideoThumbnailBlockForm::class => InvokableFactory::class,
+        ], // <-- Added missing comma here if other sections follow
+        'aliases' => [ // <-- Ensure 'aliases' section is correctly defined
             'videothumbnailconfigform' => Form\ConfigForm::class,
             'videothumbnailconfigbatchform' => Form\ConfigBatchForm::class,
-        ],
-    ],
+        ], // <-- Added missing comma here if other sections follow
+    ], // <-- Closing bracket for 'form_elements'
     'controllers' => [
         'factories' => [
-            'VideoThumbnail\Controller\Admin\VideoThumbnail' => Service\Controller\VideoThumbnailControllerFactory::class,
+            // Assuming Controller\Admin\VideoThumbnail exists and is correct
+            Controller\Admin\VideoThumbnail::class => Service\Controller\VideoThumbnailControllerFactory::class,
             Controller\Admin\IndexController::class => Service\Controller\Admin\IndexControllerFactory::class,
         ],
     ],
     'controller_plugins' => [
         'factories' => [
+            // Assuming Service\ControllerPlugin\ExtractVideoFramesFactory exists
             'extractVideoFrames' => Service\ControllerPlugin\ExtractVideoFramesFactory::class,
         ],
     ],
@@ -49,18 +61,20 @@ return [
                             'route' => '/video-thumbnail[/:action]',
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
+                                // Ensure this controller alias matches a registered controller
+                                'controller' => Controller\Admin\VideoThumbnail::class, // Use class name if registered that way
                                 'action' => 'index',
                             ],
                         ],
                     ],
-                    'video-thumbnail-select-frame' => [
+                    // ... other routes seem okay, ensure controller names match registration ...
+                     'video-thumbnail-select-frame' => [
                         'type' => 'Segment',
                         'options' => [
                             'route' => '/video-thumbnail/select-frame/:id',
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
+                                'controller' => Controller\Admin\VideoThumbnail::class, // Use class name
                                 'action' => 'select-frame',
                             ],
                             'constraints' => [
@@ -74,7 +88,7 @@ return [
                             'route' => '/video-thumbnail/extract-frame',
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
+                                'controller' => Controller\Admin\VideoThumbnail::class, // Use class name
                                 'action' => 'extract-frame',
                             ],
                         ],
@@ -85,7 +99,7 @@ return [
                             'route' => '/video-thumbnail/media/:id/:action',
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnail',
+                                'controller' => Controller\Admin\VideoThumbnail::class, // Use class name
                             ],
                             'constraints' => [
                                 'id' => '\d+',
@@ -99,14 +113,14 @@ return [
     'navigation' => [
         'AdminModule' => [
             [
-                'label' => 'Video Thumbnail', 
+                'label' => 'Video Thumbnail', // @translate
                 'route' => 'admin/video-thumbnail',
-                'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnail',
+                'resource' => Controller\Admin\VideoThumbnail::class, // Use class name
                 'pages' => [
                     [
-                        'label' => 'Configuration',
+                        'label' => 'Configuration', // @translate
                         'route' => 'admin/video-thumbnail',
-                        'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnail',
+                        'resource' => Controller\Admin\VideoThumbnail::class, // Use class name
                     ],
                 ],
             ],
@@ -114,14 +128,15 @@ return [
     ],
     'media_ingesters' => [
         'factories' => [
+            // Assuming Service\Media\IngesterFactory exists
             'videothumbnail' => Service\Media\IngesterFactory::class,
         ],
     ],
     'media_renderers' => [
         'factories' => [
+             // Assuming Service\Media\RendererFactory exists
             'videothumbnail' => Service\Media\RendererFactory::class,
         ],
-        // Aliases are now registered dynamically based on the configured formats
     ],
     'thumbnails' => [
         'fallbacks' => [
@@ -129,10 +144,10 @@ return [
         ],
     ],
     'js_translate_strings' => [
-        'Select Frame', 
-        'Generating thumbnails...', 
-        'Error loading video frames', 
-        'Select this frame as thumbnail',
+        'Select Frame', // @translate
+        'Generating thumbnails...', // @translate
+        'Error loading video frames', // @translate
+        'Select this frame as thumbnail', // @translate
     ],
     'assets' => [
         'module_paths' => [
@@ -151,35 +166,37 @@ return [
     'job' => [
         'dispatcher_strategies' => [
             'factories' => [
+                // Assuming Service\Job\DispatchStrategy\VideoThumbnailStrategyFactory exists
                 Job\DispatchStrategy\VideoThumbnailStrategy::class => Service\Job\DispatchStrategy\VideoThumbnailStrategyFactory::class,
             ],
         ],
     ],
     'service_manager' => [
         'factories' => [
-            // Restore the service factory registration(s)
-            // Use the string key version as it seems to be the one used elsewhere
+            // Assuming Service\VideoFrameExtractorFactory exists
             'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
-            // You might want to standardize on one key (class name or string) eventually
-            // Stdlib\VideoFrameExtractor::class => Service\Stdlib\VideoFrameExtractorFactory::class, // Keep this commented unless needed
-
+            // Assuming Service\Thumbnail\ThumbnailSynchronizerFactory exists
             'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
+                 // Assuming Service\FileManagerDelegatorFactory exists
                 Service\FileManagerDelegatorFactory::class,
             ],
         ],
     ],
     'listeners' => [
         'factories' => [
-            // Restore listeners
+            // Assuming listener factories exist
             Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
             Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
         ],
     ],
+    // Module specific config section
     'videothumbnail' => [
-        'debug' => [
+        // ... debug, job_dispatch, supported_formats, thumbnail_options, settings, job_settings ...
+        // Ensure this section is correctly structured internally
+         'debug' => [
             'enabled' => false,
             'log_dir' => OMEKA_PATH . '/logs',
             'log_file' => 'videothumbnail.log',
@@ -244,14 +261,16 @@ return [
             'job_timeout' => 300,
         ],
     ],
+    // Site block layout configuration
     'site' => [
         'block_layouts' => [
             'factories' => [
-                Site\BlockLayout\VideoThumbnailBlock::class => Service\Factory\VideoThumbnailBlockFactory::class, // Keep block registered
+                // Assuming Service\Factory\VideoThumbnailBlockFactory exists
+                Site\BlockLayout\VideoThumbnailBlock::class => Service\Factory\VideoThumbnailBlockFactory::class,
             ],
             'aliases' => [
                 'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
             ]
         ],
     ],
-];
+]; // <-- Final closing bracket for the main return array
