@@ -264,13 +264,9 @@ return [
     // Restore the 'site' section with correct commas
     'site' => [
         'block_layouts' => [
-            'factories' => [
-                // Assuming Service\Factory\VideoThumbnailBlockFactory exists
-                Site\BlockLayout\VideoThumbnailBlock::class => Service\Factory\VideoThumbnailBlockFactory::class,
-            ], // <-- **Ensure comma is present here before 'aliases'**
-            'aliases' => [
+            'invokables' => [
                 'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
-            ] // <-- No comma needed here (last element in 'block_layouts')
-        ], // <-- No comma needed here (last element in 'site')
-    ], // <-- No comma needed here (assuming this is the last top-level section)
+            ],
+        ],
+    ],
 ]; // <-- Final closing bracket for the main return array
