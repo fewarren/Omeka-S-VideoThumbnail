@@ -261,7 +261,8 @@ return [
             'job_timeout' => 300,
         ],
     ],
-    // Site block layout configuration
+    // Temporarily comment out the entire 'site' section for debugging the config structure error
+    /*
     'site' => [
         'block_layouts' => [
             'factories' => [
@@ -273,4 +274,5 @@ return [
             ]
         ],
     ],
+    */
 ]; // <-- Final closing bracket for the main return array
