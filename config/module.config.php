@@ -1,6 +1,8 @@
 <?php
 namespace VideoThumbnail;
 
+use Laminas\ServiceManager\Factory\InvokableFactory;
+
 return [
     'view_manager' => [
         'template_path_stack' => [
@@ -19,11 +21,17 @@ return [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
             'VideoThumbnail\Form\ConfigBatchForm' => 'VideoThumbnail\Service\Form\ConfigBatchFormFactory',
+            Form\VideoThumbnailBlockForm::class => InvokableFactory::class, // Keep block form registered
+        ],
+        'aliases' => [
+            'videothumbnailconfigform' => Form\ConfigForm::class,
+            'videothumbnailconfigbatchform' => Form\ConfigBatchForm::class,
         ],
     ],
     'controllers' => [
         'factories' => [
             'VideoThumbnail\Controller\Admin\VideoThumbnail' => Service\Controller\VideoThumbnailControllerFactory::class,
+            Controller\Admin\IndexController::class => Service\Controller\Admin\IndexControllerFactory::class,
         ],
     ],
     'controller_plugins' => [
@@ -151,11 +159,20 @@ return [
         'factories' => [
             'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
             'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
+            // Temporarily comment out the core service factory
+            // Stdlib\VideoFrameExtractor::class => Service\Stdlib\VideoFrameExtractorFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
                 Service\FileManagerDelegatorFactory::class,
             ],
+        ],
+    ],
+    'listeners' => [
+        'factories' => [
+            // Keep listeners commented out for now
+            // Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
+            // Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
         ],
     ],
     'videothumbnail' => [
@@ -227,6 +244,16 @@ return [
     'block_layouts' => [
         'invokables' => [
             'videoThumbnail' => Site\BlockLayout\VideoThumbnail::class,
+        ],
+    ],
+    'site' => [
+        'block_layouts' => [
+            'factories' => [
+                Site\BlockLayout\VideoThumbnailBlock::class => Service\Factory\VideoThumbnailBlockFactory::class, // Keep block registered
+            ],
+            'aliases' => [
+                'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
+            ]
         ],
     ],
 ];
