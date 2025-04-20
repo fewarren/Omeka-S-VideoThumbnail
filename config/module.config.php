@@ -20,7 +20,7 @@ return [
     'form_elements' => [
         'factories' => [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
-            'VideoThumbnail\Form\ConfigBatchForm' => 'VideoThumbnail\Service\Form\ConfigBatchFormFactory',
+            'VideoThumbnail\Form\ConfigBatchForm' => 'VideoThumbnail\Service\Form\ConfigBatchFormFactory', // Consider using ::class
             Form\VideoThumbnailBlockForm::class => InvokableFactory::class, // Keep block form registered
         ],
         'aliases' => [
@@ -157,11 +157,13 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            // Temporarily comment out the string-keyed service factory
-            // 'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+            // Restore the service factory registration(s)
+            // Use the string key version as it seems to be the one used elsewhere
+            'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+            // You might want to standardize on one key (class name or string) eventually
+            // Stdlib\VideoFrameExtractor::class => Service\Stdlib\VideoFrameExtractorFactory::class, // Keep this commented unless needed
+
             'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
-            // Keep the class-constant based one commented out as well for now
-            // Stdlib\VideoFrameExtractor::class => Service\Stdlib\VideoFrameExtractorFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
@@ -171,9 +173,9 @@ return [
     ],
     'listeners' => [
         'factories' => [
-            // Keep listeners commented out
-            // Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
-            // Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
+            // Restore listeners
+            Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
+            Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
         ],
     ],
     'videothumbnail' => [
