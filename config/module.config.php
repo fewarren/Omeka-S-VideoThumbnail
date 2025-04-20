@@ -244,11 +244,6 @@ return [
             'job_timeout' => 300,
         ],
     ],
-    'block_layouts' => [
-        'invokables' => [
-            'videoThumbnail' => Site\BlockLayout\VideoThumbnail::class,
-        ],
-    ],
     'site' => [
         'block_layouts' => [
             'factories' => [
