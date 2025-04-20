@@ -195,7 +195,6 @@ return [
     // Module specific config section
     'videothumbnail' => [
         // ... debug, job_dispatch, supported_formats, thumbnail_options, settings, job_settings ...
-        // Ensure this section is correctly structured internally
          'debug' => [
             'enabled' => false,
             'log_dir' => OMEKA_PATH . '/logs',
@@ -260,19 +259,18 @@ return [
             'cleanup_interval' => 3600,
             'job_timeout' => 300,
         ],
-    ],
-    // Temporarily comment out the entire 'site' section for debugging the config structure error
-    /*
+    ], // <-- **Ensure comma is present here before 'site'**
+
+    // Restore the 'site' section with correct commas
     'site' => [
         'block_layouts' => [
             'factories' => [
                 // Assuming Service\Factory\VideoThumbnailBlockFactory exists
                 Site\BlockLayout\VideoThumbnailBlock::class => Service\Factory\VideoThumbnailBlockFactory::class,
-            ],
+            ], // <-- **Ensure comma is present here before 'aliases'**
             'aliases' => [
                 'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
-            ]
-        ],
-    ],
-    */
+            ] // <-- No comma needed here (last element in 'block_layouts')
+        ], // <-- No comma needed here (last element in 'site')
+    ], // <-- No comma needed here (assuming this is the last top-level section)
 ]; // <-- Final closing bracket for the main return array
