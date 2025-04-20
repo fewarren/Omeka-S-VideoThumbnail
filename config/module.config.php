@@ -186,11 +186,8 @@ return [
         ],
     ],
     'listeners' => [
-        'factories' => [
-            // Assuming listener factories exist
-            Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
-            Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
-        ],
+        Listener\MediaIngestListener::class,
+        Listener\MediaUpdateListener::class,
     ],
     // Module specific config section
     'videothumbnail' => [
@@ -259,14 +256,12 @@ return [
             'cleanup_interval' => 3600,
             'job_timeout' => 300,
         ],
-    ], // <-- **Ensure comma is present here before 'site'**
+    ], // <-- 'videothumbnail' section closing bracket
 
-    // Restore the 'site' section with correct commas
-    'site' => [
-        'block_layouts' => [
-            'invokables' => [
-                'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
-            ],
+    // FIXED: Changed from nested under 'site' to top-level configuration
+    'block_layouts' => [
+        'invokables' => [
+            'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
         ],
     ],
 ]; // <-- Final closing bracket for the main return array
