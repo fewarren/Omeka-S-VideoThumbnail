@@ -157,9 +157,10 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
+            // Temporarily comment out the string-keyed service factory
+            // 'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
             'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
-            // Temporarily comment out the core service factory
+            // Keep the class-constant based one commented out as well for now
             // Stdlib\VideoFrameExtractor::class => Service\Stdlib\VideoFrameExtractorFactory::class,
         ],
         'delegators' => [
@@ -170,7 +171,7 @@ return [
     ],
     'listeners' => [
         'factories' => [
-            // Keep listeners commented out for now
+            // Keep listeners commented out
             // Listener\MediaIngestListener::class => Service\Listener\MediaIngestListenerFactory::class,
             // Listener\MediaUpdateListener::class => Service\Listener\MediaUpdateListenerFactory::class,
         ],
