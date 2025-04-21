@@ -38,7 +38,6 @@ class VideoThumbnailController extends AbstractActionController
         
         // Initialize the debug system with settings
         if ($this->settings) {
-            Debug::init($this->settings);
             Debug::logEntry(__METHOD__);
         } else {
             error_log('VideoThumbnail: Settings not available for debug initialization');
@@ -111,7 +110,6 @@ class VideoThumbnailController extends AbstractActionController
                 // Set debug mode if present in form
                 if (isset($formData['debug_mode'])) {
                     $this->settings->set('videothumbnail_debug_mode', (bool)$formData['debug_mode']);
-                    Debug::setEnabled((bool)$formData['debug_mode']);
                     Debug::log('Debug mode ' . ((bool)$formData['debug_mode'] ? 'enabled' : 'disabled'), __METHOD__);
                 }
                 

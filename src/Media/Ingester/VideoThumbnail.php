@@ -182,7 +182,6 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     protected function extractAndSetDefaultThumbnail($filePath, Media $media)
     {
         // Initialize VideoThumbnail debugging
-        \VideoThumbnail\Stdlib\Debug::init($this->settings);
         \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__, ['filePath' => $filePath]);
         
         try {
@@ -395,7 +394,6 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     public function update(Media $media, Request $request, ErrorStore $errorStore)
     {
-        \VideoThumbnail\Stdlib\Debug::init($this->settings);
         $fileData = $request->getValue('file');
         
         // Log the actual file data to troubleshoot
