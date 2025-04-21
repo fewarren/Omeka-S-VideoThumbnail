@@ -152,6 +152,21 @@ class Module extends AbstractModule
         } catch (\Exception $e) {
             error_log('Error with block layout: ' . $e->getMessage());
         }
+
+        // Add debug logging to verify block layout registration
+        try {
+            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
+            $blockLayouts = $blockLayoutManager->getRegisteredNames();
+            error_log('Registered block layouts: ' . print_r($blockLayouts, true));
+
+            if (in_array('videoThumbnail', $blockLayouts)) {
+                error_log('VideoThumbnail block is registered correctly.');
+            } else {
+                error_log('VideoThumbnail block is NOT registered.');
+            }
+        } catch (\Exception $e) {
+            error_log('Error checking block layouts: ' . $e->getMessage());
+        }
     }
 
     protected function initializeDebugMode($serviceManager)
