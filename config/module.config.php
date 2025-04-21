@@ -60,21 +60,17 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail[/:action]',
                             'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                // Ensure this controller alias matches a registered controller
-                                'controller' => 'VideoThumbnailController', // Fixed: Use string identifier
+                                'controller' => Controller\Admin\VideoThumbnailController::class, // Changed to ::class
                                 'action' => 'index',
                             ],
                         ],
                     ],
-                    // ... other routes seem okay, ensure controller names match registration ...
-                     'video-thumbnail-select-frame' => [
+                    'video-thumbnail-select-frame' => [
                         'type' => 'Segment',
                         'options' => [
                             'route' => '/video-thumbnail/select-frame/:id',
                             'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnailController', // Fixed: Use string identifier
+                                'controller' => Controller\Admin\VideoThumbnailController::class, // Changed to ::class
                                 'action' => 'select-frame',
                             ],
                             'constraints' => [
@@ -87,8 +83,7 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail/extract-frame',
                             'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnailController', // Fixed: Use string identifier
+                                'controller' => Controller\Admin\VideoThumbnailController::class, // Changed to ::class
                                 'action' => 'extract-frame',
                             ],
                         ],
@@ -98,8 +93,7 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail/media/:id/:action',
                             'defaults' => [
-                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
-                                'controller' => 'VideoThumbnailController', // Fixed: Use string identifier
+                                'controller' => Controller\Admin\VideoThumbnailController::class, // Changed to ::class
                             ],
                             'constraints' => [
                                 'id' => '\d+',
