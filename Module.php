@@ -116,7 +116,7 @@ class Module extends AbstractModule
 
         // Add the controller as an ACL resource
         // Use the fully qualified class name consistent with your config
-        $resource = Controller\Admin\VideoThumbnailController::class;
+        $resource = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
         if (!$acl->hasResource($resource)) {
             $acl->addResource(new GenericResource($resource));
         }
@@ -125,12 +125,20 @@ class Module extends AbstractModule
         $privileges = ['index', 'select-frame', 'extract-frame']; // Add other actions as needed
 
         // Allow admin and supervisor roles access to all actions in this controller
-        // Adjust roles ('super', 'global_admin', 'site_admin') and privileges as needed for your module's security requirements
         $acl->allow(
             ['Omeka\Entity\Role\Admin', 'Omeka\Entity\Role\Super', 'Omeka\Entity\Role\GlobalAdmin'],
             $resource,
-            $privileges // Grant specific privileges or null for all
+            $privileges
         );
+        
+        // Debug block layouts
+        try {
+            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
+            $blockLayouts = $blockLayoutManager->getRegisteredNames();
+            error_log('Registered block layouts: ' . print_r($blockLayouts, true));
+        } catch (\Exception $e) {
+            error_log('Error getting block layouts: ' . $e->getMessage());
+        }
     }
 
     protected function initializeDebugMode($serviceManager)
@@ -422,7 +430,7 @@ class Module extends AbstractModule
         $acl = $serviceManager->get('Omeka\Acl');
         $acl->allow(
             null,
-            ['VideoThumbnail\Controller\Admin\VideoThumbnail']
+            ['VideoThumbnail\Controller\Admin\VideoThumbnailController'] // Fixed: Added "Controller" suffix
         );
         
         // Add ACL rule for navigation
