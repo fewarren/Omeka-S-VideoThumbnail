@@ -152,18 +152,17 @@ return [
         'factories' => [
             'VideoThumbnail\Service\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
-            // Add factory for listeners instead of using invokables
+            // Register listener with InvokableFactory
             'VideoThumbnail\Listener\MediaUpdateListener' => 'Laminas\ServiceManager\Factory\InvokableFactory',
         ],
-        // Remove the invokables section completely
         'delegators' => [
             'Omeka\File\Store\Manager' => [
                 'VideoThumbnail\Service\FileManagerDelegatorFactory',
             ],
         ],
     ],
-    'listeners' => [
-        // Remove MediaIngestListener from listeners
+    // Change from 'listeners' to 'listener_aggregates' for classes implementing ListenerAggregateInterface
+    'listener_aggregates' => [
         'VideoThumbnail\Listener\MediaUpdateListener',
     ],
     'videothumbnail' => [

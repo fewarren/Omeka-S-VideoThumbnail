@@ -325,26 +325,12 @@ class Module extends AbstractModule
 
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
-        // Only use the MediaUpdateListener which we registered through the factory
-        $mediaUpdateListener = $this->getServiceLocator()
-            ->get('VideoThumbnail\Listener\MediaUpdateListener');
-
-        // For media ingest events - use the same listener for both events
-        $sharedEventManager->attach(
-            'Omeka\Api\Adapter\MediaAdapter', // The resource identifier
-            'api.create.post',                // The event
-            [$mediaUpdateListener, 'handleUpdate']  // Use the update handler for both
-        );
-
-        // For media update events
-        $sharedEventManager->attach(
-            'Omeka\Api\Adapter\MediaAdapter', // The resource identifier 
-            'api.update.post',                // The event
-            [$mediaUpdateListener, 'handleUpdate']  // The callback
-        );
+        // We no longer need to manually attach the listeners here since
+        // the MediaUpdateListener now implements ListenerAggregateInterface
+        // and will be automatically attached by the Laminas event system
         
-        // Add any additional events your listeners need to handle
-
+        // The registration is now done in the module.config.php 'listeners' section
+        
         $sharedEventManager->attach('Omeka\Controller\Admin\Media', 'view.edit.form.after', [$this, 'handleViewEditFormAfter']);
         $sharedEventManager->attach('Omeka\Api\Adapter\MediaAdapter', 'api.update.post', [$this, 'handleMediaUpdatePost']);
         
