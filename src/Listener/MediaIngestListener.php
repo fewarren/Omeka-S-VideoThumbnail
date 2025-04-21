@@ -2,13 +2,27 @@
 namespace VideoThumbnail\Listener;
 
 use Laminas\EventManager\Event;
+use Laminas\EventManager\EventManagerInterface;
+use Laminas\EventManager\AbstractListenerAggregate;
 use Omeka\Api\Representation\MediaRepresentation;
 
 /**
  * Listener for media ingestion events.
  */
-class MediaIngestListener
+class MediaIngestListener extends AbstractListenerAggregate
 {
+    /**
+     * {@inheritDoc}
+     */
+    public function attach(EventManagerInterface $events, $priority = 1)
+    {
+        $this->listeners[] = $events->attach(
+            'api.create.post',
+            [$this, 'handleIngest'],
+            $priority
+        );
+    }
+
     /**
      * Handle a media ingest event.
      *
@@ -32,8 +46,7 @@ class MediaIngestListener
             return;
         }
 
-        // The actual processing will be handled by the MediaUpdateListener
-        // This is just a placeholder to satisfy the service manager
+        // Log that the listener was triggered
         error_log('MediaIngestListener triggered for media ID: ' . $media->id());
     }
 }

@@ -3,21 +3,16 @@ namespace VideoThumbnail\Listener;
 
 use Laminas\EventManager\Event;
 use Laminas\EventManager\EventManagerInterface;
-use Laminas\EventManager\ListenerAggregateInterface;
-use Laminas\EventManager\ListenerAggregateTrait;
+use Laminas\EventManager\AbstractListenerAggregate;
 use Omeka\Api\Representation\MediaRepresentation;
 
 /**
- * Listener for media update events that implements ListenerAggregateInterface.
+ * Listener for media update events.
  */
-class MediaUpdateListener implements ListenerAggregateInterface
+class MediaUpdateListener extends AbstractListenerAggregate
 {
-    use ListenerAggregateTrait;
-
     /**
-     * Attach listeners to an event manager.
-     *
-     * @param EventManagerInterface $events
+     * {@inheritDoc}
      */
     public function attach(EventManagerInterface $events, $priority = 1)
     {
@@ -26,9 +21,10 @@ class MediaUpdateListener implements ListenerAggregateInterface
             [$this, 'handleUpdate'],
             $priority
         );
+        
         $this->listeners[] = $events->attach(
             'api.create.post',
-            [$this, 'handleUpdate'], // Reuse the same handler for both events
+            [$this, 'handleUpdate'],
             $priority
         );
     }
@@ -58,9 +54,5 @@ class MediaUpdateListener implements ListenerAggregateInterface
 
         // Log that the listener was triggered
         error_log('MediaUpdateListener triggered for media ID: ' . $media->id());
-        
-        // In a full implementation, we would generate thumbnails here
-        // But since this functionality is already handled in other parts
-        // of the module, this is just a placeholder to satisfy the service manager
     }
 }
