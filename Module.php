@@ -172,6 +172,10 @@ class Module extends AbstractModule
     protected function initializeDebugMode($serviceManager)
     {
         $settings = $serviceManager->get('Omeka\Settings');
+        
+        // Force debug mode to be enabled
+        $settings->set('videothumbnail_debug_mode', true);
+        
         \VideoThumbnail\Stdlib\Debug::init($settings);
     }
     
