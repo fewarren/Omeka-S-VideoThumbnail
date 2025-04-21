@@ -1,17 +1,4 @@
 <?php
-namespace VideoThumbnail;
-
-// Add use statements for clarity and consistency
-use Laminas\ServiceManager\Factory\InvokableFactory;
-use VideoThumbnail\Form;
-use VideoThumbnail\Service;
-use VideoThumbnail\Controller;
-use VideoThumbnail\Site;
-use VideoThumbnail\Listener;
-use VideoThumbnail\Job;
-use VideoThumbnail\Stdlib; // Added for VideoFrameExtractor
-use VideoThumbnail\View\Helper as VideoThumbnailViewHelper; // Alias for View Helper
-use VideoThumbnail\Thumbnail; // Added for ThumbnailSynchronizer
 
 return [
     'view_manager' => [
