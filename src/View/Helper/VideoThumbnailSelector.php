@@ -15,7 +15,8 @@ class VideoThumbnailSelector extends AbstractHelper
     {
         $this->videoFrameExtractor = $videoFrameExtractor;
         $this->settings = $settings;
-        register_shutdown_function([$this, 'cleanup']);
+        // Remove or comment out register_shutdown_function to prevent possible hangs
+        // register_shutdown_function([$this, 'cleanup']);
     }
 
     public function __invoke($media, $options = [])

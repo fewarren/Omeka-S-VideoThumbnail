@@ -692,15 +692,14 @@ class VideoThumbnailController extends AbstractActionController
                 ];
             }
             
-            // Register a shutdown function to clean up the original frame files
-            $originalPaths = array_column($framePaths, 'original_path');
-            register_shutdown_function(function() use ($originalPaths) {
-                foreach ($originalPaths as $path) {
-                    if (file_exists($path)) {
-                        @unlink($path);
-                    }
-                }
-            });
+            // Comment out register_shutdown_function to prevent possible hangs
+            // register_shutdown_function(function() use ($originalPaths) {
+            //     foreach ($originalPaths as $path) {
+            //         if (file_exists($path)) {
+            //             @unlink($path);
+            //         }
+            //     }
+            // });
             
             Debug::logExit(__METHOD__, 'Generated ' . count($framePaths) . ' frames');
             return new JsonModel([
