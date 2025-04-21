@@ -191,8 +191,7 @@ return [
     ],
     // Module specific config section
     'videothumbnail' => [
-        // ... debug, job_dispatch, supported_formats, thumbnail_options, settings, job_settings ...
-         'debug' => [
+        'debug' => [
             'enabled' => false,
             'log_dir' => OMEKA_PATH . '/logs',
             'log_file' => 'videothumbnail.log',
@@ -237,7 +236,7 @@ return [
             'memory_limit' => 512,
             'debug_mode' => false,
             'log_level' => 'error',
-            'supported_formats' => [
+            'allowed_formats' => [
                 'video/mp4',
                 'video/webm',
                 'video/quicktime',
@@ -256,7 +255,7 @@ return [
             'cleanup_interval' => 3600,
             'job_timeout' => 300,
         ],
-    ], // <-- 'videothumbnail' section closing bracket
+    ], // <-- Only ONE 'videothumbnail' key should exist here
 
     // FIXED: Changed from nested under 'site' to top-level configuration
     'block_layouts' => [
