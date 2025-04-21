@@ -12,6 +12,7 @@ use Laminas\EventManager\SharedEventManagerInterface;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Entity\Media;
 use Omeka\Api\Representation\MediaRepresentation;
+use Laminas\Permissions\Acl\Resource\GenericResource;
 
 class Module extends AbstractModule
 {
@@ -110,6 +111,26 @@ class Module extends AbstractModule
         $this->addAclRules($serviceManager);
 
         $this->initializeDebugMode($serviceManager);
+
+        $acl = $this->getServiceLocator()->get('Omeka\Acl');
+
+        // Add the controller as an ACL resource
+        // Use the fully qualified class name consistent with your config
+        $resource = Controller\Admin\VideoThumbnailController::class;
+        if (!$acl->hasResource($resource)) {
+            $acl->addResource(new GenericResource($resource));
+        }
+
+        // Define permissions (you might want more granular permissions later)
+        $privileges = ['index', 'select-frame', 'extract-frame']; // Add other actions as needed
+
+        // Allow admin and supervisor roles access to all actions in this controller
+        // Adjust roles ('super', 'global_admin', 'site_admin') and privileges as needed for your module's security requirements
+        $acl->allow(
+            ['Omeka\Entity\Role\Admin', 'Omeka\Entity\Role\Super', 'Omeka\Entity\Role\GlobalAdmin'],
+            $resource,
+            $privileges // Grant specific privileges or null for all
+        );
     }
 
     protected function initializeDebugMode($serviceManager)

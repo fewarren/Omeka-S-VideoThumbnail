@@ -152,7 +152,9 @@ return [
                 ],
                 'js' => [
                     'js/video-thumbnail.js',
-                    'js/video-thumbnail-monitor.js'
+                    'js/video-thumbnail-monitor.js',
+                    // Add the new JS file for the block admin form
+                    'js/video-thumbnail-block-admin.js',
                 ],
             ],
         ],
