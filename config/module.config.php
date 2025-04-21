@@ -32,12 +32,12 @@ return [
             Form\ConfigForm::class => Service\Form\ConfigFormFactory::class,
             Form\ConfigBatchForm::class => Service\Form\ConfigBatchFormFactory::class, // Use ::class consistently
             Form\VideoThumbnailBlockForm::class => InvokableFactory::class,
-        ], // <-- Added missing comma here if other sections follow
+        ],
         'aliases' => [ // <-- Ensure 'aliases' section is correctly defined
             'videothumbnailconfigform' => Form\ConfigForm::class,
             'videothumbnailconfigbatchform' => Form\ConfigBatchForm::class,
-        ], // <-- Added missing comma here if other sections follow
-    ], // <-- Closing bracket for 'form_elements'
+        ],
+    ],
     'controllers' => [
         'factories' => [
             // Assuming Controller\Admin\VideoThumbnail exists and is correct
