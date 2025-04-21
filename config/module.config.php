@@ -152,18 +152,12 @@ return [
         'factories' => [
             'VideoThumbnail\Service\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
-            'VideoThumbnail\Listener\MediaIngestListener' => 'Laminas\ServiceManager\Factory\InvokableFactory',
-            'VideoThumbnail\Listener\MediaUpdateListener' => 'Laminas\ServiceManager\Factory\InvokableFactory',
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
                 'VideoThumbnail\Service\FileManagerDelegatorFactory',
             ],
         ],
-    ],
-    'listener_aggregates' => [
-        'VideoThumbnail\Listener\MediaIngestListener',
-        'VideoThumbnail\Listener\MediaUpdateListener',
     ],
     'videothumbnail' => [
         'debug' => [

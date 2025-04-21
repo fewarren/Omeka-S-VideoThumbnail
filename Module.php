@@ -325,19 +325,48 @@ class Module extends AbstractModule
 
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
-        // We no longer need to manually attach the listeners here since
-        // the MediaUpdateListener now implements ListenerAggregateInterface
-        // and will be automatically attached by the Laminas event system
+        // Handle media events directly in the module class
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.create.post',
+            [$this, 'handleMediaIngestion']
+        );
+
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.update.post',
+            [$this, 'handleMediaUpdatePost']
+        );
         
-        // The registration is now done in the module.config.php 'listeners' section
+        $sharedEventManager->attach(
+            'Omeka\Controller\Admin\Media',
+            'view.edit.form.after',
+            [$this, 'handleViewEditFormAfter']
+        );
         
-        $sharedEventManager->attach('Omeka\Controller\Admin\Media', 'view.edit.form.after', [$this, 'handleViewEditFormAfter']);
-        $sharedEventManager->attach('Omeka\Api\Adapter\MediaAdapter', 'api.update.post', [$this, 'handleMediaUpdatePost']);
-        
-        // Initialize debug system when attaching listeners
+        // Initialize debug system
         $serviceLocator = $this->getServiceLocator();
         $settings = $serviceLocator->get('Omeka\Settings');
         \VideoThumbnail\Stdlib\Debug::init($settings);
+    }
+    
+    /**
+     * Handle media ingestion events
+     */
+    public function handleMediaIngestion($event): void
+    {
+        $response = $event->getParam('response');
+        if (!$response) {
+            return;
+        }
+
+        $media = $response->getContent();
+        if (!$this->isVideoMedia($media)) {
+            return;
+        }
+
+        error_log('VideoThumbnail: Media ingestion detected for media ID: ' . $media->id());
+        // The actual processing is handled by the Media Ingester class
     }
 
     public function handleViewEditFormAfter($event): void
