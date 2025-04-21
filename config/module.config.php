@@ -154,7 +154,6 @@ return [
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
         ],
         'invokables' => [
-            'VideoThumbnail\Listener\MediaIngestListener' => 'VideoThumbnail\Listener\MediaIngestListener',
             'VideoThumbnail\Listener\MediaUpdateListener' => 'VideoThumbnail\Listener\MediaUpdateListener',
         ],
         'delegators' => [
@@ -164,7 +163,6 @@ return [
         ],
     ],
     'listeners' => [
-        'VideoThumbnail\Listener\MediaIngestListener',
         'VideoThumbnail\Listener\MediaUpdateListener',
     ],
     'videothumbnail' => [
