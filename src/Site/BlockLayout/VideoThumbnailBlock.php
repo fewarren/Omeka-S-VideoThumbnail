@@ -32,7 +32,7 @@ class VideoThumbnailBlock extends AbstractBlockLayout
      * @param array $options
      * @return string Returns HTML form string or empty string if no form.
      */
-    public function form(PhpRenderer $view, SitePageBlockRepresentation $block, array $options = [])
+    public function form(PhpRenderer $view, SitePageBlockRepresentation $block = null, array $options = [])
     {
         $mediaId = $block ? ($block->dataValue('media_id')) : null;
         $mediaTitle = '';

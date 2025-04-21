@@ -139,6 +139,19 @@ class Module extends AbstractModule
         } catch (\Exception $e) {
             error_log('Error getting block layouts: ' . $e->getMessage());
         }
+
+        // In your onBootstrap method, add:
+        try {
+            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
+            $blockLayouts = $blockLayoutManager->getRegisteredNames();
+            error_log('Block names: ' . print_r($blockLayouts, true));
+            
+            $videoThumbnailBlock = $blockLayoutManager->get('videoThumbnail');
+            error_log('Block label: ' . $videoThumbnailBlock->getLabel());
+            error_log('Block class: ' . get_class($videoThumbnailBlock));
+        } catch (\Exception $e) {
+            error_log('Error with block layout: ' . $e->getMessage());
+        }
     }
 
     protected function initializeDebugMode($serviceManager)
