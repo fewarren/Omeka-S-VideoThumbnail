@@ -325,16 +325,15 @@ class Module extends AbstractModule
 
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
-        // Instantiate listeners directly
-        // Removed reference to MediaIngestListener
+        // Only use the MediaUpdateListener which we registered through the factory
+        $mediaUpdateListener = $this->getServiceLocator()
+            ->get('VideoThumbnail\Listener\MediaUpdateListener');
 
-        $mediaUpdateListener = new Listener\MediaUpdateListener();
-
-        // For media ingest events
+        // For media ingest events - use the same listener for both events
         $sharedEventManager->attach(
             'Omeka\Api\Adapter\MediaAdapter', // The resource identifier
             'api.create.post',                // The event
-            [$mediaUpdateListener, 'handleUpdate']  // The callback
+            [$mediaUpdateListener, 'handleUpdate']  // Use the update handler for both
         );
 
         // For media update events
