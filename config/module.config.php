@@ -258,5 +258,6 @@ return [
         'invokables' => [
             'videoThumbnail' => Site\BlockLayout\VideoThumbnailBlock::class,
         ],
-    ],
+    ] // <-- Removed comma from here
+
 ]; // <-- Final closing bracket for the main return array
