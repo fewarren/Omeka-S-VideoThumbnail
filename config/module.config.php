@@ -169,14 +169,14 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            // Assuming Service\VideoFrameExtractorFactory exists
-            'VideoThumbnail\VideoFrameExtractor' => Service\VideoFrameExtractorFactory::class,
-            // Assuming Service\Thumbnail\ThumbnailSynchronizerFactory exists
-            'VideoThumbnail\ThumbnailSynchronizer' => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
+            // Changed string keys to ::class constants
+            // Ensure these class names match your actual service class locations
+            Service\VideoFrameExtractor::class => Service\VideoFrameExtractorFactory::class,
+            Thumbnail\ThumbnailSynchronizer::class => Service\Thumbnail\ThumbnailSynchronizerFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
-                 // Assuming Service\FileManagerDelegatorFactory exists
+                 // Assuming Service\FileManagerDelegatorFactory exists and is correct
                 Service\FileManagerDelegatorFactory::class,
             ],
         ],
