@@ -173,10 +173,25 @@ class Module extends AbstractModule
     {
         $settings = $serviceManager->get('Omeka\Settings');
         
-        // Force debug mode to be enabled
-        $settings->set('videothumbnail_debug_mode', true);
+        // Instead of forcing debug mode on, properly prepare the config data
+        $debugEnabled = $settings->get('videothumbnail_debug_mode', false);
         
-        \VideoThumbnail\Stdlib\Debug::init($settings);
+        $config = [
+            'enabled' => $debugEnabled,
+            'log_dir' => OMEKA_PATH . '/logs',
+            'log_file' => 'videothumbnail.log',
+            'max_size' => 10485760, // 10MB
+            'max_files' => 5,
+            'levels' => [
+                'error' => true,
+                'warning' => true,
+                'info' => true,
+                'debug' => $debugEnabled
+            ]
+        ];
+        
+        // Initialize Debug with proper configuration
+        \VideoThumbnail\Stdlib\Debug::init($config);
     }
     
     /**
