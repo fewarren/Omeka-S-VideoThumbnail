@@ -110,19 +110,19 @@ class Module extends AbstractModule
         // Add ACL rules
         $this->addAclRules($serviceManager);
 
-        $this->initializeDebugMode($serviceManager);
+        // Skip the debug initialization
+        // $this->initializeDebugMode($serviceManager);
 
         $acl = $this->getServiceLocator()->get('Omeka\Acl');
 
         // Add the controller as an ACL resource
-        // Use the fully qualified class name consistent with your config
         $resource = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
         if (!$acl->hasResource($resource)) {
             $acl->addResource(new GenericResource($resource));
         }
 
-        // Define permissions (you might want more granular permissions later)
-        $privileges = ['index', 'select-frame', 'extract-frame']; // Add other actions as needed
+        // Define permissions
+        $privileges = ['index', 'select-frame', 'extract-frame']; 
 
         // Allow admin and supervisor roles access to all actions in this controller
         $acl->allow(
@@ -131,67 +131,23 @@ class Module extends AbstractModule
             $privileges
         );
         
-        // Debug block layouts
+        // Single debug log to check if block layout is registered
         try {
             $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
             $blockLayouts = $blockLayoutManager->getRegisteredNames();
-            error_log('Registered block layouts: ' . print_r($blockLayouts, true));
+            error_log('VideoThumbnail: Registered block layouts: ' . implode(', ', $blockLayouts));
         } catch (\Exception $e) {
-            error_log('Error getting block layouts: ' . $e->getMessage());
-        }
-
-        // In your onBootstrap method, add:
-        try {
-            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
-            $blockLayouts = $blockLayoutManager->getRegisteredNames();
-            error_log('Block names: ' . print_r($blockLayouts, true));
-            
-            $videoThumbnailBlock = $blockLayoutManager->get('videoThumbnail');
-            error_log('Block label: ' . $videoThumbnailBlock->getLabel());
-            error_log('Block class: ' . get_class($videoThumbnailBlock));
-        } catch (\Exception $e) {
-            error_log('Error with block layout: ' . $e->getMessage());
-        }
-
-        // Add debug logging to verify block layout registration
-        try {
-            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
-            $blockLayouts = $blockLayoutManager->getRegisteredNames();
-            error_log('Registered block layouts: ' . print_r($blockLayouts, true));
-
-            if (in_array('videoThumbnail', $blockLayouts)) {
-                error_log('VideoThumbnail block is registered correctly.');
-            } else {
-                error_log('VideoThumbnail block is NOT registered.');
-            }
-        } catch (\Exception $e) {
-            error_log('Error checking block layouts: ' . $e->getMessage());
+            error_log('VideoThumbnail: Error checking block layouts: ' . $e->getMessage());
         }
     }
 
     protected function initializeDebugMode($serviceManager)
     {
-        $settings = $serviceManager->get('Omeka\Settings');
+        // Completely bypass debug initialization to prevent hanging
+        return;
         
-        // Instead of forcing debug mode on, properly prepare the config data
-        $debugEnabled = $settings->get('videothumbnail_debug_mode', false);
-        
-        $config = [
-            'enabled' => $debugEnabled,
-            'log_dir' => OMEKA_PATH . '/logs',
-            'log_file' => 'videothumbnail.log',
-            'max_size' => 10485760, // 10MB
-            'max_files' => 5,
-            'levels' => [
-                'error' => true,
-                'warning' => true,
-                'info' => true,
-                'debug' => $debugEnabled
-            ]
-        ];
-        
-        // Initialize Debug with proper configuration
-        \VideoThumbnail\Stdlib\Debug::init($config);
+        // The debug initialization code below will not run
+        // ...existing code...
     }
     
     /**
@@ -363,10 +319,10 @@ class Module extends AbstractModule
             [$this, 'handleViewEditFormAfter']
         );
         
-        // Initialize debug system
-        $serviceLocator = $this->getServiceLocator();
-        $settings = $serviceLocator->get('Omeka\Settings');
-        \VideoThumbnail\Stdlib\Debug::init($settings);
+        // Remove Debug initialization to prevent hanging
+        // $serviceLocator = $this->getServiceLocator();
+        // $settings = $serviceLocator->get('Omeka\Settings');
+        // \VideoThumbnail\Stdlib\Debug::init($settings);
     }
     
     /**
