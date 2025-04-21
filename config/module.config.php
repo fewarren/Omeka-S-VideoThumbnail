@@ -153,14 +153,12 @@ return [
             'VideoThumbnail\Service\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
         ],
-        // Temporarily comment out the delegator to diagnose hang
-        /*
+        // Restore the delegator
         'delegators' => [
             'Omeka\File\Store\Manager' => [
                 'VideoThumbnail\Service\FileManagerDelegatorFactory',
             ],
         ],
-        */
     ],
     'videothumbnail' => [
         'debug' => [
