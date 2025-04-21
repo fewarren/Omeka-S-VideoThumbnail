@@ -143,13 +143,34 @@ class Module extends AbstractModule
 
     protected function initializeDebugMode($serviceManager)
     {
-        // Completely bypass debug initialization to prevent hanging
-        return;
-        
-        // The debug initialization code below will not run
-        // ...existing code...
+        // Restore original logic: Read debug setting from Omeka S settings
+        $settings = $serviceManager->get('Omeka\Settings');
+        $debugEnabled = $settings->get('videothumbnail_debug_mode', false);
+
+        // Prepare the full configuration array needed by Debug::init
+        $config = [
+            'enabled' => $debugEnabled,
+            'log_dir' => OMEKA_PATH . '/logs',
+            'log_file' => 'videothumbnail.log',
+            'max_size' => 10485760, // 10MB
+            'max_files' => 5,
+            'levels' => [
+                'error' => true,
+                'warning' => true,
+                'info' => true,
+                'debug' => $debugEnabled // Only enable debug level if the setting is true
+            ]
+        ];
+
+        // Initialize Debug only if enabled, with proper configuration
+        if ($debugEnabled) {
+             \VideoThumbnail\Stdlib\Debug::init($config);
+        } else {
+            // Ensure Debug class knows it's disabled if the setting is false
+             \VideoThumbnail\Stdlib\Debug::init(['enabled' => false]);
+        }
     }
-    
+
     /**
      * Register CSS and JS assets
      */
@@ -322,7 +343,7 @@ class Module extends AbstractModule
         // Remove Debug initialization to prevent hanging
         // $serviceLocator = $this->getServiceLocator();
         // $settings = $serviceLocator->get('Omeka\Settings');
-        // \VideoThumbnail\Stdlib\Debug::init($settings);
+        // \VideoThumbnail\Stdlib\Debug::init($settings); // Keep this commented out
     }
     
     /**
