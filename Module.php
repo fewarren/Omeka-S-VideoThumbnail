@@ -289,6 +289,26 @@ class Module extends AbstractModule
 
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
+        // Instantiate listeners directly
+        $mediaIngestListener = new Listener\MediaIngestListener();
+        $mediaUpdateListener = new Listener\MediaUpdateListener();
+
+        // For media ingest events
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter', // The resource identifier
+            'api.create.post',                // The event
+            [$mediaIngestListener, 'handleIngest']  // The callback
+        );
+
+        // For media update events
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter', // The resource identifier 
+            'api.update.post',                // The event
+            [$mediaUpdateListener, 'handleUpdate']  // The callback
+        );
+        
+        // Add any additional events your listeners need to handle
+
         $sharedEventManager->attach('Omeka\Controller\Admin\Media', 'view.edit.form.after', [$this, 'handleViewEditFormAfter']);
         $sharedEventManager->attach('Omeka\Api\Adapter\MediaAdapter', 'api.update.post', [$this, 'handleMediaUpdatePost']);
         
