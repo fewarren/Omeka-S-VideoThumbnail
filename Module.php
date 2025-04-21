@@ -110,7 +110,7 @@ class Module extends AbstractModule
         // Add ACL rules
         $this->addAclRules($serviceManager);
 
-        // Skip the debug initialization
+        // Temporarily comment out debug initialization to diagnose hang
         // $this->initializeDebugMode($serviceManager);
 
         $acl = $this->getServiceLocator()->get('Omeka\Acl');
@@ -201,9 +201,9 @@ class Module extends AbstractModule
     {
         $settings = $serviceLocator->get('Omeka\Settings');
         
-        // Set default settings
+        // Set default settings - Use blank for ffmpeg path initially
         $defaults = [
-            'videothumbnail_ffmpeg_path' => $this->detectFfmpegPath(),
+            'videothumbnail_ffmpeg_path' => '', // Set blank default, require user config
             'videothumbnail_default_frame' => 10,
             'videothumbnail_frames_count' => 5,
             'videothumbnail_memory_limit' => 512,
