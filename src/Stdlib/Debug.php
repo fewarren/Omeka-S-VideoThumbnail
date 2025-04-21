@@ -27,32 +27,48 @@ class Debug
 
     private static function ensureLogDirectory()
     {
+        if (!isset(self::$config['log_dir']) || !self::$config['log_dir']) {
+            self::$config['enabled'] = false;
+            return;
+        }
         $logDir = self::$config['log_dir'];
         if (!file_exists($logDir)) {
-            mkdir($logDir, 0777, true);
+            if (!@mkdir($logDir, 0777, true) && !is_dir($logDir)) {
+                self::$config['enabled'] = false;
+                return;
+            }
+        }
+        if (!is_writable($logDir)) {
+            self::$config['enabled'] = false;
         }
     }
 
     private static function initLogger()
     {
-        if (self::$logger !== null) {
+        if (self::$logger !== null || !self::$config['enabled']) {
             return;
         }
-
+        if (!isset(self::$config['log_file']) || !self::$config['log_file']) {
+            self::$config['enabled'] = false;
+            return;
+        }
         $logFile = self::$config['log_dir'] . '/' . self::$config['log_file'];
+        if ((file_exists($logFile) && !is_writable($logFile)) ||
+            (!file_exists($logFile) && !is_writable(dirname($logFile)))) {
+            self::$config['enabled'] = false;
+            return;
+        }
         $writer = new Stream($logFile);
-        
         self::$logger = new Logger();
         self::$logger->addWriter($writer);
-
         // Set filters based on configured log levels
-        if (!self::$config['levels']['debug']) {
+        if (isset(self::$config['levels']['debug']) && !self::$config['levels']['debug']) {
             $writer->addFilter(new Priority(Logger::DEBUG, '!='));
         }
-        if (!self::$config['levels']['info']) {
+        if (isset(self::$config['levels']['info']) && !self::$config['levels']['info']) {
             $writer->addFilter(new Priority(Logger::INFO, '!='));
         }
-        if (!self::$config['levels']['warning']) {
+        if (isset(self::$config['levels']['warning']) && !self::$config['levels']['warning']) {
             $writer->addFilter(new Priority(Logger::WARN, '!='));
         }
     }
