@@ -12,9 +12,12 @@ use Laminas\EventManager\SharedEventManagerInterface;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Entity\Media;
 use Omeka\Api\Representation\MediaRepresentation;
+use Laminas\Permissions\Acl\Resource\GenericResource;
 
 class Module extends AbstractModule
 {
+    const NAMESPACE = __NAMESPACE__;
+
     public function getConfig(): array
     {
         return include __DIR__ . '/config/module.config.php';
@@ -94,7 +97,7 @@ class Module extends AbstractModule
     }
 
     public function onBootstrap(MvcEvent $event): void
-    {
+    {        error_log('VideoThumbnail: Entering onBootstrap...'); // <-- ADDED LOGGING
         parent::onBootstrap($event);
         $application = $event->getApplication();
         $serviceManager = $application->getServiceManager();
@@ -106,8 +109,73 @@ class Module extends AbstractModule
         
         // Add ACL rules
         $this->addAclRules($serviceManager);
+
+        // Temporarily comment out debug initialization to diagnose hang
+        // $this->initializeDebugMode($serviceManager);
+
+        $acl = $this->getServiceLocator()->get('Omeka\Acl');
+
+        // Add the controller as an ACL resource
+        $resource = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
+        if (!$acl->hasResource($resource)) {
+            $acl->addResource(new GenericResource($resource));
+        }
+
+        // Define permissions
+        $privileges = ['index', 'select-frame', 'extract-frame']; 
+
+        // Allow admin and supervisor roles access to all actions in this controller
+        $acl->allow(
+            ['Omeka\Entity\Role\Admin', 'Omeka\Entity\Role\Super', 'Omeka\Entity\Role\GlobalAdmin'],
+            $resource,
+            $privileges
+        );
+        
+        // Single debug log to check if block layout is registered
+        // The following code is known to cause errors if Omeka core services are not ready.
+        // Commented out to prevent site hang and service resolution errors.
+        /*
+        try {
+            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
+            $blockLayouts = $blockLayoutManager->getRegisteredNames();
+            error_log('VideoThumbnail: Registered block layouts: ' . implode(', ', $blockLayouts));
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error checking block layouts: ' . $e->getMessage());
+        }
+        */
+        error_log('VideoThumbnail: Exiting onBootstrap.'); // <-- ADDED LOGGING
     }
-    
+
+    protected function initializeDebugMode($serviceManager)
+    {
+        // Restore original logic: Read debug setting from Omeka S settings
+        $settings = $serviceManager->get('Omeka\Settings');
+        $debugEnabled = $settings->get('videothumbnail_debug_mode', false);
+
+        // Prepare the full configuration array needed by Debug::init
+        $config = [
+            'enabled' => $debugEnabled,
+            'log_dir' => OMEKA_PATH . '/logs',
+            'log_file' => 'videothumbnail.log',
+            'max_size' => 10485760, // 10MB
+            'max_files' => 5,
+            'levels' => [
+                'error' => true,
+                'warning' => true,
+                'info' => true,
+                'debug' => $debugEnabled // Only enable debug level if the setting is true
+            ]
+        ];
+
+        // Initialize Debug only if enabled, with proper configuration
+        if ($debugEnabled) {
+             \VideoThumbnail\Stdlib\Debug::init($config);
+        } else {
+            // Ensure Debug class knows it's disabled if the setting is false
+             \VideoThumbnail\Stdlib\Debug::init(['enabled' => false]);
+        }
+    }
+
     /**
      * Register CSS and JS assets
      */
@@ -137,42 +205,169 @@ class Module extends AbstractModule
     public function install(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
-        $settings->set('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
-        $settings->set('videothumbnail_frames_count', 5);
-        $settings->set('videothumbnail_default_frame', 10);
-        $settings->set('videothumbnail_debug_mode', false);
-        $settings->set('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
+        
+        // Set default settings - Use blank for ffmpeg path initially
+        $defaults = [
+            'videothumbnail_ffmpeg_path' => '', // Set blank default, require user config
+            'videothumbnail_default_frame' => 10,
+            'videothumbnail_frames_count' => 5,
+            'videothumbnail_memory_limit' => 512,
+            'videothumbnail_process_timeout' => 3600,
+            'videothumbnail_debug_mode' => false,
+            'videothumbnail_log_level' => 'info',
+            'videothumbnail_supported_formats' => [
+                'video/mp4',
+                'video/quicktime',
+                'video/x-msvideo',
+                'video/x-ms-wmv',
+                'video/x-matroska',
+                'video/webm',
+                'video/3gpp',
+                'video/3gpp2',
+                'video/x-flv'
+            ]
+        ];
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
+        foreach ($defaults as $key => $value) {
+            $settings->set($key, $value);
+        }
+
+        $this->createRequiredDirectories();
+    }
+
+    protected function detectFfmpegPath()
+    {
+        $possiblePaths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+            'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+            'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe'
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Try to detect using which command on Unix-like systems
+        if (function_exists('exec')) {
+            $output = [];
+            $returnVar = null;
+            exec('which ffmpeg 2>/dev/null', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+        }
+
+        return '';
+    }
+
+    protected function createRequiredDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails',
+            OMEKA_PATH . '/logs'
+        ];
+
+        foreach ($directories as $dir) {
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
         }
     }
 
     public function uninstall(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
+        
+        // Remove all module settings
         $settings->delete('videothumbnail_ffmpeg_path');
-        $settings->delete('videothumbnail_frames_count');
         $settings->delete('videothumbnail_default_frame');
+        $settings->delete('videothumbnail_frames_count');
+        $settings->delete('videothumbnail_memory_limit');
+        $settings->delete('videothumbnail_process_timeout');
         $settings->delete('videothumbnail_debug_mode');
+        $settings->delete('videothumbnail_log_level');
         $settings->delete('videothumbnail_supported_formats');
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (is_dir($tempDir)) {
-            $this->recursiveRemoveDirectory($tempDir);
+        // Clean up temporary directories
+        $this->cleanupTempDirectories();
+    }
+
+    protected function cleanupTempDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails'
+        ];
+
+        foreach ($directories as $dir) {
+            if (file_exists($dir)) {
+                $this->recursiveRemoveDirectory($dir);
+            }
+        }
+    }
+
+    protected function recursiveRemoveDirectory($directory): void
+    {
+        if (is_dir($directory)) {
+            $objects = scandir($directory);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    $path = $directory . DIRECTORY_SEPARATOR . $object;
+                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
+                }
+            }
+            rmdir($directory);
         }
     }
 
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
-        $sharedEventManager->attach('Omeka\Controller\Admin\Media', 'view.edit.form.after', [$this, 'handleViewEditFormAfter']);
-        $sharedEventManager->attach('Omeka\Api\Adapter\MediaAdapter', 'api.update.post', [$this, 'handleMediaUpdatePost']);
+        // Handle media events directly in the module class
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.create.post',
+            [$this, 'handleMediaIngestion']
+        );
+
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.update.post',
+            [$this, 'handleMediaUpdatePost']
+        );
         
-        // Initialize debug system when attaching listeners
-        $serviceLocator = $this->getServiceLocator();
-        $settings = $serviceLocator->get('Omeka\Settings');
-        \VideoThumbnail\Stdlib\Debug::init($settings);
+        $sharedEventManager->attach(
+            'Omeka\Controller\Admin\Media',
+            'view.edit.form.after',
+            [$this, 'handleViewEditFormAfter']
+        );
+        
+        // Remove Debug initialization to prevent hanging
+        // $serviceLocator = $this->getServiceLocator();
+        // $settings = $serviceLocator->get('Omeka\Settings');
+        // \VideoThumbnail\Stdlib\Debug::init($settings); // Keep this commented out
+    }
+    
+    /**
+     * Handle media ingestion events
+     */
+    public function handleMediaIngestion($event): void
+    {
+        $response = $event->getParam('response');
+        if (!$response) {
+            return;
+        }
+
+        $media = $response->getContent();
+        if (!$this->isVideoMedia($media)) {
+            return;
+        }
+
+        error_log('VideoThumbnail: Media ingestion detected for media ID: ' . $media->id());
+        // The actual processing is handled by the Media Ingester class
     }
 
     public function handleViewEditFormAfter($event): void
@@ -270,20 +465,6 @@ class Module extends AbstractModule
             error_log($e->getMessage());
         }
     }
-
-    protected function recursiveRemoveDirectory($directory): void
-    {
-        if (is_dir($directory)) {
-            $objects = scandir($directory);
-            foreach ($objects as $object) {
-                if ($object != "." && $object != "..") {
-                    $path = $directory . DIRECTORY_SEPARATOR . $object;
-                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
-                }
-            }
-            rmdir($directory);
-        }
-    }
     
     /**
      * Add ACL rules for this module
@@ -293,7 +474,7 @@ class Module extends AbstractModule
         $acl = $serviceManager->get('Omeka\Acl');
         $acl->allow(
             null,
-            ['VideoThumbnail\Controller\Admin\VideoThumbnail']
+            ['VideoThumbnail\Controller\Admin\VideoThumbnailController'] // Fixed: Added "Controller" suffix
         );
         
         // Add ACL rule for navigation
