@@ -132,6 +132,9 @@ class Module extends AbstractModule
         );
         
         // Single debug log to check if block layout is registered
+        // The following code is known to cause errors if Omeka core services are not ready.
+        // Commented out to prevent site hang and service resolution errors.
+        /*
         try {
             $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
             $blockLayouts = $blockLayoutManager->getRegisteredNames();
@@ -139,6 +142,7 @@ class Module extends AbstractModule
         } catch (\Exception $e) {
             error_log('VideoThumbnail: Error checking block layouts: ' . $e->getMessage());
         }
+        */
         error_log('VideoThumbnail: Exiting onBootstrap.'); // <-- ADDED LOGGING
     }
 
