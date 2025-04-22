@@ -97,7 +97,7 @@ class Module extends AbstractModule
     }
 
     public function onBootstrap(MvcEvent $event): void
-    {
+    {        error_log('VideoThumbnail: Entering onBootstrap...'); // <-- ADDED LOGGING
         parent::onBootstrap($event);
         $application = $event->getApplication();
         $serviceManager = $application->getServiceManager();
@@ -139,6 +139,7 @@ class Module extends AbstractModule
         } catch (\Exception $e) {
             error_log('VideoThumbnail: Error checking block layouts: ' . $e->getMessage());
         }
+        error_log('VideoThumbnail: Exiting onBootstrap.'); // <-- ADDED LOGGING
     }
 
     protected function initializeDebugMode($serviceManager)
