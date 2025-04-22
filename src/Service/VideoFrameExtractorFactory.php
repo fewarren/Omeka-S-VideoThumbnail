@@ -4,69 +4,56 @@ namespace VideoThumbnail\Service;
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use VideoThumbnail\Stdlib\VideoFrameExtractor;
-use VideoThumbnail\Stdlib\Debug;
 use RuntimeException;
+use Omeka\Settings\SettingsInterface; // Import SettingsInterface
+use Laminas\Log\LoggerInterface; // Import LoggerInterface
 
 class VideoFrameExtractorFactory implements FactoryInterface
 {
     public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
+        /** @var SettingsInterface $settings */
         $settings = $container->get('Omeka\Settings');
+        /** @var array $config */
         $config = $container->get('Config');
-        $moduleSettings = $settings->get('videothumbnail', []); // Get module specific settings
+        /** @var LoggerInterface $logger */
+        $logger = $container->get('Omeka\Logger');
 
-        $ffmpegPath = $moduleSettings['ffmpeg_path'] ?? ''; // Get path from settings
-        $tempDir = $config['videothumbnail']['temp_dir'] ?? OMEKA_PATH . '/files/tmp'; // Get temp dir from config or default
+        // Get module specific settings or defaults from main config
+        $moduleSettings = $config['videothumbnail'] ?? [];
+        $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', $moduleSettings['settings']['ffmpeg_path'] ?? '');
+        $tempDir = $moduleSettings['job_dispatch']['temp_dir'] ?? OMEKA_PATH . '/files/temp/video-thumbnails'; // Use a dedicated temp dir
 
-        // --- Start Enhanced Validation ---
-        Debug::logEntry('VideoFrameExtractorFactory: Validating FFmpeg path.', ['configured_path' => $ffmpegPath]);
+        $logger->debug('VideoFrameExtractorFactory: Using FFmpeg path: ' . ($ffmpegPath ?: '(empty)'));
+        $logger->debug('VideoFrameExtractorFactory: Using temp directory: ' . $tempDir);
 
-        if (empty($ffmpegPath)) {
-            Debug::logWarning('VideoFrameExtractorFactory: FFmpeg path is not configured in module settings.');
-            // Decide: Throw exception or allow creation and let extractor fail later?
-            // For now, allow creation but log warning. Extractor's validateFFmpeg will handle it.
-        } else {
-            // Basic check if it looks like a path before hitting filesystem
-            if (strlen($ffmpegPath) > 0) {
-                // Check for Windows .exe specifically if on Windows
-                $effectivePath = $ffmpegPath;
-                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' && strtolower(substr($effectivePath, -4)) !== '.exe') {
-                    if (file_exists($effectivePath . '.exe')) {
-                         $effectivePath .= '.exe';
-                         Debug::logEntry('VideoFrameExtractorFactory: Appended .exe for Windows.', ['path' => $effectivePath]);
-                    }
-                }
-
-                Debug::logEntry('VideoFrameExtractorFactory: Checking filesystem for FFmpeg.', ['path_to_check' => $effectivePath]);
-                if (!file_exists($effectivePath)) {
-                    Debug::logWarning('VideoFrameExtractorFactory: FFmpeg path does not exist.', ['path' => $effectivePath]);
-                    // Allow creation, let extractor handle final validation
-                } elseif (!is_executable($effectivePath)) {
-                    Debug::logWarning('VideoFrameExtractorFactory: FFmpeg path exists but is not executable.', ['path' => $effectivePath]);
-                    // Allow creation, let extractor handle final validation
-                } else {
-                     Debug::logEntry('VideoFrameExtractorFactory: FFmpeg path appears valid and executable.', ['path' => $effectivePath]);
-                }
-            } else {
-                 Debug::logWarning('VideoFrameExtractorFactory: Configured FFmpeg path is empty string after trim.');
-            }
-        }
-        // --- End Enhanced Validation ---
-
+        // --- Remove direct FFmpeg validation from factory ---
+        // Validation will be handled within VideoFrameExtractor itself.
 
         // Ensure the temp directory exists and is writable
-        if (!is_dir($tempDir)) {
-            if (!@mkdir($tempDir, 0777, true)) {
-                 Debug::logError('VideoFrameExtractorFactory: Failed to create temp directory.', ['path' => $tempDir]);
-                 throw new \RuntimeException("Failed to create temporary directory: $tempDir");
+        try {
+            if (!is_dir($tempDir)) {
+                if (!@mkdir($tempDir, 0755, true)) { // Use 0755 permission
+                    $error = error_get_last();
+                    $message = sprintf('VideoFrameExtractorFactory: Failed to create temp directory "%s". Error: %s', $tempDir, $error['message'] ?? 'Unknown error');
+                    $logger->err($message);
+                    throw new RuntimeException($message);
+                }
+                $logger->info(sprintf('VideoFrameExtractorFactory: Created temp directory: %s', $tempDir));
             }
-        } elseif (!is_writable($tempDir)) {
-             Debug::logError('VideoFrameExtractorFactory: Temp directory is not writable.', ['path' => $tempDir]);
-             throw new \RuntimeException("Temporary directory is not writable: $tempDir");
+            if (!is_writable($tempDir)) {
+                $message = sprintf('VideoFrameExtractorFactory: Temp directory is not writable: %s', $tempDir);
+                $logger->err($message);
+                throw new RuntimeException($message);
+            }
+        } catch (\Exception $e) {
+            // Log any other exception during directory handling
+            $logger->err('VideoFrameExtractorFactory: Error ensuring temp directory: ' . $e->getMessage());
+            throw $e; // Re-throw the exception
         }
 
-
-        // Pass the potentially unverified path; the extractor itself does a final check before execution.
-        return new VideoFrameExtractor($ffmpegPath, $tempDir);
+        // Pass the potentially unverified path; the extractor itself should validate before execution.
+        $logger->debug('VideoFrameExtractorFactory: Instantiating VideoFrameExtractor.');
+        return new VideoFrameExtractor($ffmpegPath, $tempDir, $logger);
     }
 }

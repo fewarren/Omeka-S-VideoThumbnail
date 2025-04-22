@@ -12,6 +12,7 @@ use Laminas\Http\PhpEnvironment\UploadProgressData;
 use Laminas\View\Renderer\PhpRenderer;
 use VideoThumbnail\Stdlib\VideoFrameExtractor;
 use Doctrine\ORM\EntityManager;
+use Laminas\Log\LoggerInterface; // Import LoggerInterface
 
 class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
 {
@@ -45,6 +46,9 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     protected $entityManager;
 
+    /** @var LoggerInterface */
+    protected $logger; // Add logger property
+
     /**
      * @param TempFileFactory $tempFileFactory
      * @param $settings
@@ -52,6 +56,7 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      * @param $uploader
      * @param $fileStore
      * @param EntityManager $entityManager
+     * @param LoggerInterface $logger // Add logger to constructor
      */
     public function __construct(
         TempFileFactory $tempFileFactory, 
@@ -59,7 +64,8 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         VideoFrameExtractor $videoFrameExtractor,
         $uploader,
         $fileStore,
-        EntityManager $entityManager
+        EntityManager $entityManager,
+        LoggerInterface $logger // Add logger to constructor
     )
     {
         $this->tempFileFactory = $tempFileFactory;
@@ -68,6 +74,7 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         $this->uploader = $uploader;
         $this->fileStore = $fileStore;
         $this->entityManager = $entityManager;
+        $this->logger = $logger; // Assign logger
     }
 
     /**
@@ -90,6 +97,8 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     public function ingest(Media $media, Request $request, ErrorStore $errorStore)
     {
+        $this->logger->info(sprintf('VideoThumbnail Ingester: Starting ingestion for media ID %d', $media->getId()), ['method' => __METHOD__]);
+
         $data = $request->getContent();
         $fileData = $request->getFileData();
         
@@ -147,6 +156,11 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
             return true;
 
         } catch (\Exception $e) {
+            $this->logger->err(sprintf('VideoThumbnail Ingester Error: %s', $e->getMessage()), [
+                'method' => __METHOD__,
+                'media_id' => $media->getId(),
+                'exception' => $e
+            ]);
             $errorStore->addError('error', $e->getMessage());
             return false;
         }
@@ -626,5 +640,58 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     public function getRenderer()
     {
         return 'videothumbnail';
+    }
+
+    /**
+     * Get the local path to the original media file.
+     *
+     * @param Media $media
+     * @return string|null
+     */
+    protected function getOriginalFilePath(Media $media): ?string
+    {
+        $storageId = $media->getStorageId();
+        $extension = $media->getExtension();
+        $filename = $media->getFilename();
+
+        if (!$filename && $storageId && $extension) {
+            // Reconstruct filename if missing (might happen in some edge cases)
+            $filename = $storageId . '.' . $extension;
+            $this->logger->warn(sprintf('Reconstructed filename for media ID %d as %s', $media->getId(), $filename), ['method' => __METHOD__]);
+        }
+
+        if (!$filename) {
+            $this->logger->err('Cannot determine filename for media.', ['method' => __METHOD__, 'media_id' => $media->getId()]);
+            return null;
+        }
+
+        // Assuming 'original' is the standard directory for original files
+        $storagePath = 'original' . DIRECTORY_SEPARATOR . $filename;
+        
+        try {
+            $localPath = $this->fileStore->getLocalPath($storagePath);
+            if ($localPath && file_exists($localPath)) {
+                return $localPath;
+            }
+            $this->logger->warn(sprintf('Original file not found at expected local path: %s', $localPath ?: '(null)'), ['method' => __METHOD__, 'storage_path' => $storagePath]);
+        } catch (\Exception $e) {
+            $this->logger->err(sprintf('Error getting local path for storage path "%s": %s', $storagePath, $e->getMessage()), ['method' => __METHOD__]);
+        }
+
+        // Fallback: Try finding based on storage ID if filename path failed
+        if ($storageId) {
+            try {
+                $localPathById = $this->fileStore->getLocalPath($storageId);
+                if ($localPathById && file_exists($localPathById)) {
+                    $this->logger->info(sprintf('Found original file using storage ID path: %s', $localPathById), ['method' => __METHOD__]);
+                    return $localPathById;
+                }
+            } catch (\Exception $e) {
+                 $this->logger->warn(sprintf('Error getting local path via storage ID "%s": %s', $storageId, $e->getMessage()), ['method' => __METHOD__]);
+            }
+        }
+
+        $this->logger->err('Failed to locate the original file path for media.', ['method' => __METHOD__, 'media_id' => $media->getId()]);
+        return null;
     }
 }
