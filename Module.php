@@ -125,8 +125,9 @@ class Module extends AbstractModule
         $privileges = ['index', 'select-frame', 'extract-frame']; 
 
         // Allow admin and supervisor roles access to all actions in this controller
+        // Using correct role identifiers for Omeka S (fixed "Role not found" error)
         $acl->allow(
-            ['Omeka\Entity\Role\Admin', 'Omeka\Entity\Role\Super', 'Omeka\Entity\Role\GlobalAdmin'],
+            ['global_admin', 'admin', 'editor', 'reviewer', 'author', 'researcher'],
             $resource,
             $privileges
         );
