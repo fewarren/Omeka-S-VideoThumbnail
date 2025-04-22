@@ -7,11 +7,12 @@ use Omeka\Site\BlockLayout\AbstractBlockLayout;
 use Laminas\View\Renderer\PhpRenderer;
 use Laminas\Form\Form; // Optional: If you need a configuration form for the block
 use VideoThumbnail\Form\VideoThumbnailBlockForm; // Added: Assuming this is your form class
+use Omeka\Site\BlockLayout\BlockLayoutInterface; // Add this use statement
 
 /**
  * Represents the Video Thumbnail block for public site pages.
  */
-class VideoThumbnailBlock extends AbstractBlockLayout
+class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInterface // Add implements clause
 {
     /**
      * Get the display label for this block layout.
