@@ -463,27 +463,14 @@ class Module extends AbstractModule
                 $acl->addResource(new GenericResource($controller));
             }
             
-            // Define the controller privileges
-            $privileges = ['index', 'select-frame', 'extract-frame'];
-            
-            // First allow unrestricted access to the controller
+            // Simply allow unrestricted access to the controller for all users
+            // This avoids referencing specific roles that might not exist
             $acl->allow(null, $controller);
-            
-            // Then add specific roles with specific privileges
-            // Using standard Omeka S role identifiers (string format)
-            $roles = ['global_admin', 'admin', 'editor', 'reviewer', 'author', 'researcher'];
-            foreach ($roles as $role) {
-                if ($acl->hasRole($role)) {
-                    $acl->allow($role, $controller, $privileges);
-                } else {
-                    error_log("VideoThumbnail: Role '$role' not found in ACL; skipping permission assignment");
-                }
-            }
             
             // Add ACL rule for the module adapter to allow module configuration
             $acl->allow(null, 'Omeka\Api\Adapter\ModuleAdapter');
             
-            error_log('VideoThumbnail: ACL rules applied successfully');
+            error_log('VideoThumbnail: ACL rules applied successfully with unrestricted access');
         } catch (\Exception $e) {
             error_log('VideoThumbnail: Error setting ACL rules: ' . $e->getMessage());
         }
