@@ -455,24 +455,42 @@ class Module extends AbstractModule
     protected function addAclRules($serviceManager): void
     {
         try {
+            /** @var \Laminas\Permissions\Acl\Acl $acl */
             $acl = $serviceManager->get('Omeka\Acl');
-            $controller = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
-            
-            // Only add the resource once
-            if (!$acl->hasResource($controller)) {
-                $acl->addResource(new GenericResource($controller));
+
+            // Define resources
+            $controllerResource = 'VideoThumbnail\\Controller\\Admin\\VideoThumbnailController';
+            $moduleAdapterResource = 'Omeka\\Api\\Adapter\\ModuleAdapter';
+
+            // Ensure controller resource exists
+            if (!$acl->hasResource($controllerResource)) {
+                $acl->addResource(new GenericResource($controllerResource));
+                error_log("VideoThumbnail: Added ACL resource: $controllerResource");
             }
             
-            // Simply allow unrestricted access to the controller for all users
-            // This avoids referencing specific roles that might not exist
-            $acl->allow(null, $controller);
-            
-            // Add ACL rule for the module adapter to allow module configuration
-            $acl->allow(null, 'Omeka\Api\Adapter\ModuleAdapter');
-            
-            error_log('VideoThumbnail: ACL rules applied successfully with unrestricted access');
+            // Grant broad access to the controller resource using null role.
+            // This avoids issues with specific roles not being found during bootstrap.
+            $acl->allow(null, $controllerResource);
+            error_log("VideoThumbnail: Granted broad ACL access (null role) to resource: $controllerResource");
+
+            // Ensure ModuleAdapter resource exists (should always be true)
+            if (!$acl->hasResource($moduleAdapterResource)) {
+                 error_log("VideoThumbnail: WARNING - ACL resource $moduleAdapterResource not found. Adding it.");
+                 $acl->addResource(new GenericResource($moduleAdapterResource));
+             }
+
+            // Grant broad access to the ModuleAdapter resource using null role.
+            $acl->allow(null, $moduleAdapterResource);
+            error_log("VideoThumbnail: Granted broad ACL access (null role) to resource: $moduleAdapterResource");
+
+            error_log('VideoThumbnail: ACL rules processing completed using broad access.');
+
+        } catch (\Laminas\Permissions\Acl\Exception\ExceptionInterface $e) {
+            // Catch specific ACL exceptions
+            error_log('VideoThumbnail: ACL Configuration Error: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
         } catch (\Exception $e) {
-            error_log('VideoThumbnail: Error setting ACL rules: ' . $e->getMessage());
+            // Catch general exceptions during ACL setup
+            error_log('VideoThumbnail: General Error during ACL setup: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
         }
     }
 }
