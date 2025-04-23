@@ -165,11 +165,10 @@ class Module extends AbstractModule
     protected function attachListenersForAssets(MvcEvent $event): void
     {
         $serviceManager = $event->getApplication()->getServiceManager();
-        $viewManager = $serviceManager->get('ViewManager');
         $viewHelperManager = $serviceManager->get('ViewHelperManager');
-        
-        // Register the asset only on admin routes
         $sharedEvents = $serviceManager->get('SharedEventManager');
+
+        // Register the asset only on admin routes
         $sharedEvents->attach(
             'Omeka\Controller\Admin',
             'view.layout',
@@ -178,9 +177,20 @@ class Module extends AbstractModule
                 $assetUrl = $viewHelperManager->get('assetUrl');
                 $headLink = $viewHelperManager->get('headLink');
                 $headScript = $viewHelperManager->get('headScript');
-                
                 $headLink->appendStylesheet($assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
                 $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
+            }
+        );
+
+        // Ensure block admin JS is loaded on the site page edit screen
+        $sharedEvents->attach(
+            'Omeka\Controller\Admin\Page',
+            'view.edit.form.after',
+            function ($event) use ($viewHelperManager) {
+                $view = $event->getTarget();
+                $assetUrl = $viewHelperManager->get('assetUrl');
+                $headScript = $viewHelperManager->get('headScript');
+                $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
             }
         );
     }
