@@ -98,7 +98,7 @@ class Module extends AbstractModule
 
     public function onBootstrap(MvcEvent $event): void
     {        
-        error_log('VideoThumbnail: Entering onBootstrap...'); // <-- ADDED LOGGING
+        error_log('VideoThumbnail: Entering onBootstrap...');
         parent::onBootstrap($event);
         $application = $event->getApplication();
         $serviceManager = $application->getServiceManager();
@@ -108,55 +108,32 @@ class Module extends AbstractModule
         // Register CSS and JS assets
         $this->attachListenersForAssets($event);
         
-        // Add ACL rules - MOVE ALL ACL LOGIC TO THIS METHOD
+        // Add ACL rules
         $this->addAclRules($serviceManager);
 
-        // Temporarily comment out debug initialization to diagnose hang
-        // $this->initializeDebugMode($serviceManager);
+        // Initialize debug mode
+        $this->initializeDebugMode($serviceManager);
         
-        // Single debug log to check if block layout is registered
-        // The following code is known to cause errors if Omeka core services are not ready.
-        // Commented out to prevent site hang and service resolution errors.
-        /*
-        try {
-            $blockLayoutManager = $serviceManager->get('Omeka\Site\BlockLayoutManager');
-            $blockLayouts = $blockLayoutManager->getRegisteredNames();
-            error_log('VideoThumbnail: Registered block layouts: ' . implode(', ', $blockLayouts));
-        } catch (\Exception $e) {
-            error_log('VideoThumbnail: Error checking block layouts: ' . $e->getMessage());
-        }
-        */
-        error_log('VideoThumbnail: Exiting onBootstrap.'); // <-- ADDED LOGGING
+        error_log('VideoThumbnail: Exiting onBootstrap.');
     }
 
     protected function initializeDebugMode($serviceManager)
     {
-        // Restore original logic: Read debug setting from Omeka S settings
         $settings = $serviceManager->get('Omeka\Settings');
-        $debugEnabled = $settings->get('videothumbnail_debug_mode', false);
+        $config = $serviceManager->get('Config');
+        
+        // Use the module config debug setting as default (true)
+        $debugEnabled = $settings->get('videothumbnail_debug_mode', $config['videothumbnail']['debug']['enabled']);
 
-        // Prepare the full configuration array needed by Debug::init
         $config = [
             'enabled' => $debugEnabled,
             'log_dir' => OMEKA_PATH . '/logs',
             'log_file' => 'videothumbnail.log',
             'max_size' => 10485760, // 10MB
-            'max_files' => 5,
-            'levels' => [
-                'error' => true,
-                'warning' => true,
-                'info' => true,
-                'debug' => $debugEnabled // Only enable debug level if the setting is true
-            ]
+            'max_files' => 5
         ];
 
-        // Initialize Debug only if enabled, with proper configuration
-        if ($debugEnabled) {
-             \VideoThumbnail\Stdlib\Debug::init($config);
-        } else {
-            // Ensure Debug class knows it's disabled if the setting is false
-             \VideoThumbnail\Stdlib\Debug::init(['enabled' => false]);
-        }
+        \VideoThumbnail\Stdlib\Debug::init($config);
     }
 
     /**
@@ -168,7 +145,7 @@ class Module extends AbstractModule
         $viewHelperManager = $serviceManager->get('ViewHelperManager');
         $sharedEvents = $serviceManager->get('SharedEventManager');
 
-        // Register the asset only on admin routes
+        // Register assets for all admin routes
         $sharedEvents->attach(
             'Omeka\Controller\Admin',
             'view.layout',
@@ -177,16 +154,37 @@ class Module extends AbstractModule
                 $assetUrl = $viewHelperManager->get('assetUrl');
                 $headLink = $viewHelperManager->get('headLink');
                 $headScript = $viewHelperManager->get('headScript');
-                $headLink->appendStylesheet($assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
-                $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
                 
-                // Check if we're on the page edit route and load block admin JS
+                // Always load these assets in admin
+                $headLink->appendStylesheet($assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
+                $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
+                
+                // Load block admin JS for page edit
                 $routeMatch = $event->getRouteMatch();
                 if ($routeMatch && 
-                    ($routeMatch->getParam('controller') === 'Omeka\Controller\Admin\Page' || 
-                     $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page')) {
-                    $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
+                    ($routeMatch->getParam('controller') === 'Omeka\Controller\Admin\Page' ||
+                     $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page') &&
+                    in_array($routeMatch->getParam('action'), ['add', 'edit'])) {
+                    
+                    error_log('VideoThumbnail: Loading block admin JS for page edit');
+                    $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
                 }
+            }
+        );
+
+        // Specifically for video thumbnail admin pages
+        $sharedEvents->attach(
+            'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            'view.layout',
+            function ($event) use ($viewHelperManager) {
+                error_log('VideoThumbnail: Controller-specific asset loading triggered');
+                $view = $event->getTarget();
+                $assetUrl = $viewHelperManager->get('assetUrl');
+                $headLink = $viewHelperManager->get('headLink');
+                $headScript = $viewHelperManager->get('headScript');
+                
+                $headLink->appendStylesheet($assetUrl('css/video-thumbnail-monitor.css', 'VideoThumbnail'));
+                $headScript->appendFile($assetUrl('js/video-thumbnail-monitor.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
             }
         );
     }
@@ -195,15 +193,14 @@ class Module extends AbstractModule
     {
         $settings = $serviceLocator->get('Omeka\Settings');
         
-        // Set default settings - Use blank for ffmpeg path initially
+        // Set default settings with debug mode enabled by default
         $defaults = [
             'videothumbnail_ffmpeg_path' => '', // Set blank default, require user config
             'videothumbnail_default_frame' => 10,
             'videothumbnail_frames_count' => 5,
             'videothumbnail_memory_limit' => 512,
             'videothumbnail_process_timeout' => 3600,
-            'videothumbnail_debug_mode' => false,
-            'videothumbnail_log_level' => 'info',
+            'videothumbnail_debug_mode' => true,  // Default to true
             'videothumbnail_supported_formats' => [
                 'video/mp4',
                 'video/quicktime',

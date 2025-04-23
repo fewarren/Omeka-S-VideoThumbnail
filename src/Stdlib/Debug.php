@@ -61,16 +61,6 @@ class Debug
         $writer = new Stream($logFile);
         self::$logger = new Logger();
         self::$logger->addWriter($writer);
-        // Set filters based on configured log levels
-        if (isset(self::$config['levels']['debug']) && !self::$config['levels']['debug']) {
-            $writer->addFilter(new Priority(Logger::DEBUG, '!='));
-        }
-        if (isset(self::$config['levels']['info']) && !self::$config['levels']['info']) {
-            $writer->addFilter(new Priority(Logger::INFO, '!='));
-        }
-        if (isset(self::$config['levels']['warning']) && !self::$config['levels']['warning']) {
-            $writer->addFilter(new Priority(Logger::WARN, '!='));
-        }
     }
 
     private static function rotateLogIfNeeded()

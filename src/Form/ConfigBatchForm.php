@@ -53,16 +53,19 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
             ],
         ]);
         
-        // Add debug mode toggle
+        // Update debug mode toggle with default to true
         $this->add([
             'name' => 'debug_mode',
             'type' => Checkbox::class,
             'options' => [
-                'label' => 'Enable Debug Mode', // @translate
-                'info' => 'When enabled, detailed debug information will be logged to the Omeka-S error log. This helps troubleshoot issues with FFmpeg and frame extraction.', // @translate
+                'label' => 'Debug Mode', // @translate
+                'info' => 'Enable detailed debug logging. When enabled, all operations will be logged to videothumbnail.log', // @translate
+                'checked_value' => true,
+                'unchecked_value' => false
             ],
             'attributes' => [
                 'id' => 'debug_mode',
+                'value' => true  // Set default to true
             ],
         ]);
 

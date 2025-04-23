@@ -5,6 +5,9 @@ return [
         'template_path_stack' => [
             dirname(__DIR__) . '/view',
         ],
+        'template_map' => [
+            'video-thumbnail/admin/video-thumbnail/index' => dirname(__DIR__) . '/view/video-thumbnail/admin/video-thumbnail/index.phtml',
+        ],
     ],
     'view_helpers' => [
         'factories' => [
@@ -29,6 +32,9 @@ return [
         'factories' => [
             'VideoThumbnail\Controller\Admin\VideoThumbnailController' => 'VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory',
         ],
+        'aliases' => [
+            'VideoThumbnail\Controller\Admin\VideoThumbnail' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+        ],
     ],
     'controller_plugins' => [
         'factories' => [
@@ -46,6 +52,9 @@ return [
                             'defaults' => [
                                 'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
                                 'action' => 'index',
+                            ],
+                            'constraints' => [
+                                'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
                             ],
                         ],
                     ],
@@ -154,17 +163,11 @@ return [
     ],
     'videothumbnail' => [
         'debug' => [
-            'enabled' => false,
+            'enabled' => true,  // Changed default to true
             'log_dir' => OMEKA_PATH . '/logs',
             'log_file' => 'videothumbnail.log',
             'max_size' => 10485760, // 10MB
-            'max_files' => 5,
-            'levels' => [
-                'error' => true,
-                'warning' => true,
-                'info' => true,
-                'debug' => false
-            ]
+            'max_files' => 5
         ],
         'job_dispatch' => [
             'memory_limit' => '512M',
