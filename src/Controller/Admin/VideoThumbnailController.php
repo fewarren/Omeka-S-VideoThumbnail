@@ -195,7 +195,7 @@ class VideoThumbnailController extends AbstractActionController
             Debug::logExit(__METHOD__);
         }
         
-        // Explicitly set view template to ensure it's found
+        // Fix the template path to match the actual location
         $view->setTemplate('video-thumbnail/admin/video-thumbnail/index');
         
         return $view;

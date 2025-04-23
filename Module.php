@@ -179,18 +179,14 @@ class Module extends AbstractModule
                 $headScript = $viewHelperManager->get('headScript');
                 $headLink->appendStylesheet($assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
                 $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
-            }
-        );
-
-        // Ensure block admin JS is loaded on the site page edit screen
-        $sharedEvents->attach(
-            'Omeka\Controller\Admin\Page',
-            'view.edit.form.after',
-            function ($event) use ($viewHelperManager) {
-                $view = $event->getTarget();
-                $assetUrl = $viewHelperManager->get('assetUrl');
-                $headScript = $viewHelperManager->get('headScript');
-                $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
+                
+                // Check if we're on the page edit route and load block admin JS
+                $routeMatch = $event->getRouteMatch();
+                if ($routeMatch && 
+                    ($routeMatch->getParam('controller') === 'Omeka\Controller\Admin\Page' || 
+                     $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page')) {
+                    $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
+                }
             }
         );
     }
