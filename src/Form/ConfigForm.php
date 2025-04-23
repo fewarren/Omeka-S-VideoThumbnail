@@ -133,6 +133,18 @@ class ConfigForm extends Form
             ],
         ]);
 
+        $this->add([
+            'name' => 'video_thumbnail_timestamp_property',
+            'type' => Text::class,
+            'options' => [
+                'label' => 'Timestamp metadata field', // @translate
+                'info' => 'Enter the term (e.g., dcterms:temporal) of the metadata field containing the desired thumbnail timestamp (in seconds or HH:MM:SS format). Leave blank to disable.', // @translate
+            ],
+            'attributes' => [
+                'id' => 'video_thumbnail_timestamp_property',
+            ],
+        ]);
+
         // Add submit button
         $this->add([
             'name' => 'submit',

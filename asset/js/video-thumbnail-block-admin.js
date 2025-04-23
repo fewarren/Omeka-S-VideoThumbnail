@@ -2,8 +2,11 @@
  * JavaScript for the Video Thumbnail Block configuration in the admin interface.
  */
 $(document).ready(function() {
+    console.log('video-thumbnail-block-admin.js loaded'); // Add this line
+
     $(document).on('click', '.select-media', function(e) {
         e.preventDefault();
+        console.log('Select media button clicked'); // Add this line
         
         const button = $(this);
         const blockContainer = button.closest('.block-form, .block');
@@ -11,6 +14,7 @@ $(document).ready(function() {
         const selectedMediaSpan = blockContainer.find('.selected-media');
         
         Omeka.openMediaBrowser(function(selections) {
+            console.log('Media selected:', selections); // Add this line
             if (!selections) return;
             if (selections.length < 1) return;
             

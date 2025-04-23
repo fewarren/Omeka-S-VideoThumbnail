@@ -51,6 +51,17 @@ $formErrors = $this->plugin('formElementErrors');
         </div>
     </div>
 
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_timestamp_property')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_timestamp_property')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_timestamp_property')) ?>
+            <?= $formErrors($form->get('videothumbnail_timestamp_property')) ?>
+        </div>
+    </div>
+
     <?php if ($form->has('videothumbnail_debug_mode')): ?>
     <div class="field">
         <div class="field-meta">

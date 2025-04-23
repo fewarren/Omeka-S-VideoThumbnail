@@ -246,6 +246,7 @@ class VideoFrameExtractor
 
     protected function executeDurationStrategy($strategy, $videoPath)
     {
+        Debug::log("Attempting duration strategy: " . ($strategy['message'] ?? 'Unknown strategy'), __METHOD__);
         $command = sprintf(
             '%s %s %s',
             escapeshellcmd($this->ffmpegPath),
@@ -282,7 +283,8 @@ class VideoFrameExtractor
             );
             return false;
         }
-
+        
+        Debug::log(sprintf('FFmpeg command successful: %s', $description), __METHOD__);
         return true;
     }
 
@@ -299,9 +301,12 @@ class VideoFrameExtractor
     protected function ensureTempDir()
     {
         if (!file_exists($this->tempDir)) {
+            Debug::log("Creating temporary directory: {$this->tempDir}", __METHOD__);
             if (!mkdir($this->tempDir, 0777, true)) {
+                Debug::logError("Failed to create temporary directory: {$this->tempDir}", __METHOD__);
                 throw new \RuntimeException('Failed to create temporary directory');
             }
+            Debug::log("Successfully created temporary directory: {$this->tempDir}", __METHOD__);
         }
     }
 

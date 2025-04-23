@@ -13,6 +13,7 @@ use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Entity\Media;
 use Omeka\Api\Representation\MediaRepresentation;
 use Laminas\Permissions\Acl\Resource\GenericResource;
+use VideoThumbnail\Stdlib\Debug; // Add this use statement
 
 class Module extends AbstractModule
 {
@@ -116,11 +117,26 @@ class Module extends AbstractModule
         $this->addAclRules($serviceManager);
         
         \VideoThumbnail\Stdlib\Debug::log('Exiting onBootstrap.', __METHOD__);
+
+        $services = $event->getApplication()->getServiceManager();
+        $config = $services->get('Config');
+        
+        // Initialize Debug utility
+        if (isset($config['videothumbnail']['debug'])) {
+            Debug::init($config['videothumbnail']['debug']);
+            Debug::log('Debug initialized in onBootstrap.'); // Add initial log
+        }
+
+        // Register listeners
+        $this->registerListeners($services->get('EventManager'));
+        
+        // Add ACL rules
+        $this->addAclRules($services);
     }
 
     protected function initializeDebugMode($serviceManager)
     {
-        $settings = $serviceManager->get('Omeka\Settings');
+        $settings = $serviceManager->get('Omeka\\Settings');
         $config = $serviceManager->get('Config');
         
         // Use the module config debug setting as default (true)
@@ -128,7 +144,7 @@ class Module extends AbstractModule
 
         $config = [
             'enabled' => $debugEnabled,
-            'log_dir' => OMEKA_PATH . '/logs',
+            'log_dir' => OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs',
             'log_file' => 'videothumbnail.log',
             'max_size' => 10485760, // 10MB
             'max_files' => 5
@@ -460,10 +476,10 @@ class Module extends AbstractModule
     {
         try {
             /** @var \Laminas\Permissions\Acl\Acl $acl */
-            $acl = $serviceManager->get('Omeka\Acl');
+            $acl = $serviceManager->get('Omeka\\Acl');
 
             // Define resources
-            $controllerResource = 'VideoThumbnail\\Controller\\Admin\\VideoThumbnailController';
+            $controllerResource = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
             $moduleAdapterResource = 'Omeka\\Api\\Adapter\\ModuleAdapter';
 
             // Ensure controller resource exists

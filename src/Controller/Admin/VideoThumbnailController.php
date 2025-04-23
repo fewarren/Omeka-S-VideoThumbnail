@@ -32,6 +32,8 @@ class VideoThumbnailController extends AbstractActionController
 
     public function indexAction()
     {
+        Debug::log('VideoThumbnailController::indexAction called.');
+        Debug::log('VideoThumbnailController::indexAction accessed', __METHOD__);
         \VideoThumbnail\Stdlib\Debug::log('Entering index action', __METHOD__);
         
         try {
@@ -450,6 +452,7 @@ class VideoThumbnailController extends AbstractActionController
 
     public function selectFrameAction()
     {
+        Debug::log('VideoThumbnailController::selectFrameAction accessed', __METHOD__); // Add this line
         Debug::logEntry(__METHOD__);
         $id = $this->params('id');
         

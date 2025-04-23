@@ -21,46 +21,62 @@ class Debug
             return;
         }
 
-        self::ensureLogDirectory();
-        self::initLogger();
-    }
-
-    private static function ensureLogDirectory()
-    {
-        if (!isset(self::$config['log_dir']) || !self::$config['log_dir']) {
+        if (!self::ensureLogDirectory()) {
             self::$config['enabled'] = false;
             return;
         }
+        self::initLogger();
+    }
+
+    private static function ensureLogDirectory(): bool
+    {
         $logDir = self::$config['log_dir'];
-        if (!file_exists($logDir)) {
-            if (!@mkdir($logDir, 0777, true) && !is_dir($logDir)) {
-                self::$config['enabled'] = false;
-                return;
+        if (empty($logDir)) {
+            error_log('VideoThumbnail Debug Error: Log directory path is empty.');
+            return false;
+        }
+
+        if (!is_dir($logDir)) {
+            if (!@mkdir($logDir, 0755, true)) {
+                $error = error_get_last();
+                error_log('VideoThumbnail Debug Error: Failed to create log directory: ' . $logDir . '. Error: ' . ($error['message'] ?? 'Unknown error'));
+                return false;
             }
+        } elseif (!is_writable($logDir)) {
+            error_log('VideoThumbnail Debug Error: Log directory is not writable: ' . $logDir);
+            return false;
         }
-        if (!is_writable($logDir)) {
-            self::$config['enabled'] = false;
-        }
+        return true;
     }
 
     private static function initLogger()
     {
         if (self::$logger !== null || !self::$config['enabled']) {
-            return;
+            // If already initialized or disabled (possibly by ensureLogDirectory), return.
+            return; 
         }
         if (!isset(self::$config['log_file']) || !self::$config['log_file']) {
+             error_log('VideoThumbnail Debug Error: log_file not configured.'); // Log error
             self::$config['enabled'] = false;
             return;
         }
-        $logFile = self::$config['log_dir'] . '/' . self::$config['log_file'];
-        if ((file_exists($logFile) && !is_writable($logFile)) ||
-            (!file_exists($logFile) && !is_writable(dirname($logFile)))) {
+        $logPath = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file']; // Use DIRECTORY_SEPARATOR
+        if ((file_exists($logPath) && !is_writable($logPath)) ||
+            (!file_exists($logPath) && !is_writable(dirname($logPath)))) {
+            error_log('VideoThumbnail Debug Error: Log file/directory not writable: ' . $logPath); // Log error
             self::$config['enabled'] = false;
             return;
         }
-        $writer = new Stream($logFile);
-        self::$logger = new Logger();
-        self::$logger->addWriter($writer);
+        
+        try { // Wrap in try-catch for safety
+            $writer = new Stream($logPath);
+            self::$logger = new Logger();
+            self::$logger->addWriter($writer);
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug Error: Failed to initialize logger: ' . $e->getMessage()); // Log error
+            self::$config['enabled'] = false;
+            self::$logger = null; // Ensure logger is null if failed
+        }
     }
 
     private static function rotateLogIfNeeded()
@@ -69,7 +85,7 @@ class Debug
             return;
         }
 
-        $logFile = self::$config['log_dir'] . '/' . self::$config['log_file'];
+        $logFile = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file'];
         if (file_exists($logFile) && filesize($logFile) > self::$config['max_size']) {
             self::rotateLog();
         }
@@ -77,7 +93,7 @@ class Debug
 
     private static function rotateLog()
     {
-        $logFile = self::$config['log_dir'] . '/' . self::$config['log_file'];
+        $logFile = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file'];
         $maxFiles = self::$config['max_files'];
 
         // Remove oldest log file if we've reached max_files
