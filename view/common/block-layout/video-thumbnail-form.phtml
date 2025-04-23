@@ -10,7 +10,7 @@ $mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
     <div class="inputs">
         <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $mediaId ?>" class="media-id">
         <span class="selected-media"><?= $mediaTitle ? $mediaTitle : $this->translate('No media selected') ?></span>
-        <button type="button" class="select-media button video-thumbnail-btn">🎬 <?= $this->translate('Select Video') ?></button>
+        <button type="button" class="select-media button video-thumbnail-btn" data-debug="select-media-btn">🎬 <?= $this->translate('Select Video') ?></button>
     </div>
 </div>
 

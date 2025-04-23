@@ -8,6 +8,7 @@ use Laminas\View\Renderer\PhpRenderer;
 use Laminas\Form\Form; // Optional: If you need a configuration form for the block
 use VideoThumbnail\Form\VideoThumbnailBlockForm; // Added: Assuming this is your form class
 use Omeka\Site\BlockLayout\BlockLayoutInterface; // Add this use statement
+use VideoThumbnail\Stdlib\Debug; // Added for debug integration
 
 /**
  * Represents the Video Thumbnail block for public site pages.
@@ -40,17 +41,37 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
         ?\Omeka\Api\Representation\SitePageRepresentation $page = null,
         ?\Omeka\Api\Representation\SitePageBlockRepresentation $block = null
     ) {
+        Debug::log('Rendering video thumbnail block form', __METHOD__, [
+            'siteId' => $site ? $site->id() : null,
+            'pageId' => $page ? $page->id() : null,
+            'blockId' => $block ? $block->id() : null
+        ]);
+        
         $mediaId = $block ? ($block->dataValue('media_id')) : null;
         $mediaTitle = '';
         $framePercent = $block ? $block->dataValue('frame_percent') : 10;
+        
+        Debug::log(sprintf(
+            'Block form parameters: mediaId=%s, framePercent=%s',
+            $mediaId ?: 'null',
+            $framePercent
+        ), __METHOD__);
+        
         if ($mediaId) {
             try {
                 $media = $view->api()->read('media', $mediaId)->getContent();
                 $mediaTitle = $media->displayTitle();
+                Debug::log(sprintf('Found media: %s (ID: %d)', $mediaTitle, $mediaId), __METHOD__);
             } catch (\Exception $e) {
                 $mediaTitle = $view->translate('Unknown media');
+                Debug::logError(sprintf(
+                    'Error loading media ID %d: %s',
+                    $mediaId,
+                    $e->getMessage()
+                ), __METHOD__);
             }
         }
+        
         return $view->partial('common/block-layout/video-thumbnail-form', [
             'block' => $block,
             'mediaId' => $mediaId,
@@ -70,14 +91,33 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
     {
         $mediaId = $block->dataValue('media_id');
         $framePercent = $block->dataValue('frame_percent');
+        
+        Debug::log(sprintf(
+            'Rendering video thumbnail block: mediaId=%s, framePercent=%s',
+            $mediaId ?: 'null',
+            $framePercent
+        ), __METHOD__, [
+            'blockId' => $block->id(),
+            'mediaId' => $mediaId,
+            'framePercent' => $framePercent
+        ]);
+        
         if (!$mediaId) {
+            Debug::logWarning('No media ID provided for video thumbnail block', __METHOD__, [
+                'blockId' => $block->id()
+            ]);
             return ''; // Return empty if no media selected
         }
 
         try {
+            Debug::log(sprintf('Loading media ID %d', $mediaId), __METHOD__, [
+                'blockId' => $block->id(),
+                'mediaId' => $mediaId
+            ]);
             $media = $view->api()->read('media', $mediaId)->getContent();
             $thumbnailHtml = $media->thumbnail(null, 'medium');
             
+            Debug::log('Successfully rendered video thumbnail block', __METHOD__);
             return $view->partial('common/block-layout/video-thumbnail', [
                 'media' => $media,
                 'block' => $block,
@@ -85,6 +125,14 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
                 'framePercent' => $framePercent,
             ]);
         } catch (\Exception $e) {
+            Debug::logError(sprintf(
+                'Error rendering video thumbnail block for media ID %d: %s',
+                $mediaId,
+                $e->getMessage()
+            ), __METHOD__, [
+                'blockId' => $block->id(),
+                'mediaId' => $mediaId
+            ]);
             return '<p class="error">' . $view->translate('Error loading video thumbnail') . '</p>';
         }
     }

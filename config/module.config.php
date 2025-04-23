@@ -154,10 +154,12 @@ return [
             'VideoThumbnail\Service\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
         ],
-        // Restore the delegator
         'delegators' => [
             'Omeka\File\Store\Manager' => [
-                'VideoThumbnail\Service\FileManagerDelegatorFactory',
+                \VideoThumbnail\Service\FileManagerDelegatorFactory::class,
+            ],
+            'Omeka\File\Store\Local' => [
+                \VideoThumbnail\Service\FileManagerDelegatorFactory::class,
             ],
         ],
     ],

@@ -21,69 +21,241 @@ class Module extends AbstractModule
 
     public function getConfig(): array
     {
-        return include __DIR__ . '/config/module.config.php';
+        try {
+            $config = include __DIR__ . '/config/module.config.php';
+            return $config;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Critical error loading module configuration: ' . $e->getMessage());
+            return [];
+        }
     }
 
     public function getConfigForm(PhpRenderer $renderer): string
     {
-        $services = $this->getServiceLocator();
-        $config = $services->get('Config');
-        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        try {
+            Debug::log('Starting config form generation', __METHOD__);
+            $services = $this->getServiceLocator();
+            $config = $services->get('Config');
+            
+            Debug::log('Getting ConfigForm from FormElementManager', __METHOD__);
+            try {
+                $form = $services->get('FormElementManager')->get(ConfigForm::class);
+                Debug::log('Successfully retrieved ConfigForm instance', __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get ConfigForm from FormElementManager: ' . $e->getMessage(), __METHOD__, $e);
+                throw $e;
+            }
 
-        $settings = $services->get('Omeka\Settings');
-        $form->init();
-        $form->setData([
-            'videothumbnail_ffmpeg_path' => $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg'),
-            'videothumbnail_frames_count' => $settings->get('videothumbnail_frames_count', 5),
-            'videothumbnail_default_frame' => $settings->get('videothumbnail_default_frame', 10),
-            'videothumbnail_debug_mode' => $settings->get('videothumbnail_debug_mode', false),
-        ]);
+            $settings = $services->get('Omeka\Settings');
+            Debug::log('Initializing form and setting data', __METHOD__);
+            $form->init();
+            
+            // Get current settings values with detailed logging
+            $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
+            $framesCount = $settings->get('videothumbnail_frames_count', 5);
+            $defaultFrame = $settings->get('videothumbnail_default_frame', 10);
+            $debugMode = $settings->get('videothumbnail_debug_mode', false);
+            $memoryLimit = $settings->get('videothumbnail_memory_limit', 512);
+            $logLevel = $settings->get('videothumbnail_log_level', 'error');
+            $timestampProperty = $settings->get('video_thumbnail_timestamp_property', '');
+            
+            Debug::log(sprintf(
+                'Current settings values: ffmpeg_path="%s", frames_count=%d, default_frame=%d, debug_mode=%s, memory_limit=%d, log_level="%s"',
+                $ffmpegPath,
+                $framesCount,
+                $defaultFrame,
+                $debugMode ? 'true' : 'false',
+                $memoryLimit,
+                $logLevel
+            ), __METHOD__);
 
-        return $renderer->render('video-thumbnail/admin/config-form', [
-            'form' => $form,
-        ]);
+            // Get supported formats from settings or fallback to defaults
+            $supportedFormats = $settings->get('videothumbnail_supported_formats', [
+                'video/mp4',
+                'video/webm',
+                'video/quicktime',
+                'video/x-msvideo',
+            ]);
+            
+            Debug::log('Setting form data', __METHOD__);
+            $formData = [
+                'videothumbnail_ffmpeg_path' => $ffmpegPath,
+                'videothumbnail_frames_count' => $framesCount,
+                'videothumbnail_default_frame' => $defaultFrame,
+                'videothumbnail_debug_mode' => $debugMode,
+                'videothumbnail_memory_limit' => $memoryLimit,
+                'videothumbnail_log_level' => $logLevel,
+                'videothumbnail_supported_formats' => $supportedFormats,
+                'video_thumbnail_timestamp_property' => $timestampProperty,
+            ];
+            
+            $form->setData($formData);
+            Debug::log('Form data set successfully', __METHOD__);
+
+            Debug::log('Rendering config form template', __METHOD__);
+            try {
+                $html = $renderer->render('video-thumbnail/admin/config-form', [
+                    'form' => $form,
+                ]);
+                Debug::log('Config form rendered successfully', __METHOD__);
+                return $html;
+            } catch (\Exception $e) {
+                Debug::logError('Error rendering config form template: ' . $e->getMessage(), __METHOD__, $e);
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            Debug::logError('Unhandled exception in getConfigForm: ' . $e->getMessage(), __METHOD__, $e);
+            return '<p class="error">An error occurred while loading the configuration form. Check logs for details.</p>';
+        }
     }
 
     public function handleConfigForm(AbstractController $controller): bool
     {
-        $services = $this->getServiceLocator();
-        $settings = $services->get('Omeka\Settings');
-        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        Debug::log('Starting config form handling', __METHOD__);
+        try {
+            $services = $this->getServiceLocator();
+            $settings = $services->get('Omeka\Settings');
+            
+            Debug::log('Getting ConfigForm from FormElementManager', __METHOD__);
+            try {
+                $form = $services->get('FormElementManager')->get(ConfigForm::class);
+                Debug::log('Successfully retrieved ConfigForm instance', __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get ConfigForm from FormElementManager: ' . $e->getMessage(), __METHOD__, $e);
+                $controller->flashMessenger()->addError('Error instantiating configuration form. Check logs for details.');
+                return false;
+            }
 
-        $form->init();
-        $form->setData($controller->params()->fromPost());
-        if (!$form->isValid()) {
-            $controller->flashMessenger()->addErrors($form->getMessages());
+            $form->init();
+            $postData = $controller->params()->fromPost();
+            Debug::log('Form POST data received: ' . json_encode(array_keys($postData)), __METHOD__);
+            
+            $form->setData($postData);
+            
+            if (!$form->isValid()) {
+                $messages = $form->getMessages();
+                Debug::logError('Form validation failed: ' . json_encode($messages), __METHOD__);
+                $controller->flashMessenger()->addFormErrors($form);
+                return false;
+            }
+            Debug::log('Form validation succeeded', __METHOD__);
+
+            $formData = $form->getData();
+            Debug::log('Processing form data', __METHOD__);
+
+            // Validate frame count and default frame
+            if ((int)$formData['videothumbnail_frames_count'] <= 0 || (int)$formData['videothumbnail_default_frame'] < 0) {
+                $error = 'Frame count and default frame must be non-negative integers.';
+                Debug::logError($error, __METHOD__);
+                $controller->flashMessenger()->addError($error);
+                return false;
+            }
+
+            // Save all form settings with debug logging
+            Debug::log('Saving settings to database', __METHOD__);
+            
+            // Handle FFmpeg path
+            $ffmpegPath = $formData['videothumbnail_ffmpeg_path'];
+            Debug::log('Setting FFmpeg path: ' . $ffmpegPath, __METHOD__);
+            $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+            
+            // Handle frames count
+            $framesCount = (int)$formData['videothumbnail_frames_count'];
+            Debug::log('Setting frames count: ' . $framesCount, __METHOD__);
+            $settings->set('videothumbnail_frames_count', $framesCount);
+            
+            // Handle default frame
+            $defaultFrame = (int)$formData['videothumbnail_default_frame'];
+            Debug::log('Setting default frame: ' . $defaultFrame, __METHOD__);
+            $settings->set('videothumbnail_default_frame', $defaultFrame);
+            
+            // Handle debug mode with proper boolean conversion
+            $debugMode = isset($formData['videothumbnail_debug_mode']) ? (bool)$formData['videothumbnail_debug_mode'] : false;
+            Debug::log('Setting debug mode: ' . ($debugMode ? 'enabled' : 'disabled'), __METHOD__);
+            $settings->set('videothumbnail_debug_mode', $debugMode);
+            
+            // Handle memory limit
+            if (isset($formData['videothumbnail_memory_limit'])) {
+                $memoryLimit = (int)$formData['videothumbnail_memory_limit'];
+                Debug::log('Setting memory limit: ' . $memoryLimit . 'MB', __METHOD__);
+                $settings->set('videothumbnail_memory_limit', $memoryLimit);
+            }
+            
+            // Handle log level
+            if (isset($formData['videothumbnail_log_level'])) {
+                $logLevel = $formData['videothumbnail_log_level'];
+                Debug::log('Setting log level: ' . $logLevel, __METHOD__);
+                $settings->set('videothumbnail_log_level', $logLevel);
+            }
+            
+            // Handle timestamp property
+            if (isset($formData['video_thumbnail_timestamp_property'])) {
+                $timestampProperty = $formData['video_thumbnail_timestamp_property'];
+                Debug::log('Setting timestamp property: ' . $timestampProperty, __METHOD__);
+                $settings->set('video_thumbnail_timestamp_property', $timestampProperty);
+            }
+            
+            // Handle supported formats 
+            if (isset($formData['videothumbnail_supported_formats']) && is_array($formData['videothumbnail_supported_formats'])) {
+                $supportedFormats = $formData['videothumbnail_supported_formats'];
+                Debug::log('Setting supported formats: ' . json_encode($supportedFormats), __METHOD__);
+                $settings->set('videothumbnail_supported_formats', $supportedFormats);
+            }
+
+            // Validate FFmpeg path
+            if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
+                $error = 'FFmpeg path is not executable or not found.';
+                Debug::logError($error . ' Path: ' . $ffmpegPath, __METHOD__);
+                $controller->flashMessenger()->addError($error);
+                return false;
+            }
+
+            // Test FFmpeg execution
+            try {
+                Debug::log('Testing FFmpeg execution', __METHOD__);
+                $output = [];
+                $returnVar = 0;
+                $command = escapeshellcmd($ffmpegPath) . ' -version';
+                Debug::log('Executing command: ' . $command, __METHOD__);
+                exec($command, $output, $returnVar);
+                
+                if ($returnVar !== 0) {
+                    $error = 'FFmpeg could not be executed at the specified path.';
+                    Debug::logError($error . ' Return code: ' . $returnVar, __METHOD__);
+                    $controller->flashMessenger()->addError($error);
+                    return false;
+                }
+                
+                Debug::log('FFmpeg execution successful. Version info: ' . substr(implode("\n", $output), 0, 100) . '...', __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Exception testing FFmpeg: ' . $e->getMessage(), __METHOD__, $e);
+                $controller->flashMessenger()->addError('Error testing FFmpeg: ' . $e->getMessage());
+                return false;
+            }
+
+            // Update debug configuration in the Debug class
+            try {
+                Debug::log('Updating Debug configuration with new settings', __METHOD__);
+                $debugConfig = [
+                    'enabled' => $debugMode,
+                    'log_dir' => OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs',
+                    'log_file' => 'videothumbnail.log',
+                    'max_size' => 10485760,
+                    'max_files' => 5
+                ];
+                Debug::init($debugConfig);
+                Debug::log('Debug configuration updated successfully', __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to update Debug configuration: ' . $e->getMessage(), __METHOD__, $e);
+            }
+
+            Debug::log('Config form handled successfully', __METHOD__);
+            return true;
+        } catch (\Exception $e) {
+            Debug::logError('Unhandled exception in handleConfigForm: ' . $e->getMessage(), __METHOD__, $e);
+            $controller->flashMessenger()->addError('An unexpected error occurred while saving settings. Check logs for details.');
             return false;
         }
-
-        $formData = $form->getData();
-
-        if ((int)$formData['videothumbnail_frames_count'] <= 0 || (int)$formData['videothumbnail_default_frame'] < 0) {
-            $controller->flashMessenger()->addError('Frame count and default frame must be non-negative integers.');
-            return false;
-        }
-
-        $settings->set('videothumbnail_ffmpeg_path', $formData['videothumbnail_ffmpeg_path']);
-        $settings->set('videothumbnail_frames_count', $formData['videothumbnail_frames_count']);
-        $settings->set('videothumbnail_default_frame', $formData['videothumbnail_default_frame']);
-        $settings->set('videothumbnail_debug_mode', isset($formData['videothumbnail_debug_mode']) ? $formData['videothumbnail_debug_mode'] : false);
-
-        $ffmpegPath = $formData['videothumbnail_ffmpeg_path'];
-        if (!is_executable($ffmpegPath)) {
-            $controller->flashMessenger()->addError('FFmpeg path is not executable or not found.');
-            return false;
-        }
-
-        $output = [];
-        $returnVar = 0;
-        exec(escapeshellcmd($ffmpegPath) . ' -version', $output, $returnVar);
-        if ($returnVar !== 0) {
-            $controller->flashMessenger()->addError('FFmpeg could not be found at the specified path.');
-            return false;
-        }
-
-        return true;
     }
 
     public function getAutoloaderConfig(): array
@@ -99,39 +271,58 @@ class Module extends AbstractModule
 
     public function onBootstrap(MvcEvent $event): void
     {        
-        parent::onBootstrap($event);
-        $application = $event->getApplication();
-        $serviceManager = $application->getServiceManager();
-        $viewHelperManager = $serviceManager->get('ViewHelperManager');
-        $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
-        
-        // Initialize debug mode first so we can use it for logging
-        $this->initializeDebugMode($serviceManager);
-        
-        \VideoThumbnail\Stdlib\Debug::log('Entering onBootstrap...', __METHOD__);
-        
-        // Register CSS and JS assets
-        $this->attachListenersForAssets($event);
-        
-        // Add ACL rules
-        $this->addAclRules($serviceManager);
-        
-        \VideoThumbnail\Stdlib\Debug::log('Exiting onBootstrap.', __METHOD__);
-
-        $services = $event->getApplication()->getServiceManager();
-        $config = $services->get('Config');
-        
-        // Initialize Debug utility
-        if (isset($config['videothumbnail']['debug'])) {
-            Debug::init($config['videothumbnail']['debug']);
-            Debug::log('Debug initialized in onBootstrap.'); // Add initial log
+        try {
+            // Start with emergency error logging in case Debug system is not available yet
+            error_log('VideoThumbnail: Starting module bootstrap');
+            
+            parent::onBootstrap($event);
+            $application = $event->getApplication();
+            $serviceManager = $application->getServiceManager();
+            
+            // Initialize debug mode first so we can use it for logging
+            $this->initializeDebugMode($serviceManager);
+            
+            \VideoThumbnail\Stdlib\Debug::log('Entering onBootstrap...', __METHOD__);
+            \VideoThumbnail\Stdlib\Debug::log('PHP version: ' . phpversion(), __METHOD__);
+            \VideoThumbnail\Stdlib\Debug::log('Module version: ' . $this->getModuleVersion(), __METHOD__);
+            
+            try {
+                $viewHelperManager = $serviceManager->get('ViewHelperManager');
+                $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
+                \VideoThumbnail\Stdlib\Debug::log('ViewHelper alias registered successfully', __METHOD__);
+            } catch (\Exception $e) {
+                \VideoThumbnail\Stdlib\Debug::logError('Failed to register ViewHelper alias: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Register CSS and JS assets
+            try {
+                $this->attachListenersForAssets($event);
+                \VideoThumbnail\Stdlib\Debug::log('Asset listeners attached successfully', __METHOD__);
+            } catch (\Exception $e) {
+                \VideoThumbnail\Stdlib\Debug::logError('Failed to attach asset listeners: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Add ACL rules
+            try {
+                $this->addAclRules($serviceManager);
+                \VideoThumbnail\Stdlib\Debug::log('ACL rules added successfully', __METHOD__);
+            } catch (\Exception $e) {
+                \VideoThumbnail\Stdlib\Debug::logError('Failed to add ACL rules: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Register event listeners
+            try {
+                $this->registerListeners($serviceManager->get('EventManager'));
+                \VideoThumbnail\Stdlib\Debug::log('Event listeners registered successfully', __METHOD__);
+            } catch (\Exception $e) {
+                \VideoThumbnail\Stdlib\Debug::logError('Failed to register event listeners: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            \VideoThumbnail\Stdlib\Debug::log('Exiting onBootstrap.', __METHOD__);
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Critical bootstrap failure: ' . $e->getMessage());
+            error_log('VideoThumbnail: ' . $e->getTraceAsString());
         }
-
-        // Register listeners
-        $this->registerListeners($services->get('EventManager'));
-        
-        // Add ACL rules
-        $this->addAclRules($services);
     }
 
     protected function initializeDebugMode($serviceManager)
@@ -151,6 +342,20 @@ class Module extends AbstractModule
         ];
 
         \VideoThumbnail\Stdlib\Debug::init($config);
+    }
+
+    /**
+     * Get the module version from module.ini
+     */
+    protected function getModuleVersion(): string
+    {
+        $path = __DIR__ . '/config/module.ini';
+        if (!file_exists($path)) {
+            return 'unknown';
+        }
+        
+        $config = parse_ini_file($path);
+        return $config['version'] ?? 'unknown';
     }
 
     /**

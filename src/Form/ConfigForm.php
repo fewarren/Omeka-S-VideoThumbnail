@@ -5,6 +5,7 @@ use Laminas\Form\Form;
 use Laminas\Form\Element\Text;
 use Laminas\Form\Element\Number;
 use Laminas\Form\Element\Checkbox;
+use VideoThumbnail\Stdlib\Debug;
 
 class ConfigForm extends Form
 {
@@ -101,16 +102,19 @@ class ConfigForm extends Form
             ],
         ]);
 
-        // Add debug mode toggle
+        // Add debug mode checkbox
         $this->add([
             'name' => 'videothumbnail_debug_mode',
             'type' => Checkbox::class,
             'options' => [
                 'label' => 'Enable Debug Mode', // @translate
-                'info' => 'When enabled, detailed debug information will be logged to the Omeka-S error log', // @translate
+                'info' => 'Log detailed debug information to videothumbnail.log in the Omeka S logs directory.', // @translate
+                'checked_value' => '1',
+                'unchecked_value' => '0',
             ],
             'attributes' => [
                 'id' => 'videothumbnail_debug_mode',
+                'value' => '1', // Default to enabled
             ],
         ]);
 
@@ -144,6 +148,31 @@ class ConfigForm extends Form
                 'id' => 'video_thumbnail_timestamp_property',
             ],
         ]);
+
+        // Add the debug mode checkbox if it doesn't exist, or ensure it defaults to true
+        if (!$this->has('videothumbnail_debug_mode')) {
+            $this->add([
+                'name' => 'videothumbnail_debug_mode',
+                'type' => Checkbox::class,
+                'options' => [
+                    'label' => 'Enable Debug Mode', // @translate
+                    'info' => 'Log detailed debugging information to videothumbnail.log. Requires Omeka S logging to be enabled.', // @translate
+                    'use_hidden_element' => true,
+                    'checked_value' => '1',
+                    'unchecked_value' => '0',
+                ],
+                'attributes' => [
+                    'value' => '1', // Default to checked (true)
+                    'id' => 'videothumbnail_debug_mode',
+                ],
+            ]);
+        } else {
+            // Ensure existing element defaults to true
+            $element = $this->get('videothumbnail_debug_mode');
+            $element->setAttribute('value', '1');
+            $element->setOption('checked_value', '1');
+            $element->setOption('unchecked_value', '0');
+        }
 
         // Add submit button
         $this->add([
@@ -231,12 +260,21 @@ class ConfigForm extends Form
 
     public function validateFfmpegPath($value)
     {
+        Debug::log('Validating FFmpeg path: ' . $value, __METHOD__);
+        
         if (empty($value)) {
+            Debug::logError('FFmpeg path is empty', __METHOD__);
             return false;
         }
 
         // Check if path exists and is executable
-        if (!file_exists($value) || !is_executable($value)) {
+        if (!file_exists($value)) {
+            Debug::logError('FFmpeg path does not exist: ' . $value, __METHOD__);
+            return false;
+        }
+        
+        if (!is_executable($value)) {
+            Debug::logError('FFmpeg path is not executable: ' . $value, __METHOD__);
             return false;
         }
 
@@ -244,20 +282,30 @@ class ConfigForm extends Form
         try {
             $output = [];
             $returnVar = 0;
-            exec(escapeshellcmd($value) . ' -version 2>&1', $output, $returnVar);
+            $command = escapeshellcmd($value) . ' -version 2>&1';
+            
+            Debug::log('Executing FFmpeg test command: ' . $command, __METHOD__);
+            exec($command, $output, $returnVar);
 
             if ($returnVar !== 0) {
+                Debug::logError('FFmpeg command failed with return code ' . $returnVar, __METHOD__);
                 return false;
             }
 
             // Verify ffmpeg version string in output
             $versionString = implode("\n", $output);
-            return strpos($versionString, 'ffmpeg version') !== false;
-
+            $result = strpos($versionString, 'ffmpeg version') !== false;
+            
+            if (!$result) {
+                Debug::logError('FFmpeg version string not found in output: ' . substr($versionString, 0, 200), __METHOD__);
+            } else {
+                Debug::log('FFmpeg validation successful. Version info: ' . substr($versionString, 0, 100), __METHOD__);
+            }
+            
+            return $result;
         } catch (\Exception $e) {
+            Debug::logError('Exception while testing FFmpeg: ' . $e->getMessage(), __METHOD__, $e);
             return false;
         }
-
-        return true;
     }
 }

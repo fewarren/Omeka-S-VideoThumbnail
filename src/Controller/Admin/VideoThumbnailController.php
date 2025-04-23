@@ -21,20 +21,21 @@ class VideoThumbnailController extends AbstractActionController
         $this->fileManager = $fileManager;
         $this->serviceLocator = $serviceLocator;
         
-        \VideoThumbnail\Stdlib\Debug::log('Controller initialized', __METHOD__);
+        Debug::log('VideoThumbnailController initialized', __METHOD__);
     }
 
     public function setSettings($settings)
     {
         $this->settings = $settings;
+        Debug::log('Settings service injected into controller', __METHOD__);
         return $this;
     }
 
     public function indexAction()
     {
-        Debug::log('VideoThumbnailController::indexAction called.');
+        Debug::logEntry(__METHOD__);
         Debug::log('VideoThumbnailController::indexAction accessed', __METHOD__);
-        \VideoThumbnail\Stdlib\Debug::log('Entering index action', __METHOD__);
+        Debug::traceCallStack(5, 'Admin settings page accessed');
         
         try {
             $form = new ConfigBatchForm();
@@ -51,12 +52,29 @@ class VideoThumbnailController extends AbstractActionController
                 'video/3gpp2',        // 3G2 files
                 'video/x-flv'         // FLV files
             ];
-            $supportedFormats = $this->settings->get('videothumbnail_supported_formats', $defaultSupportedFormats);
+            
+            // Load all settings with debugging
+            Debug::log('Loading settings from database', __METHOD__);
+            
+            // Get supported formats setting with detailed debugging
+            $storedFormats = null;
+            try {
+                $storedFormats = $this->settings->get('videothumbnail_supported_formats');
+                Debug::log('Retrieved supported formats: ' . 
+                    ($storedFormats ? json_encode($storedFormats) : 'null'), __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get videothumbnail_supported_formats setting: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Apply default if needed with detailed logging
+            $supportedFormats = $storedFormats;
             if (!is_array($supportedFormats) || empty($supportedFormats)) {
+                Debug::log('Using default formats instead of stored value', __METHOD__);
                 $supportedFormats = $defaultSupportedFormats;
             }
+            
         } catch (\Exception $e) {
-            \VideoThumbnail\Stdlib\Debug::logError('Error initializing form: ' . $e->getMessage(), __METHOD__, $e);
+            Debug::logError('Error initializing form: ' . $e->getMessage(), __METHOD__, $e);
             
             // Fallback to create basic form
             $form = new ConfigBatchForm();
@@ -66,16 +84,52 @@ class VideoThumbnailController extends AbstractActionController
 
         // Set debug mode value and other settings with error handling
         try {
-            $debugMode = $this->settings->get('videothumbnail_debug_mode', true); // Default to true
-            $defaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
+            Debug::log('Getting additional settings from database', __METHOD__);
             
-            $form->setData([
+            // Get debug mode setting with detailed debugging
+            $debugMode = false;
+            try {
+                $debugMode = (bool)$this->settings->get('videothumbnail_debug_mode', true); // Default to true
+                Debug::log('Retrieved debug mode: ' . ($debugMode ? 'true' : 'false'), __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get videothumbnail_debug_mode setting: ' . $e->getMessage(), __METHOD__, $e);
+                $debugMode = true; // Default if error
+            }
+            
+            // Get default frame setting with detailed debugging
+            $defaultFrame = 10;
+            try {
+                $defaultFrame = (int)$this->settings->get('videothumbnail_default_frame', 10);
+                Debug::log('Retrieved default frame: ' . $defaultFrame, __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get videothumbnail_default_frame setting: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Get timestamp property setting with detailed debugging
+            $timestampProperty = null;
+            try {
+                $timestampProperty = $this->settings->get('videothumbnail_timestamp_property');
+                Debug::log('Retrieved timestamp property: ' . ($timestampProperty ?? 'null'), __METHOD__);
+            } catch (\Exception $e) {
+                Debug::logError('Failed to get videothumbnail_timestamp_property setting: ' . $e->getMessage(), __METHOD__, $e);
+            }
+            
+            // Prepare form data
+            $formData = [
                 'default_frame_position' => $defaultFrame,
                 'supported_formats' => $supportedFormats,
                 'debug_mode' => $debugMode,
-            ]);
+            ];
+            
+            // Only add timestamp property if set
+            if ($timestampProperty) {
+                $formData['timestamp_property'] = $timestampProperty;
+            }
+            
+            Debug::dumpFormData($formData, 'pre-populate', __METHOD__);
+            $form->setData($formData);
         } catch (\Exception $e) {
-            \VideoThumbnail\Stdlib\Debug::logError('Error setting form data: ' . $e->getMessage(), __METHOD__, $e);
+            Debug::logError('Error setting form data: ' . $e->getMessage(), __METHOD__, $e);
             
             // Use defaults if settings access fails
             $form->setData([
@@ -87,34 +141,51 @@ class VideoThumbnailController extends AbstractActionController
 
         $request = $this->getRequest();
         if ($request->isPost()) {
-            \VideoThumbnail\Stdlib\Debug::log('Processing POST request', __METHOD__);
+            Debug::log('Processing POST request in admin settings', __METHOD__);
             
-            $form->setData($request->getPost());
+            $postData = $request->getPost()->toArray();
+            Debug::dumpFormData($postData, 'post-submission', __METHOD__);
+            
+            $form->setData($postData);
             if ($form->isValid()) {
+                Debug::log('Form validation succeeded', __METHOD__);
                 $formData = $form->getData();
-                $this->settings->set('videothumbnail_default_frame', $formData['default_frame_position']);
-                $this->settings->set('videothumbnail_supported_formats', $formData['supported_formats']);
+                Debug::dumpFormData($formData, 'post-validation', __METHOD__);
                 
-                // Set debug mode if present in form
-                if (isset($formData['debug_mode'])) {
-                    \VideoThumbnail\Stdlib\Debug::log('Updating debug mode setting to: ' . ($formData['debug_mode'] ? 'enabled' : 'disabled'), __METHOD__);
-                    $this->settings->set('videothumbnail_debug_mode', $formData['debug_mode']);
-                }
-                
-                if (isset($formData['regenerate_thumbnails']) && $formData['regenerate_thumbnails']) {
-                    \VideoThumbnail\Stdlib\Debug::log('Starting thumbnail regeneration job', __METHOD__);
-                    // Create job to regenerate thumbnails
-                    $job = $this->jobDispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
-                        'frame_position' => $formData['default_frame_position']
-                    ]);
+                try {
+                    // Get old values for debugging
+                    $oldDefaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
+                    $oldSupportedFormats = $this->settings->get('videothumbnail_supported_formats', []);
+                    $oldDebugMode = $this->settings->get('videothumbnail_debug_mode', false);
+                    $oldTimestampProperty = $this->settings->get('videothumbnail_timestamp_property', null);
                     
-                    $this->messenger()->addSuccess('Thumbnail regeneration job created. Check job status for progress.');
+                    // Save settings with logging of changes
+                    $this->settings->set('videothumbnail_default_frame', $formData['default_frame_position']);
+                    Debug::logSettingChange('videothumbnail_default_frame', $oldDefaultFrame, $formData['default_frame_position'], __METHOD__);
+                    
+                    $this->settings->set('videothumbnail_supported_formats', $formData['supported_formats']);
+                    Debug::logSettingChange('videothumbnail_supported_formats', $oldSupportedFormats, $formData['supported_formats'], __METHOD__);
+                    
+                    $this->settings->set('videothumbnail_debug_mode', !empty($formData['debug_mode']));
+                    Debug::logSettingChange('videothumbnail_debug_mode', $oldDebugMode, !empty($formData['debug_mode']), __METHOD__);
+                    
+                    // Only update timestamp property if it exists in form data
+                    if (isset($formData['timestamp_property'])) {
+                        $this->settings->set('videothumbnail_timestamp_property', $formData['timestamp_property']);
+                        Debug::logSettingChange('videothumbnail_timestamp_property', $oldTimestampProperty, $formData['timestamp_property'], __METHOD__);
+                    }
+                    
+                    Debug::logConfigAction('save_complete', ['formData' => $formData], __METHOD__);
+                    $this->messenger()->addSuccess('Video thumbnail settings updated.'); // Success message
+                } catch (\Exception $e) {
+                    Debug::logError('Failed to save settings: ' . $e->getMessage(), __METHOD__, $e);
+                    $this->messenger()->addError('Failed to save video thumbnail settings: ' . $e->getMessage()); // Error message
                 }
-                
-                $this->messenger()->addSuccess('Settings updated successfully.');
             } else {
-                \VideoThumbnail\Stdlib\Debug::logWarning('Form validation failed', __METHOD__);
-                $this->messenger()->addError('There was an error during form submission.');
+                Debug::log('Form validation failed', __METHOD__);
+                $messages = $form->getMessages();
+                Debug::logFormValidation($messages, __METHOD__);
+                $this->messenger()->addError('There was an error during form validation. Please check the form and try again.'); // Form validation error
             }
         }
 
