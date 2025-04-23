@@ -180,4 +180,24 @@ class VideoThumbnailStrategy implements StrategyInterface
         // Try sending again with updated retry count
         return $this->defaultStrategy->send($job);
     }
+
+    protected function initializeStrategy($serviceLocator)
+    {
+        \VideoThumbnail\Stdlib\Debug::log('Initializing VideoThumbnail strategy', __METHOD__);
+        
+        // Check for required services
+        if (!$serviceLocator->has('Omeka\Job\Dispatcher')) {
+            \VideoThumbnail\Stdlib\Debug::logError('Required service Omeka\Job\Dispatcher not found', __METHOD__);
+            throw new \RuntimeException('Required service Omeka\Job\Dispatcher not found');
+        }
+        
+        if (!$serviceLocator->has('Omeka\Job\DispatchStrategy\PhpCli')) {
+            \VideoThumbnail\Stdlib\Debug::logWarning('Using PhpCli fallback strategy for video thumbnail processing', __METHOD__);
+            // Use PhpCli as fallback
+            return $serviceLocator->get('Omeka\Job\DispatchStrategy\PhpCli');
+        }
+
+        \VideoThumbnail\Stdlib\Debug::log('Strategy initialized successfully', __METHOD__);
+        return $serviceLocator->get('Omeka\Job\DispatchStrategy\PhpCli');
+    }
 }

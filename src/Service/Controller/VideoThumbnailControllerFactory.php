@@ -4,6 +4,7 @@ namespace VideoThumbnail\Service\Controller;
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use VideoThumbnail\Controller\Admin\VideoThumbnailController;
+use VideoThumbnail\Stdlib\Debug;
 use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 use Laminas\ServiceManager\Exception\ServiceNotCreatedException;
 
@@ -11,14 +12,14 @@ class VideoThumbnailControllerFactory implements FactoryInterface
 {
     public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
-        error_log('VideoThumbnailControllerFactory: Starting controller creation');
+        Debug::log('VideoThumbnailControllerFactory: Starting controller creation', __METHOD__);
         
         try {
             // Get required services with validation
-            error_log('VideoThumbnailControllerFactory: Getting required services');
+            Debug::log('VideoThumbnailControllerFactory: Getting required services', __METHOD__);
             $services = $this->getRequiredServices($container);
             
-            error_log('VideoThumbnailControllerFactory: Creating controller instance');
+            Debug::log('VideoThumbnailControllerFactory: Creating controller instance', __METHOD__);
             // Create and configure controller
             $controller = new VideoThumbnailController(
                 $services['entityManager'],
@@ -26,20 +27,20 @@ class VideoThumbnailControllerFactory implements FactoryInterface
                 $container
             );
             
-            error_log('VideoThumbnailControllerFactory: Setting controller settings');
+            Debug::log('VideoThumbnailControllerFactory: Setting controller settings', __METHOD__);
             // Set settings
             $controller->setSettings($services['settings']);
             
-            error_log('VideoThumbnailControllerFactory: Controller created successfully');
+            Debug::log('VideoThumbnailControllerFactory: Controller created successfully', __METHOD__);
             return $controller;
             
         } catch (\Exception $e) {
             // Log the detailed error
-            error_log(sprintf(
+            Debug::logError(sprintf(
                 'VideoThumbnailControllerFactory detailed error: %s\nTrace: %s',
                 $e->getMessage(),
                 $e->getTraceAsString()
-            ));
+            ), __METHOD__);
             
             // Re-throw as service not found exception
             throw new ServiceNotFoundException(
@@ -59,22 +60,22 @@ class VideoThumbnailControllerFactory implements FactoryInterface
         ];
         
         foreach ($required as $key => $serviceName) {
-            error_log(sprintf('VideoThumbnailControllerFactory: Checking for service %s', $serviceName));
+            Debug::log(sprintf('VideoThumbnailControllerFactory: Checking for service %s', $serviceName), __METHOD__);
             
             if (!$container->has($serviceName)) {
-                error_log(sprintf('VideoThumbnailControllerFactory: Service %s not found', $serviceName));
+                Debug::logWarning(sprintf('VideoThumbnailControllerFactory: Service %s not found', $serviceName), __METHOD__);
                 throw new ServiceNotFoundException(
                     sprintf('Required service %s not found', $serviceName)
                 );
             }
             
             try {
-                error_log(sprintf('VideoThumbnailControllerFactory: Getting service %s', $serviceName));
+                Debug::log(sprintf('VideoThumbnailControllerFactory: Getting service %s', $serviceName), __METHOD__);
                 $services[$key] = $container->get($serviceName);
-                error_log(sprintf('VideoThumbnailControllerFactory: Successfully got service %s', $serviceName));
+                Debug::log(sprintf('VideoThumbnailControllerFactory: Successfully got service %s', $serviceName), __METHOD__);
             } catch (\Exception $e) {
-                error_log(sprintf('VideoThumbnailControllerFactory: Failed to create service %s: %s', 
-                    $serviceName, $e->getMessage()));
+                Debug::logError(sprintf('VideoThumbnailControllerFactory: Failed to create service %s: %s', 
+                    $serviceName, $e->getMessage()), __METHOD__);
                 throw new ServiceNotCreatedException(
                     sprintf('Failed to create service %s: %s', $serviceName, $e->getMessage())
                 );

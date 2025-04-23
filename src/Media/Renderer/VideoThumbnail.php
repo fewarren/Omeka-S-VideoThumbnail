@@ -33,72 +33,34 @@ class VideoThumbnail implements RendererInterface
     /**
      * Render a video with thumbnail support
      *
-     * @param PhpRenderer $view
      * @param MediaRepresentation $media
      * @param array $options
      * @return string
      */
-    public function render(PhpRenderer $view, MediaRepresentation $media, array $options = [])
+    public function render(MediaRepresentation $media, array $options = [])
     {
         try {
-            // Merge options with defaults
-            $options = array_merge($this->defaultOptions, $options);
-            
-            // Validate media type
-            $mediaType = $media->mediaType();
-            if (!$this->isVideoMedia($mediaType)) {
-                throw new \RuntimeException(sprintf(
-                    'Unsupported media type: %s. Expected video format.',
-                    $mediaType
-                ));
-            }
-
-            // Get the source URL
-            $sourceUrl = $this->getVideoUrl($media);
-            if (!$sourceUrl) {
-                throw new \RuntimeException('Could not determine video source URL');
-            }
-
-            // Build video attributes
-            $attributes = $this->buildVideoAttributes($options);
-
-            // Generate fallback message
-            $fallback = $view->translate('Your browser does not support HTML5 video');
-
-            // Build video element with source and fallback
-            $html = sprintf(
-                '<video %s><source src="%s" type="%s">%s</video>',
-                $this->formatAttributes($attributes),
-                $view->escapeHtml($sourceUrl),
-                $view->escapeHtml($mediaType),
-                $view->escapeHtml($fallback)
-            );
-
-            // Add thumbnail if available
-            if ($media->hasThumbnails()) {
-                $thumbnailUrl = $media->thumbnailUrl('large');
-                if ($thumbnailUrl) {
-                    $html = str_replace('<video', sprintf(
-                        '<video poster="%s"',
-                        $view->escapeHtml($thumbnailUrl)
-                    ), $html);
-                }
-            }
-
-            return $html;
-
-        } catch (\Exception $e) {
-            // Log error and return fallback message
-            error_log(sprintf(
-                'VideoThumbnail render error for media %d: %s',
+            \VideoThumbnail\Stdlib\Debug::log(sprintf(
+                'Rendering video thumbnail for media %d with options: %s',
                 $media->id(),
-                $e->getMessage()
-            ));
+                json_encode($options)
+            ), __METHOD__);
 
-            return sprintf(
-                '<div class="video-error">%s</div>',
-                $view->escapeHtml($view->translate('Error loading video'))
-            );
+            $view = $this->getView();
+            
+            // Get the HTML
+            $html = parent::render($media, $options);
+            
+            // Add our custom selector if we're in admin view
+            if ($view->status()->isAdminRequest()) {
+                $html .= $view->videoThumbnailSelector($media);
+            }
+            
+            return $html;
+            
+        } catch (\Exception $e) {
+            \VideoThumbnail\Stdlib\Debug::logError('Error rendering video thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+            return ''; // Return empty string on error
         }
     }
 

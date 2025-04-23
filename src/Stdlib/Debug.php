@@ -96,6 +96,15 @@ class Debug
         }
     }
 
+    private static function formatMessage($message, $method = null)
+    {
+        $prefix = 'VideoThumbnail: ';
+        if ($method) {
+            $message = "[$method] $message";
+        }
+        return $prefix . $message;
+    }
+
     public static function logEntry($method, $params = [])
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -118,7 +127,7 @@ class Debug
             $message .= "\nParameters: " . json_encode($params, JSON_PRETTY_PRINT);
         }
 
-        self::$logger->debug($message);
+        self::$logger->debug(self::formatMessage($message));
         self::rotateLogIfNeeded();
     }
 
@@ -128,11 +137,7 @@ class Debug
             return;
         }
 
-        if ($method) {
-            $message = "[$method] $message";
-        }
-
-        self::$logger->info($message);
+        self::$logger->info(self::formatMessage($message, $method));
         self::rotateLogIfNeeded();
     }
 
@@ -142,11 +147,7 @@ class Debug
             return;
         }
 
-        if ($method) {
-            $message = "[$method] $message";
-        }
-
-        self::$logger->warn($message);
+        self::$logger->warn(self::formatMessage($message, $method));
         self::rotateLogIfNeeded();
     }
 
@@ -165,7 +166,8 @@ class Debug
             $message .= "\nStack trace:\n" . $exception->getTraceAsString();
         }
 
-        self::$logger->err($message);
+        self::$logger->err(self::formatMessage($message, $method));
+        error_log(self::formatMessage($message, $method)); // Also log to error_log for critical errors
         self::rotateLogIfNeeded();
     }
 
@@ -182,7 +184,7 @@ class Debug
             $status ? "Status: $status" : ''
         );
 
-        self::$logger->info($message);
+        self::$logger->info(self::formatMessage($message));
         self::rotateLogIfNeeded();
     }
 
@@ -199,7 +201,8 @@ class Debug
             $retry !== null ? " (Retry #$retry)" : ''
         );
 
-        self::$logger->err($message);
+        self::$logger->err(self::formatMessage($message));
+        error_log(self::formatMessage($message)); // Also log to error_log for critical job errors
         self::rotateLogIfNeeded();
     }
 

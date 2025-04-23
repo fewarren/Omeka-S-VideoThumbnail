@@ -21,8 +21,7 @@ class VideoThumbnailController extends AbstractActionController
         $this->fileManager = $fileManager;
         $this->serviceLocator = $serviceLocator;
         
-        // Log initialization
-        error_log('VideoThumbnail: Controller initialized');
+        \VideoThumbnail\Stdlib\Debug::log('Controller initialized', __METHOD__);
     }
 
     public function setSettings($settings)
@@ -33,34 +32,20 @@ class VideoThumbnailController extends AbstractActionController
 
     public function indexAction()
     {
-        // Log initialization of action
-        error_log('VideoThumbnail: indexAction started');
+        \VideoThumbnail\Stdlib\Debug::log('Entering index action', __METHOD__);
         
-        // Initialize the debug system with settings
-        if ($this->settings) {
-            Debug::logEntry(__METHOD__);
-        } else {
-            error_log('VideoThumbnail: Settings not available for debug initialization');
-        }
-        
-        // Get the form from service manager instead of creating it directly
         try {
-            // Ensure we have a service locator
-            if (!$this->serviceLocator) {
-                error_log('VideoThumbnail: Service locator was not injected properly');
-                throw new \RuntimeException('Service locator is not available');
-            }
-            $form = $this->serviceLocator->get('FormElementManager')->get(ConfigBatchForm::class);
+            $form = new ConfigBatchForm();
             $form->init();
 
             $defaultSupportedFormats = [
-                'video/mp4',          // MP4 files
-                'video/quicktime',    // MOV files
-                'video/x-msvideo',    // AVI files
-                'video/x-ms-wmv',     // WMV files
-                'video/x-matroska',   // MKV files
-                'video/webm',         // WebM files
-                'video/3gpp',         // 3GP files
+                'video/mp4',         // MP4 files
+                'video/webm',        // WebM files
+                'video/quicktime',   // MOV files
+                'video/x-msvideo',   // AVI files
+                'video/x-ms-wmv',    // WMV files
+                'video/x-matroska',  // MKV files
+                'video/3gpp',        // 3GP files
                 'video/3gpp2',        // 3G2 files
                 'video/x-flv'         // FLV files
             ];
@@ -69,8 +54,7 @@ class VideoThumbnailController extends AbstractActionController
                 $supportedFormats = $defaultSupportedFormats;
             }
         } catch (\Exception $e) {
-            error_log('VideoThumbnail: Error initializing form: ' . $e->getMessage());
-            error_log('VideoThumbnail: ' . $e->getTraceAsString());
+            \VideoThumbnail\Stdlib\Debug::logError('Error initializing form: ' . $e->getMessage(), __METHOD__, $e);
             
             // Fallback to create basic form
             $form = new ConfigBatchForm();
@@ -80,7 +64,7 @@ class VideoThumbnailController extends AbstractActionController
 
         // Set debug mode value and other settings with error handling
         try {
-            $debugMode = $this->settings->get('videothumbnail_debug_mode', false);
+            $debugMode = $this->settings->get('videothumbnail_debug_mode', true); // Default to true
             $defaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
             
             $form->setData([
@@ -89,18 +73,20 @@ class VideoThumbnailController extends AbstractActionController
                 'debug_mode' => $debugMode,
             ]);
         } catch (\Exception $e) {
-            error_log('VideoThumbnail: Error setting form data: ' . $e->getMessage());
+            \VideoThumbnail\Stdlib\Debug::logError('Error setting form data: ' . $e->getMessage(), __METHOD__, $e);
             
             // Use defaults if settings access fails
             $form->setData([
                 'default_frame_position' => 10,
                 'supported_formats' => $supportedFormats,
-                'debug_mode' => false,
+                'debug_mode' => true,
             ]);
         }
 
         $request = $this->getRequest();
         if ($request->isPost()) {
+            \VideoThumbnail\Stdlib\Debug::log('Processing POST request', __METHOD__);
+            
             $form->setData($request->getPost());
             if ($form->isValid()) {
                 $formData = $form->getData();
@@ -109,93 +95,41 @@ class VideoThumbnailController extends AbstractActionController
                 
                 // Set debug mode if present in form
                 if (isset($formData['debug_mode'])) {
-                    $this->settings->set('videothumbnail_debug_mode', (bool)$formData['debug_mode']);
-                    Debug::log('Debug mode ' . ((bool)$formData['debug_mode'] ? 'enabled' : 'disabled'), __METHOD__);
+                    \VideoThumbnail\Stdlib\Debug::log('Updating debug mode setting to: ' . ($formData['debug_mode'] ? 'enabled' : 'disabled'), __METHOD__);
+                    $this->settings->set('videothumbnail_debug_mode', $formData['debug_mode']);
                 }
                 
-                $this->messenger()->addSuccess('Video thumbnail settings updated.');
-
-                if (!empty($formData['regenerate_thumbnails'])) {
-                    try {
-                        $dispatcher = $this->jobDispatcher();
-                        
-                        // Log job dispatch attempt
-                        Debug::log('Attempting to dispatch video thumbnail job with frame_position: ' . $formData['default_frame_position'], __METHOD__);
-                        error_log('VideoThumbnail: Attempting to dispatch video thumbnail job');
-                        
-                        $job = $dispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
-                            'frame_position' => $formData['default_frame_position'],
-                        ]);
-                        
-                        $message = new Message(
-                            'Regenerating video thumbnails in the background (job %s). This may take a while.',
-                            $job->getId()
-                        );
-                        $this->messenger()->addSuccess($message);
-                        
-                        Debug::log('Job dispatched successfully: ' . $job->getId(), __METHOD__);
-                        error_log('VideoThumbnail: Job dispatched successfully, ID: ' . $job->getId());
-                    } catch (\Exception $e) {
-                        // Log detailed error
-                        Debug::logError('Job dispatch failed: ' . $e->getMessage(), __METHOD__);
-                        error_log('VideoThumbnail: Job dispatch failed: ' . $e->getMessage());
-                        error_log('VideoThumbnail: ' . $e->getTraceAsString());
-                        
-                        // Try fallback to default strategy
-                        try {
-                            Debug::log('Attempting fallback to default PhpCli strategy', __METHOD__);
-                            
-                            // Attempt to get the default PHP CLI strategy
-                            $dispatcher = $this->jobDispatcher();
-                            $serviceLocator = $this->serviceLocator;
-                            
-                            // Force the strategy to PhpCli
-                            $job = $dispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
-                                'frame_position' => $formData['default_frame_position'],
-                                'force_strategy' => 'PhpCli',
-                            ]);
-                            
-                            $message = new Message(
-                                'Using default job strategy. Regenerating video thumbnails in the background (job %s). This may take a while.',
-                                $job->getId()
-                            );
-                            $this->messenger()->addSuccess($message);
-                            
-                            Debug::log('Job dispatched with fallback strategy: ' . $job->getId(), __METHOD__);
-                            error_log('VideoThumbnail: Job dispatched with fallback strategy, ID: ' . $job->getId());
-                        } catch (\Exception $fallbackException) {
-                            Debug::logError('Fallback strategy also failed: ' . $fallbackException->getMessage(), __METHOD__);
-                            error_log('VideoThumbnail: Fallback strategy also failed: ' . $fallbackException->getMessage());
-                            
-                            $this->messenger()->addError('Failed to start thumbnail regeneration job. Check server logs for details.');
-                        }
-                    }
+                if (isset($formData['regenerate_thumbnails']) && $formData['regenerate_thumbnails']) {
+                    \VideoThumbnail\Stdlib\Debug::log('Starting thumbnail regeneration job', __METHOD__);
+                    // Create job to regenerate thumbnails
+                    $job = $this->jobDispatcher->dispatch('VideoThumbnail\Job\ExtractFrames', [
+                        'frame_position' => $formData['default_frame_position']
+                    ]);
+                    
+                    $this->messenger()->addSuccess('Thumbnail regeneration job created. Check job status for progress.');
                 }
-
-                return $this->redirect()->toRoute('admin/video-thumbnail');
+                
+                $this->messenger()->addSuccess('Settings updated successfully.');
             } else {
-                $this->messenger()->addFormErrors($form);
+                \VideoThumbnail\Stdlib\Debug::logWarning('Form validation failed', __METHOD__);
+                $this->messenger()->addError('There was an error during form submission.');
             }
         }
 
-        $view = new ViewModel();
-        $view->setVariable('form', $form);
-        
         try {
             $totalVideos = $this->getTotalVideos();
         } catch (\Exception $e) {
-            error_log('VideoThumbnail: Error getting total videos: ' . $e->getMessage());
+            \VideoThumbnail\Stdlib\Debug::logError('Error getting total videos: ' . $e->getMessage(), __METHOD__, $e);
             $totalVideos = 0;
         }
         
+        $view = new ViewModel();
+        $view->setVariable('form', $form);
         $view->setVariable('totalVideos', $totalVideos);
         $view->setVariable('supportedFormats', implode(', ', $supportedFormats));
         
-        if ($this->settings) {
-            Debug::logExit(__METHOD__);
-        }
+        \VideoThumbnail\Stdlib\Debug::log('Rendering index view', __METHOD__);
         
-        // Fix the template path to match the actual location
         $view->setTemplate('video-thumbnail/admin/video-thumbnail/index');
         
         return $view;
@@ -203,14 +137,12 @@ class VideoThumbnailController extends AbstractActionController
 
     protected function getTotalVideos()
     {
-        if ($this->settings) {
-            Debug::logEntry(__METHOD__);
-        }
+        \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__);
         
         try {
             // Check if entity manager is available
             if (!$this->entityManager) {
-                error_log('VideoThumbnail: Entity manager is not available');
+                \VideoThumbnail\Stdlib\Debug::logError('Entity manager is not available', __METHOD__);
                 return 0;
             }
             

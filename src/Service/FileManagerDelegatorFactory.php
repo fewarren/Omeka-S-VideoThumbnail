@@ -3,6 +3,7 @@ namespace VideoThumbnail\Service;
 
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\DelegatorFactoryInterface;
+use VideoThumbnail\Stdlib\Debug;
 
 /**
  * Delegator factory to ensure backward compatibility with different versions of Omeka S
@@ -15,13 +16,13 @@ class FileManagerDelegatorFactory implements DelegatorFactoryInterface
      */
     public function __invoke(ContainerInterface $container, $name, callable $callback, array $options = null)
     {
-        error_log('VideoThumbnail: Entering FileManagerDelegatorFactory...');
+        Debug::log('Entering FileManagerDelegatorFactory...', __METHOD__);
         $fileManager = $callback();
-        error_log('VideoThumbnail: FileManagerDelegatorFactory - Original callback executed.');
+        Debug::log('Original callback executed.', __METHOD__);
         
         // Register the file manager as the Omeka\File\Manager service if it doesn't exist
         if (!$container->has('Omeka\File\Manager')) {
-            error_log('VideoThumbnail: FileManagerDelegatorFactory - Omeka\\File\\Manager service not found, attempting to register.');
+            Debug::logWarning('FileManagerDelegatorFactory - Omeka\\File\\Manager service not found, attempting to register.', __METHOD__);
             // Register this service in the service manager
             $services = $container->get('ServiceManager');
             if (method_exists($services, 'setService')) {
@@ -30,12 +31,12 @@ class FileManagerDelegatorFactory implements DelegatorFactoryInterface
                 // For older Laminas versions
                 $services->setService('Omeka\File\Manager', $fileManager);
             }
-            error_log('VideoThumbnail: FileManagerDelegatorFactory - Omeka\\File\\Manager service registered.');
+            Debug::log('FileManagerDelegatorFactory - Omeka\\File\\Manager service registered.', __METHOD__);
         } else {
-             error_log('VideoThumbnail: FileManagerDelegatorFactory - Omeka\\File\\Manager service already exists.');
+             Debug::log('FileManagerDelegatorFactory - Omeka\\File\\Manager service already exists.', __METHOD__);
         }
         
-        error_log('VideoThumbnail: Exiting FileManagerDelegatorFactory.');
+        Debug::log('Exiting FileManagerDelegatorFactory.', __METHOD__);
         return $fileManager;
     }
 }

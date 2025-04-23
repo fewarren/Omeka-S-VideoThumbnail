@@ -19,33 +19,29 @@ class VideoThumbnailSelector extends AbstractHelper
         // register_shutdown_function([$this, 'cleanup']);
     }
 
-    public function __invoke($media, $options = [])
+    public function __invoke($media)
     {
+        if (!$media) {
+            \VideoThumbnail\Stdlib\Debug::logError('No media provided to VideoThumbnailSelector', __METHOD__);
+            return '';
+        }
+
         try {
-            if (!$this->validateMedia($media)) {
-                return '';
-            }
+            \VideoThumbnail\Stdlib\Debug::log(sprintf(
+                'Rendering thumbnail selector for media %d',
+                $media->id()
+            ), __METHOD__);
 
-            $options = $this->normalizeOptions($options);
-            
-            // Generate frame previews
-            $frames = $this->generateFramePreviews($media, $options);
-            
-            if (empty($frames)) {
-                throw new \RuntimeException('Failed to generate frame previews');
-            }
-
-            // Render the selector
-            return $this->renderSelector($media, $frames, $options);
-
+            $view = $this->getView();
+            return $view->partial('video-thumbnail/common/video-thumbnail-selector', [
+                'media' => $media
+            ]);
         } catch (\Exception $e) {
-            error_log(sprintf(
-                'VideoThumbnailSelector error for media %d: %s',
-                $media->id(),
-                $e->getMessage()
-            ));
-
-            return $this->renderError($e->getMessage());
+            \VideoThumbnail\Stdlib\Debug::logError(
+                'Error rendering thumbnail selector: ' . $e->getMessage(),
+                __METHOD__
+            );
+            return '';
         }
     }
 

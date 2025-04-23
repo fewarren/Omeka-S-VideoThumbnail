@@ -98,23 +98,24 @@ class Module extends AbstractModule
 
     public function onBootstrap(MvcEvent $event): void
     {        
-        error_log('VideoThumbnail: Entering onBootstrap...');
         parent::onBootstrap($event);
         $application = $event->getApplication();
         $serviceManager = $application->getServiceManager();
         $viewHelperManager = $serviceManager->get('ViewHelperManager');
         $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
         
+        // Initialize debug mode first so we can use it for logging
+        $this->initializeDebugMode($serviceManager);
+        
+        \VideoThumbnail\Stdlib\Debug::log('Entering onBootstrap...', __METHOD__);
+        
         // Register CSS and JS assets
         $this->attachListenersForAssets($event);
         
         // Add ACL rules
         $this->addAclRules($serviceManager);
-
-        // Initialize debug mode
-        $this->initializeDebugMode($serviceManager);
         
-        error_log('VideoThumbnail: Exiting onBootstrap.');
+        \VideoThumbnail\Stdlib\Debug::log('Exiting onBootstrap.', __METHOD__);
     }
 
     protected function initializeDebugMode($serviceManager)
@@ -166,7 +167,7 @@ class Module extends AbstractModule
                      $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page') &&
                     in_array($routeMatch->getParam('action'), ['add', 'edit'])) {
                     
-                    error_log('VideoThumbnail: Loading block admin JS for page edit');
+                    \VideoThumbnail\Stdlib\Debug::log('Loading block admin JS for page edit', __METHOD__);
                     $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
                 }
             }
@@ -177,7 +178,7 @@ class Module extends AbstractModule
             'VideoThumbnail\Controller\Admin\VideoThumbnailController',
             'view.layout',
             function ($event) use ($viewHelperManager) {
-                error_log('VideoThumbnail: Controller-specific asset loading triggered');
+                \VideoThumbnail\Stdlib\Debug::log('Controller-specific asset loading triggered', __METHOD__);
                 $view = $event->getTarget();
                 $assetUrl = $viewHelperManager->get('assetUrl');
                 $headLink = $viewHelperManager->get('headLink');
@@ -352,8 +353,7 @@ class Module extends AbstractModule
             return;
         }
 
-        error_log('VideoThumbnail: Media ingestion detected for media ID: ' . $media->id());
-        // The actual processing is handled by the Media Ingester class
+        \VideoThumbnail\Stdlib\Debug::log('Media ingestion detected for media ID: ' . $media->id(), __METHOD__);
     }
 
     public function handleViewEditFormAfter($event): void
@@ -448,7 +448,7 @@ class Module extends AbstractModule
                 unlink($tempFile->getTempPath());
             }
         } catch (\Exception $e) {
-            error_log($e->getMessage());
+            \VideoThumbnail\Stdlib\Debug::logError('Error updating thumbnail: ' . $e->getMessage(), __METHOD__, $e);
         }
     }
     
@@ -468,32 +468,29 @@ class Module extends AbstractModule
             // Ensure controller resource exists
             if (!$acl->hasResource($controllerResource)) {
                 $acl->addResource(new GenericResource($controllerResource));
-                error_log("VideoThumbnail: Added ACL resource: $controllerResource");
+                \VideoThumbnail\Stdlib\Debug::log("Added ACL resource: $controllerResource", __METHOD__);
             }
             
-            // Grant broad access to the controller resource using null role.
-            // This avoids issues with specific roles not being found during bootstrap.
+            // Grant broad access to the controller resource using null role
             $acl->allow(null, $controllerResource);
-            error_log("VideoThumbnail: Granted broad ACL access (null role) to resource: $controllerResource");
+            \VideoThumbnail\Stdlib\Debug::log("Granted broad ACL access (null role) to resource: $controllerResource", __METHOD__);
 
             // Ensure ModuleAdapter resource exists (should always be true)
             if (!$acl->hasResource($moduleAdapterResource)) {
-                 error_log("VideoThumbnail: WARNING - ACL resource $moduleAdapterResource not found. Adding it.");
-                 $acl->addResource(new GenericResource($moduleAdapterResource));
-             }
+                \VideoThumbnail\Stdlib\Debug::logWarning("WARNING - ACL resource $moduleAdapterResource not found. Adding it.", __METHOD__);
+                $acl->addResource(new GenericResource($moduleAdapterResource));
+            }
 
-            // Grant broad access to the ModuleAdapter resource using null role.
+            // Grant broad access to the ModuleAdapter resource using null role
             $acl->allow(null, $moduleAdapterResource);
-            error_log("VideoThumbnail: Granted broad ACL access (null role) to resource: $moduleAdapterResource");
+            \VideoThumbnail\Stdlib\Debug::log("Granted broad ACL access (null role) to resource: $moduleAdapterResource", __METHOD__);
 
-            error_log('VideoThumbnail: ACL rules processing completed using broad access.');
+            \VideoThumbnail\Stdlib\Debug::log('ACL rules processing completed using broad access.', __METHOD__);
 
         } catch (\Laminas\Permissions\Acl\Exception\ExceptionInterface $e) {
-            // Catch specific ACL exceptions
-            error_log('VideoThumbnail: ACL Configuration Error: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
+            \VideoThumbnail\Stdlib\Debug::logError('ACL Configuration Error: ' . $e->getMessage(), __METHOD__, $e);
         } catch (\Exception $e) {
-            // Catch general exceptions during ACL setup
-            error_log('VideoThumbnail: General Error during ACL setup: ' . $e->getMessage() . ' Trace: ' . $e->getTraceAsString());
+            \VideoThumbnail\Stdlib\Debug::logError('General Error during ACL setup: ' . $e->getMessage(), __METHOD__, $e);
         }
     }
 }
