@@ -90,7 +90,11 @@ return [
     ],
     'navigation' => [
         'AdminModule' => [
-            // Removed custom Video Thumbnail navigation entry to avoid duplication and controller-not-found errors
+            [
+                'label' => 'Video Thumbnail', // @translate
+                'route' => 'admin/video-thumbnail',
+                'resource' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            ],
         ],
     ],
     'media_ingesters' => [

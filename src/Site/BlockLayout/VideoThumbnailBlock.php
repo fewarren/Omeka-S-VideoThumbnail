@@ -29,12 +29,17 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
      * Get the configuration form for this block layout.
      *
      * @param PhpRenderer $view
-     * @param SitePageBlockRepresentation $block
-     * @param array $options
+     * @param \Omeka\Api\Representation\SiteRepresentation $site
+     * @param \Omeka\Api\Representation\SitePageRepresentation $page
+     * @param \Omeka\Api\Representation\SitePageBlockRepresentation $block
      * @return string Returns HTML form string or empty string if no form.
      */
-    public function form(PhpRenderer $view, SitePageBlockRepresentation $block = null, array $options = [])
-    {
+    public function form(
+        \Laminas\View\Renderer\PhpRenderer $view,
+        \Omeka\Api\Representation\SiteRepresentation $site,
+        ?\Omeka\Api\Representation\SitePageRepresentation $page = null,
+        ?\Omeka\Api\Representation\SitePageBlockRepresentation $block = null
+    ) {
         $mediaId = $block ? ($block->dataValue('media_id')) : null;
         $mediaTitle = '';
         $framePercent = $block ? $block->dataValue('frame_percent') : 10;
