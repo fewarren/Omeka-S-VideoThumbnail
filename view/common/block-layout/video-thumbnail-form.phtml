@@ -1,0 +1,30 @@
+<?php
+$mediaId = isset($mediaId) ? $mediaId : null;
+$mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
+?>
+<div class="field">
+    <div class="field-meta">
+        <label><?= $this->translate('Video Media') ?></label>
+        <div class="field-description"><?= $this->translate('Select a video media to display its thumbnail') ?></div>
+    </div>
+    <div class="inputs">
+        <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $mediaId ?>" class="media-id">
+        <span class="selected-media"><?= $mediaTitle ? $mediaTitle : $this->translate('No media selected') ?></span>
+        <button type="button" class="select-media button"><?= $this->translate('Select Video') ?></button>
+    </div>
+</div>
+
+<div class="video-thumbnail-block">
+    <?php if ($thumbnailHtml): ?>
+        <div class="thumbnail">
+            <?= $thumbnailHtml ?>
+        </div>
+        <?php if (isset($media) && $media): ?>
+        <div class="caption">
+            <?= $media->displayTitle() ?>
+        </div>
+        <?php endif; ?>
+    <?php else: ?>
+        <div class="error"><?= $this->translate('No thumbnail available for this video') ?></div>
+    <?php endif; ?>
+</div>
