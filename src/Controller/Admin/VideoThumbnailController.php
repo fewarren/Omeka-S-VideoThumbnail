@@ -192,17 +192,20 @@ class VideoThumbnailController extends AbstractActionController
 
     public function saveFrameAction()
     {
-        Debug::logEntry(__METHOD__);
+        Debug::logEntry(__METHOD__, ['request' => 'Starting frame save']);
+        
         if (!$this->getRequest()->isPost()) {
-            Debug::logExit(__METHOD__, 'Not a POST request');
+            Debug::logWarning('Request is not POST method', __METHOD__);
             return $this->redirect()->toRoute('admin');
         }
 
         $mediaId = $this->params()->fromPost('media_id');
         $position = $this->params()->fromPost('position');
         
+        Debug::log("Processing frame save - Media ID: {$mediaId}, Position: {$position}", __METHOD__);
+        
         if (!$mediaId || !is_numeric($position)) {
-            Debug::logError('Invalid parameters', __METHOD__);
+            Debug::logError("Invalid parameters - Media ID: {$mediaId}, Position: {$position}", __METHOD__);
             return new JsonModel([
                 'success' => false,
                 'message' => 'Invalid parameters',
@@ -211,140 +214,145 @@ class VideoThumbnailController extends AbstractActionController
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
+            Debug::log("Retrieved media: " . $media->filename(), __METHOD__);
             
             if (!$media) {
-                Debug::logError('Media not found: ' . $mediaId, __METHOD__);
+                Debug::logError("Media not found: {$mediaId}", __METHOD__);
                 return new JsonModel([
                     'success' => false,
                     'message' => 'Media not found',
                 ]);
             }
             
-            // Get the file store and video frame extractor to process the video
-            $fileStore = $this->serviceLocator->get('Omeka\File\Store');
-            $videoFrameExtractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+            // Extract and save the frame
+            $result = $this->extractAndSaveFrame($media, $position);
             
-            // Get the file path
-            $storagePath = sprintf('original/%s', $media->filename());
-            $filePath = $fileStore->getLocalPath($storagePath);
+            Debug::logExit(__METHOD__, ['success' => $result['success']]);
+            return new JsonModel($result);
             
-            // Get video duration
-            $duration = $videoFrameExtractor->getVideoDuration($filePath);
-            if ($duration <= 0) {
-                Debug::logError('Could not determine video duration for: ' . $filePath, __METHOD__);
-                $duration = 1.0; // Use a minimal duration for very short videos
-            } else if ($duration < 5.0) {
-                Debug::log('Very short video detected: ' . $filePath . ' (duration: ' . $duration . ' seconds)', __METHOD__);
-            } else if ($duration === 60.0) {
-                // Check if this is likely the default fallback value
-                $fileSize = filesize($filePath);
-                if ($fileSize < 10485760) { // Less than 10MB
-                    Debug::log('Default duration (60s) may be inaccurate for small video: ' . $filePath . 
-                        ' (' . ($fileSize / 1048576) . ' MB)', __METHOD__);
-                    // For small files with default duration, use a smaller estimate
-                    $duration = 5.0;
-                }
-            }
-            
-            // Calculate time in seconds from the percentage
-            $percentagePosition = (float) $position;
-            $timeInSeconds = ($duration * $percentagePosition) / 100;
-            
-            // Ensure the position is within valid range (at least 0.1s from start)
-            $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
-            
-            Debug::log(sprintf('Saving frame at %.2f%% (%.2f seconds of %.2f seconds duration)', 
-                $percentagePosition, $timeInSeconds, $duration), __METHOD__);
-            
-            // Extract the frame at the selected position
-            $framePath = $videoFrameExtractor->extractFrame($filePath, $timeInSeconds);
-            
-            if (!$framePath) {
-                Debug::logError('Failed to extract frame from video: ' . $filePath, __METHOD__);
-                return new JsonModel([
-                    'success' => false,
-                    'message' => 'Failed to extract frame from video',
-                ]);
-            }
-            
-            // Store the frame in Omeka's thumbnail system
-            try {
-                // Get the temp file factory
-                $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
-                $tempFile = $tempFileFactory->build();
-                
-                // Get the entity manager for direct entity manipulation
-                $entityManager = $this->entityManager;
-                
-                // Get the actual media entity
-                $mediaEntity = $entityManager->find('Omeka\Entity\Media', $mediaId);
-                
-                if (!$mediaEntity) {
-                    Debug::logError('Media entity not found: ' . $mediaId, __METHOD__);
-                    return new JsonModel([
-                        'success' => false,
-                        'message' => 'Media entity not found',
-                    ]);
-                }
-                
-                // Copy the extracted frame to the temp file
-                if (copy($framePath, $tempFile->getTempPath())) {
-                    // Set the storage ID to match the media's
-                    $tempFile->setStorageId($mediaEntity->getStorageId());
-                    
-                    // Store thumbnails using Omeka's built-in system
-                    $hasThumbnails = $tempFile->storeThumbnails();
-                    
-                    // Set the hasThumbnails flag on the media entity
-                    $mediaEntity->setHasThumbnails($hasThumbnails);
-                    
-                    // Update media data to store the frame position
-                    $mediaData = $mediaEntity->getData() ?: [];
-                    $mediaData['videothumbnail_frame_percentage'] = $percentagePosition;
-                    $mediaData['videothumbnail_frame_time'] = $timeInSeconds;
-                    $mediaEntity->setData($mediaData);
-                    
-                    // Ensure thumbnail paths are properly stored in the database
-                    $thumbnailSynchronizer = $this->serviceLocator->get('VideoThumbnail\ThumbnailSynchronizer');
-                    $thumbnailSynchronizer->updateThumbnailStoragePaths($mediaEntity);
-                    
-                    // Persist the entity changes
-                    $entityManager->persist($mediaEntity);
-                    $entityManager->flush();
-                    
-                    // Clean up temporary files
-                    $tempFile->delete();
-                    @unlink($framePath);
-                    
-                    Debug::log('Successfully stored thumbnails for media ' . $mediaId, __METHOD__);
-                } else {
-                    Debug::logError('Failed to copy extracted frame to temp file for media ' . $mediaId, __METHOD__);
-                    @unlink($framePath);
-                    return new JsonModel([
-                        'success' => false,
-                        'message' => 'Failed to process extracted frame',
-                    ]);
-                }
-            } catch (\Exception $e) {
-                Debug::logError('Error storing thumbnails: ' . $e->getMessage(), __METHOD__);
-                @unlink($framePath);
-                return new JsonModel([
-                    'success' => false,
-                    'message' => 'Error storing thumbnails: ' . $e->getMessage(),
-                ]);
-            }
-            
-            Debug::logExit(__METHOD__, 'Success');
-            return new JsonModel([
-                'success' => true,
-                'message' => 'Thumbnail frame updated successfully',
-            ]);
         } catch (\Exception $e) {
-            Debug::logError('Error updating frame: ' . $e->getMessage(), __METHOD__);
+            Debug::logError('Frame save error: ' . $e->getMessage(), __METHOD__, $e);
             return new JsonModel([
                 'success' => false,
-                'message' => 'Error updating frame: ' . $e->getMessage(),
+                'message' => 'Error saving frame',
+                'details' => $e->getMessage()
             ]);
+        }
+    }
+
+    protected function extractAndSaveFrame($media, $position)
+    {
+        Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'position' => $position]);
+        
+        try {
+            $fileStore = $this->serviceLocator->get('Omeka\File\Store');
+            $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
+            
+            $storagePath = sprintf('original/%s', $media->filename());
+            $filePath = $fileStore->getLocalPath($storagePath);
+            Debug::log("Video file path: {$filePath}", __METHOD__);
+            
+            // Get video duration
+            $duration = $extractor->getVideoDuration($filePath);
+            Debug::log("Video duration: {$duration} seconds", __METHOD__);
+            
+            if ($duration <= 0) {
+                Debug::logWarning("Invalid duration, using fallback value", __METHOD__);
+                $duration = 5.0;
+            }
+            
+            // Calculate frame time
+            $timeInSeconds = ($duration * $position) / 100;
+            $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
+            Debug::log("Calculated frame time: {$timeInSeconds}s", __METHOD__);
+            
+            // Extract the frame
+            $framePath = $extractor->extractFrame($filePath, $timeInSeconds);
+            if (!$framePath) {
+                Debug::logError("Frame extraction failed", __METHOD__);
+                return [
+                    'success' => false,
+                    'message' => 'Failed to extract frame'
+                ];
+            }
+            
+            Debug::log("Frame extracted to: {$framePath}", __METHOD__);
+            
+            // Store the frame
+            $result = $this->storeThumbnail($media, $framePath, $position, $timeInSeconds);
+            
+            Debug::logExit(__METHOD__, ['success' => $result['success']]);
+            return $result;
+            
+        } catch (\Exception $e) {
+            Debug::logError('Frame extraction error: ' . $e->getMessage(), __METHOD__, $e);
+            return [
+                'success' => false,
+                'message' => 'Error processing frame: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    protected function storeThumbnail($media, $framePath, $position, $timeInSeconds)
+    {
+        Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'frame_path' => $framePath]);
+        
+        try {
+            $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
+            $tempFile = $tempFileFactory->build();
+            
+            if (!copy($framePath, $tempFile->getTempPath())) {
+                Debug::logError("Failed to copy frame to temp location", __METHOD__);
+                return [
+                    'success' => false,
+                    'message' => 'Failed to process frame'
+                ];
+            }
+            
+            Debug::log("Frame copied to temp location: " . $tempFile->getTempPath(), __METHOD__);
+            
+            // Get the media entity
+            $mediaEntity = $this->entityManager->find('Omeka\Entity\Media', $media->id());
+            if (!$mediaEntity) {
+                Debug::logError("Media entity not found", __METHOD__);
+                return [
+                    'success' => false,
+                    'message' => 'Media entity not found'
+                ];
+            }
+            
+            // Store thumbnails
+            $tempFile->setStorageId($mediaEntity->getStorageId());
+            $hasThumbnails = $tempFile->storeThumbnails();
+            Debug::log("Thumbnails stored: " . ($hasThumbnails ? 'true' : 'false'), __METHOD__);
+            
+            // Update media data
+            $mediaEntity->setHasThumbnails($hasThumbnails);
+            $mediaData = $mediaEntity->getData() ?: [];
+            $mediaData['videothumbnail_frame_percentage'] = $position;
+            $mediaData['videothumbnail_frame_time'] = $timeInSeconds;
+            $mediaEntity->setData($mediaData);
+            
+            // Save changes
+            $this->entityManager->persist($mediaEntity);
+            $this->entityManager->flush();
+            
+            // Cleanup
+            $tempFile->delete();
+            @unlink($framePath);
+            
+            Debug::logExit(__METHOD__, ['success' => true]);
+            return [
+                'success' => true,
+                'message' => 'Thumbnail frame updated successfully'
+            ];
+            
+        } catch (\Exception $e) {
+            Debug::logError('Error storing thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+            return [
+                'success' => false,
+                'message' => 'Error storing thumbnail: ' . $e->getMessage()
+            ];
         }
     }
 
@@ -530,13 +538,15 @@ class VideoThumbnailController extends AbstractActionController
 
     public function generateFramesAction()
     {
-        Debug::logEntry(__METHOD__);
+        Debug::logEntry(__METHOD__, ['request' => 'Starting frame generation']);
+        
         if (!$this->getRequest()->isPost()) {
-            Debug::logExit(__METHOD__, 'Not a POST request');
+            Debug::logWarning('Request is not POST method', __METHOD__);
             return $this->redirect()->toRoute('admin');
         }
         
         $mediaId = $this->params()->fromPost('media_id');
+        Debug::log("Processing frame generation for media ID: {$mediaId}", __METHOD__);
         
         if (!$mediaId) {
             Debug::logError('No media ID provided', __METHOD__);
@@ -548,103 +558,78 @@ class VideoThumbnailController extends AbstractActionController
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
+            Debug::log("Retrieved media: " . $media->filename(), __METHOD__);
+            
             if (!$media || strpos($media->mediaType(), 'video/') !== 0) {
+                Debug::logWarning("Invalid media type: " . ($media ? $media->mediaType() : 'null'), __METHOD__);
                 return new JsonModel([
                     'success' => false,
-                    'message' => 'This media is not a supported video format. Please check the supported formats in the Video Thumbnail settings.',
-                    'help' => 'See the Troubleshooting Guide for supported formats and solutions.'
+                    'message' => 'This media is not a supported video format.',
                 ]);
             }
+
+            // Get services and settings
             $ffmpegPath = $this->settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
             $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
+            Debug::log("Using FFmpeg path: {$ffmpegPath}, Frame count: {$frameCount}", __METHOD__);
             
-            // Get the extractor from service manager
-            if (!$this->serviceLocator) {
-                throw new \RuntimeException('Service locator is not available');
-            }
-            $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
-            // Get the file store service
-            if (!$this->serviceLocator) {
-                throw new \RuntimeException('Service locator is not available');
-            }
             $fileStore = $this->serviceLocator->get('Omeka\File\Store');
-                
-            // Construct storage path
             $storagePath = sprintf('original/%s', $media->filename());
             $filePath = $fileStore->getLocalPath($storagePath);
+            Debug::log("Video file path: {$filePath}", __METHOD__);
             
-            // Get video duration first
+            // Get video duration with enhanced logging
+            $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
             $duration = $extractor->getVideoDuration($filePath);
+            Debug::log("Video duration detected: {$duration} seconds", __METHOD__);
+            
             if ($duration <= 0) {
-                Debug::log('Could not determine video duration, using minimum fallback value', __METHOD__);
-                $duration = 1.0; // Use a minimal duration for very short videos
-            } else if ($duration < 5.0) {
-                Debug::log('Very short video detected: ' . $filePath . ' (duration: ' . $duration . ' seconds)', __METHOD__);
-            } else if ($duration === 60.0) {
-                // Check if this is likely the default fallback value
-                $fileSize = filesize($filePath);
-                if ($fileSize < 10485760) { // Less than 10MB
-                    Debug::log('Default duration (60s) may be inaccurate for small video: ' . $filePath . 
-                        ' (' . ($fileSize / 1048576) . ' MB)', __METHOD__);
-                    // For small files with default duration, use a smaller estimate
-                    $duration = 5.0;
-                }
+                Debug::logWarning("Invalid duration detected, using fallback", __METHOD__);
+                $duration = 5.0;
             }
             
-            Debug::log(sprintf('Extracting frames from video: %s (duration: %.2f seconds)', $filePath, $duration), __METHOD__);
+            // Extract frames with progress logging
+            Debug::log("Starting frame extraction process", __METHOD__);
             $frames = $extractor->extractFrames($filePath, $frameCount);
+            Debug::log("Extracted " . count($frames) . " frames", __METHOD__);
             
             $framePaths = [];
             foreach ($frames as $index => $framePath) {
-                // Create a URL that can be accessed by the browser
                 $tempFilename = 'temp-' . basename($framePath);
                 $tempFilePath = OMEKA_PATH . '/files/temp/' . $tempFilename;
                 
-                // Copy the frame to the Omeka temp directory for web access
-                copy($framePath, $tempFilePath);
+                Debug::log("Processing frame {$index}: {$framePath} -> {$tempFilePath}", __METHOD__);
                 
-                $frameUrl = $this->url()->fromRoute('asset', [
-                    'asset' => $tempFilename,
-                ]);
-                
-                // Calculate the position as a percentage of video duration
-                $percentPosition = ($index + 1) * (100 / ($frameCount + 1));
-                $timeInSeconds = ($duration * $percentPosition) / 100;
-                
-                // Ensure the position is within valid range (at least 0.1s from start)
-                $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
-                
-                // Store both the percentage and the actual time in seconds
-                $framePaths[] = [
-                    'index' => $index,
-                    'path' => $frameUrl,
-                    'position' => $percentPosition,
-                    'time' => $timeInSeconds, // Time in seconds
-                    'original_path' => $framePath, // Keep track of the original path for cleanup
-                ];
+                if (copy($framePath, $tempFilePath)) {
+                    $frameUrl = $this->url()->fromRoute('asset', ['asset' => $tempFilename]);
+                    $percentPosition = ($index + 1) * (100 / ($frameCount + 1));
+                    $timeInSeconds = ($duration * $percentPosition) / 100;
+                    
+                    $framePaths[] = [
+                        'index' => $index,
+                        'path' => $frameUrl,
+                        'position' => $percentPosition,
+                        'time' => $timeInSeconds,
+                        'original_path' => $framePath,
+                    ];
+                    Debug::log("Frame {$index} processed successfully", __METHOD__);
+                } else {
+                    Debug::logError("Failed to copy frame {$index} to temp location", __METHOD__);
+                }
             }
             
-            // Comment out register_shutdown_function to prevent possible hangs
-            // register_shutdown_function(function() use ($originalPaths) {
-            //     foreach ($originalPaths as $path) {
-            //         if (file_exists($path)) {
-            //             @unlink($path);
-            //         }
-            //     }
-            // });
-            
-            Debug::logExit(__METHOD__, 'Generated ' . count($framePaths) . ' frames');
+            Debug::logExit(__METHOD__, ['frames_processed' => count($framePaths)]);
             return new JsonModel([
                 'success' => true,
                 'frames' => $framePaths,
             ]);
+            
         } catch (\Exception $e) {
-            Debug::logError('Error loading media: ' . $e->getMessage(), __METHOD__);
+            Debug::logError('Frame generation error: ' . $e->getMessage(), __METHOD__, $e);
             return new JsonModel([
                 'success' => false,
-                'message' => 'Error loading media. Please check file permissions and try again. If the problem persists, see the Troubleshooting Guide.',
-                'details' => $e->getMessage(),
-                'help' => 'See TROUBLESHOOTING.md for more information.'
+                'message' => 'Error generating frames. Check logs for details.',
+                'details' => $e->getMessage()
             ]);
         }
     }

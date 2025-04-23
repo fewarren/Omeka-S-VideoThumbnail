@@ -18,128 +18,121 @@ class VideoFrameExtractor
         $this->ensureTempDir();
     }
 
-    public function extractFrame($videoPath, $timeInSeconds)
+    public function extractFrame($filePath, $timeInSeconds)
     {
-        $this->cleanupOldTempFiles(); // Clean up old temp files before extracting
+        Debug::log("Attempting to extract frame at {$timeInSeconds}s from video: " . basename($filePath), __METHOD__);
+        
         try {
-            Debug::logEntry(__METHOD__, ['video' => $videoPath, 'time' => $timeInSeconds]);
+            $outputPath = $this->createTempPath();
+            Debug::log("Using temporary output path: {$outputPath}", __METHOD__);
 
-            $this->validateVideo($videoPath);
-            $this->validateFFmpeg();
-
-            $outputPath = $this->generateTempPath('jpg');
-            $timeStr = $this->formatTimeString($timeInSeconds);
-
-            // Try multiple strategies for frame extraction
-            foreach ($this->getExtractionStrategies($timeStr, $outputPath) as $attempt => $strategy) {
-                try {
-                    $result = $this->executeFFmpeg($strategy['command'], $strategy['message']);
-                    
-                    if ($result && file_exists($outputPath) && filesize($outputPath) > 0) {
-                        Debug::log(
-                            sprintf('Successfully extracted frame using strategy %d', $attempt),
-                            __METHOD__
-                        );
-                        return $outputPath;
-                    }
-                } catch (\Exception $e) {
-                    Debug::logWarning(
-                        sprintf('Strategy %d failed: %s', $attempt, $e->getMessage()),
-                        __METHOD__
-                    );
-                    continue;
-                }
+            $command = sprintf(
+                '%s -i %s -ss %f -vframes 1 -f image2 %s',
+                escapeshellarg($this->ffmpegPath),
+                escapeshellarg($filePath),
+                $timeInSeconds,
+                escapeshellarg($outputPath)
+            );
+            
+            Debug::log("Executing FFmpeg command: {$command}", __METHOD__);
+            
+            $output = [];
+            $returnVar = 0;
+            exec($command . " 2>&1", $output, $returnVar);
+            
+            if ($returnVar !== 0) {
+                Debug::logError("FFmpeg frame extraction failed with code {$returnVar}. Output: " . implode("\n", $output), __METHOD__);
+                return false;
             }
 
-            throw new \RuntimeException('All frame extraction strategies failed');
+            if (!file_exists($outputPath) || filesize($outputPath) === 0) {
+                Debug::logError("Frame extraction failed - output file is missing or empty", __METHOD__);
+                return false;
+            }
+
+            Debug::log("Successfully extracted frame to: {$outputPath}", __METHOD__);
+            return $outputPath;
 
         } catch (\Exception $e) {
-            Debug::logError(
-                sprintf('Frame extraction failed: %s', $e->getMessage()),
-                __METHOD__
-            );
-            throw $e;
+            Debug::logError("Frame extraction error: " . $e->getMessage(), __METHOD__, $e);
+            return false;
         }
     }
 
-    public function extractFrames($videoPath, $count = 5)
+    public function extractFrames($filePath, $count = 5)
     {
+        Debug::log("Attempting to extract {$count} frames from video: " . basename($filePath), __METHOD__);
+        
         try {
-            Debug::logEntry(__METHOD__, ['video' => $videoPath, 'count' => $count]);
-
-            $this->validateVideo($videoPath);
-            $duration = $this->getVideoDuration($videoPath);
-            
+            $duration = $this->getVideoDuration($filePath);
             if ($duration <= 0) {
-                throw new \RuntimeException('Invalid video duration');
+                Debug::logError("Could not determine video duration", __METHOD__);
+                return [];
             }
 
+            Debug::log("Video duration: {$duration} seconds", __METHOD__);
+            
             $frames = [];
             $interval = $duration / ($count + 1);
             
             for ($i = 1; $i <= $count; $i++) {
-                $time = $interval * $i;
+                $timePosition = $interval * $i;
+                Debug::log("Extracting frame {$i}/{$count} at position {$timePosition}s", __METHOD__);
                 
-                try {
-                    $framePath = $this->extractFrame($videoPath, $time);
-                    if ($framePath) {
-                        $frames[] = $framePath;
-                    }
-                } catch (\Exception $e) {
-                    Debug::logWarning(
-                        sprintf('Failed to extract frame at position %d: %s', $i, $e->getMessage()),
-                        __METHOD__
-                    );
-                    continue;
+                $framePath = $this->extractFrame($filePath, $timePosition);
+                if ($framePath) {
+                    $frames[] = $framePath;
+                    Debug::log("Successfully extracted frame {$i}", __METHOD__);
+                } else {
+                    Debug::logWarning("Failed to extract frame {$i}", __METHOD__);
                 }
             }
 
-            if (empty($frames)) {
-                throw new \RuntimeException('Failed to extract any frames');
-            }
-
+            Debug::log("Completed frame extraction. Successfully extracted " . count($frames) . " frames", __METHOD__);
             return $frames;
 
         } catch (\Exception $e) {
-            Debug::logError(
-                sprintf('Multiple frame extraction failed: %s', $e->getMessage()),
-                __METHOD__
-            );
-            throw $e;
+            Debug::logError("Frame extraction error: " . $e->getMessage(), __METHOD__, $e);
+            return [];
         }
     }
 
-    public function getVideoDuration($videoPath)
+    public function getVideoDuration($filePath)
     {
+        Debug::log("Getting duration for video: " . basename($filePath), __METHOD__);
+        
         try {
-            Debug::logEntry(__METHOD__, ['video' => $videoPath]);
-
-            $this->validateVideo($videoPath);
+            $command = sprintf(
+                '%s -i %s 2>&1',
+                escapeshellarg($this->ffmpegPath),
+                escapeshellarg($filePath)
+            );
             
-            // Try multiple duration detection methods
-            foreach ($this->getDurationDetectionStrategies() as $strategy) {
-                try {
-                    $duration = $this->executeDurationStrategy($strategy, $videoPath);
-                    if ($duration > 0) {
-                        return $duration;
-                    }
-                } catch (\Exception $e) {
-                    Debug::logWarning(
-                        sprintf('Duration strategy failed: %s', $e->getMessage()),
-                        __METHOD__
-                    );
-                    continue;
-                }
+            $output = [];
+            $returnVar = 0;
+            exec($command, $output, $returnVar);
+            
+            $output = implode("\n", $output);
+            Debug::log("FFmpeg output: " . $output, __METHOD__);
+
+            // Try to find duration in FFmpeg output
+            if (preg_match('/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/', $output, $matches)) {
+                $hours = intval($matches[1]);
+                $minutes = intval($matches[2]);
+                $seconds = intval($matches[3]);
+                $milliseconds = intval($matches[4]);
+                
+                $duration = $hours * 3600 + $minutes * 60 + $seconds + $milliseconds / 100;
+                Debug::log("Detected video duration: {$duration} seconds", __METHOD__);
+                return $duration;
             }
 
-            throw new \RuntimeException('Failed to detect video duration');
+            Debug::logWarning("Could not detect video duration from FFmpeg output", __METHOD__);
+            return 0;
 
         } catch (\Exception $e) {
-            Debug::logError(
-                sprintf('Duration detection failed: %s', $e->getMessage()),
-                __METHOD__
-            );
-            throw $e;
+            Debug::logError("Error getting video duration: " . $e->getMessage(), __METHOD__, $e);
+            return 0;
         }
     }
 
@@ -338,5 +331,18 @@ class VideoFrameExtractor
     public function getLastError()
     {
         return $this->lastError;
+    }
+
+    private function createTempPath()
+    {
+        $tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
+        if (!file_exists($tempDir)) {
+            Debug::log("Creating temporary directory: {$tempDir}", __METHOD__);
+            mkdir($tempDir, 0777, true);
+        }
+        
+        $path = $tempDir . '/' . uniqid('frame_', true) . '.jpg';
+        Debug::log("Created temporary path: {$path}", __METHOD__);
+        return $path;
     }
 }
