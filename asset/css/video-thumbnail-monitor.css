@@ -1,0 +1,273 @@
+/* Job monitoring styles */
+.video-thumbnail-jobs {
+    margin: 20px 0;
+    padding: 1rem;
+    background: var(--background, #f8f9fa);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.job-status {
+    margin: 0.5rem 0;
+    padding: 15px;
+    background: var(--job-background, #fff);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.job-status.running {
+    border-left: 4px solid var(--running-color, #007bff);
+    background-color: #f8f9fa;
+    border-color: #0d6efd;
+}
+
+.job-status.retrying {
+    border-left: 4px solid var(--retrying-color, #ffc107);
+    background-color: #fff3cd;
+    border-color: #ffc107;
+}
+
+.job-status.error {
+    border-left: 4px solid var(--error-color, #dc3545);
+    background-color: #f8d7da;
+    border-color: #dc3545;
+}
+
+.job-status.complete {
+    border-left: 4px solid var(--success-color, #28a745);
+    background-color: #d1e7dd;
+    border-color: #198754;
+}
+
+.job-status.stopped {
+    background-color: #e2e3e5;
+    border-color: #6c757d;
+}
+
+.job-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.job-id {
+    font-weight: 500;
+    color: var(--text-primary, #212529);
+}
+
+.job-status .status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.875rem;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--progress-background, #e9ecef);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar .progress {
+    height: 100%;
+    background: var(--progress-color, #007bff);
+    transition: width 0.3s ease;
+}
+
+.job-status.running .progress {
+    background: var(--running-color, #007bff);
+    animation: progress-pulse 2s infinite;
+}
+
+.job-status.retrying .progress {
+    background: var(--retrying-color, #ffc107);
+}
+
+.job-status.error .progress {
+    background: var(--error-color, #dc3545);
+}
+
+.job-status.complete .progress {
+    background: var(--success-color, #28a745);
+}
+
+.progress-container {
+    background-color: #e9ecef;
+    border-radius: 3px;
+    height: 20px;
+    margin: 10px 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress {
+    background-color: #0d6efd;
+    height: 100%;
+    transition: width 0.3s ease;
+    width: 0;
+}
+
+.job-status.retrying .progress {
+    background-color: #ffc107;
+}
+
+.job-status.complete .progress {
+    background-color: #198754;
+}
+
+.job-status.error .progress {
+    background-color: #dc3545;
+}
+
+.status-text {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.retry-info {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #6c757d);
+    color: #664d03;
+    display: none;
+    font-size: 0.9em;
+    margin-top: 5px;
+}
+
+.job-controls {
+    margin-top: 10px;
+}
+
+.retry-button,
+.stop-button {
+    background: none;
+    border: 1px solid;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.9em;
+    margin-right: 10px;
+    padding: 5px 10px;
+    transition: all 0.2s ease;
+}
+
+.retry-button {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.retry-button:hover {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.stop-button {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.stop-button:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    padding: 10px 20px;
+    border-radius: 4px;
+    background: #333;
+    color: white;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 1000;
+    animation: slide-in 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.notification.error {
+    background: var(--error-background, #f8d7da);
+    color: var(--error-text, #721c24);
+    border: 1px solid var(--error-border, #f5c6cb);
+    background-color: #dc3545;
+}
+
+.notification.info {
+    background-color: #0dcaf0;
+}
+
+@keyframes progress-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .video-thumbnail-jobs {
+        background: var(--dark-background, #343a40);
+    }
+
+    .job-status {
+        background: var(--dark-job-background, #2b3035);
+        border-color: var(--dark-border-color, #495057);
+    }
+
+    .job-id {
+        color: var(--dark-text-primary, #f8f9fa);
+    }
+
+    .retry-info {
+        color: var(--dark-text-secondary, #adb5bd);
+    }
+
+    .progress-bar {
+        background: var(--dark-progress-background, #495057);
+    }
+
+    .notification {
+        background: var(--dark-notification-background, #2b3035);
+        color: var(--dark-text-primary, #f8f9fa);
+    }
+}
+
+/* Accessibility improvements */
+.job-status {
+    position: relative;
+}
+
+.job-status:focus-within {
+    outline: 2px solid var(--focus-color, #007bff);
+    outline-offset: 2px;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .video-thumbnail-jobs {
+        margin: 0.5rem 0;
+        padding: 0.5rem;
+    }
+
+    .job-status {
+        padding: 0.75rem;
+    }
+
+    .notification {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+    }
+}
