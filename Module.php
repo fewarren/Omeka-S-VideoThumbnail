@@ -229,6 +229,7 @@ class Module extends AbstractModule
             '/usr/local/bin/ffmpeg',
             '/opt/local/bin/ffmpeg',
             '/opt/homebrew/bin/ffmpeg',
+
             'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
             'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe'
         ];

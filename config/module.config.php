@@ -225,5 +225,19 @@ return [
         'invokables' => [
             'videoThumbnail' => 'VideoThumbnail\Site\BlockLayout\VideoThumbnailBlock',
         ],
-    ]
+    ],
+    'acl' => [
+        'rules' => [
+            'Omeka\Entity\User' => [
+                'VideoThumbnail\Controller\Admin\VideoThumbnailController' => [
+                    'allow' => true
+                ]
+            ],
+            'Omeka\Entity\Site' => [
+                'VideoThumbnail\Site\BlockLayout\VideoThumbnailBlock' => [
+                    'allow' => true
+                ]
+            ]
+        ]
+    ],
 ];
