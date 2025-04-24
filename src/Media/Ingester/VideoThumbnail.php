@@ -58,7 +58,7 @@ class VideoThumbnail
         error_log('[VideoThumbnail] ' . $message);
     }
 
-    private static function debugLog($message, $entityManager = null)
+    public static function debugLog($message, $entityManager = null)
     {
         try {
             $settings = null;
