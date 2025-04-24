@@ -68,14 +68,16 @@ class VideoThumbnailBlock extends AbstractBlockLayout
             }
         }
         
-        // Add our script - Omeka will load its dependencies
+        // Add required assets
         $view->headScript()->appendFile($view->assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
+        $view->headScript()->appendFile($view->assetUrl('js/resource-select.js', 'Omeka'));
         
         // Return form template
         return $view->partial('common/block-layout/video-thumbnail-form', [
             'mediaId' => $mediaId,
             'mediaTitle' => $mediaTitle,
             'framePercent' => $framePercent,
+            'site' => $site,
         ]);
     }
 
@@ -91,7 +93,11 @@ class VideoThumbnailBlock extends AbstractBlockLayout
         $mediaId = $block->dataValue('media_id');
         
         if (!$mediaId) {
-            return ''; // Return empty if no media selected
+            return $view->partial('common/block-layout/video-thumbnail', [
+                'media' => null,
+                'framePercent' => 10,
+                'thumbnailHtml' => null,
+            ]);
         }
         
         try {
