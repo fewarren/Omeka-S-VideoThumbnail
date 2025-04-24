@@ -1,9 +1,14 @@
 jQuery(function($) {
     console.log('VideoThumbnail block.js loaded');
+    // Add a visible marker to the DOM to confirm block.js is loaded
+    if ($('#videothumbnail-js-marker').length === 0) {
+        $('body').append('<div id="videothumbnail-js-marker" style="position:fixed;bottom:0;right:0;background:#ffc;padding:4px 8px;z-index:9999;font-size:14px;">VideoThumbnail JS loaded</div>');
+    }
     // Use event delegation for dynamically added blocks
     $(document).on('click', '.select-media', function(e) {
         console.log('Select Video button clicked');
         e.preventDefault();
+        alert('VideoThumbnail: Select Video button clicked!');
         var $input = $(this).siblings('.media-id');
         var $label = $(this).siblings('.selected-media');
         if (typeof Omeka !== 'undefined' && typeof Omeka.openMediaBrowser === 'function') {

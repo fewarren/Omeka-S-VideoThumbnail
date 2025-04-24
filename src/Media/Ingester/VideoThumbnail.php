@@ -76,9 +76,11 @@ class VideoThumbnail
             if ($settings && is_object($settings)) {
                 $debug = $settings->get('videothumbnail_debug', false);
             }
-            // Diagnostic: log debug flag value
             error_log('[VideoThumbnail] Debug flag is ' . ($debug ? 'ON' : 'OFF'));
             if (!$debug) return;
+
+            // Always log to PHP error log
+            error_log('[VideoThumbnail DEBUG] ' . $message);
 
             // Use OMEKA_PATH for log directory if defined
             $logDir = defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'logs';
@@ -86,11 +88,16 @@ class VideoThumbnail
                 @mkdir($logDir, 0777, true);
             }
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
-            // Diagnostic: log log file path
-            error_log('[VideoThumbnail] Debug log file path: ' . $logFile);
             $entry = date('Y-m-d H:i:s') . ' ' . $message . "\n";
             if (@file_put_contents($logFile, $entry, FILE_APPEND) === false) {
                 error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
+                // Fallback to sys_get_temp_dir()
+                $tmpFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
+                if (@file_put_contents($tmpFile, $entry, FILE_APPEND) === false) {
+                    error_log('[VideoThumbnail] Failed to write to temp log file: ' . $tmpFile);
+                } else {
+                    error_log('[VideoThumbnail] Wrote debug log to temp: ' . $tmpFile);
+                }
             }
         } catch (\Exception $e) {
             error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
