@@ -9,7 +9,9 @@ class ConfigController extends AbstractActionController
 {
     public function indexAction()
     {
-        $this->api()->authorize('update', 'Omeka:Module'); // Permission check
+        if (!$this->isAllowed('Omeka:Module', 'update')) {
+            return $this->createHttpException(403);
+        }
         $form = $this->getForm(ConfigForm::class);
         $request = $this->getRequest();
 
