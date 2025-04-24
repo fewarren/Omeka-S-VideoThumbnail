@@ -182,13 +182,23 @@ class Module extends AbstractModule
      */
     public function attachListeners(SharedEventManagerInterface $sharedEventManager)
     {
-        // Only attach the minimum necessary listeners
+        // Add event for site page layout
         $sharedEventManager->attach(
             'Omeka\Controller\Site\Page',
             'view.layout',
             function ($event) {
                 $view = $event->getTarget();
                 $view->headScript()->appendFile($view->assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
+            }
+        );
+        
+        // Add events for block layout
+        $sharedEventManager->attach(
+            'Omeka\Controller\Admin\Page',
+            'view.layout',
+            function ($event) {
+                $view = $event->getTarget();
+                $view->headScript()->appendFile($view->assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
             }
         );
     }
