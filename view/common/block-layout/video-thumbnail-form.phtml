@@ -3,24 +3,22 @@ $mediaId = isset($mediaId) ? $mediaId : null;
 $mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
 $framePercent = isset($framePercent) ? (int)$framePercent : 10;
 
-// Debug information
-$logPath = __DIR__ . '/../../../../videothumbnail_template_debug.log';
-$entry = date('Y-m-d H:i:s') . ' - Template loaded - mediaId: ' . ($mediaId ?: 'null') . 
-         ', mediaTitle: ' . $mediaTitle . ', framePercent: ' . $framePercent . "\n";
-@file_put_contents($logPath, $entry, FILE_APPEND);
-
 // Add our script and ensure it runs after Omeka's scripts
 $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
-
-// Log CSS classes from standard Omeka resource-select elements for reference
-$sampleSelector = '.resource-select';
-$entry = date('Y-m-d H:i:s') . ' - Looking for resource-select elements' . "\n";
-@file_put_contents($logPath, $entry, FILE_APPEND);
-
-// Prepare data for resource selector
-$resourceType = 'media'; 
-$selectUrl = $this->url('admin/default', ['controller' => 'media', 'action' => 'sidebar-select']);
+$this->headLink()->appendStylesheet($this->assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
 ?>
+
+<!-- DEBUG BANNER - REMOVE IN PRODUCTION -->
+<div style="background:#e6f7ff; border:2px solid #0088cc; padding:10px; margin:10px 0; font-size:14px; line-height:1.4; border-radius:5px;">
+    <h3 style="color:#0088cc; margin-top:0;">Video Thumbnail Block (Debug v2.2.0)</h3>
+    <p>This block allows you to select a video and use its thumbnail. The current selection is:</p>
+    <ul style="margin-bottom:0;">
+        <li><strong>Media ID:</strong> <?= $mediaId ? $mediaId : 'None selected' ?></li>
+        <li><strong>Media Title:</strong> <?= $mediaTitle ? $this->escapeHtml($mediaTitle) : 'None' ?></li>
+        <li><strong>Frame Position:</strong> <?= $framePercent ?>%</li>
+        <li><strong>Template Time:</strong> <?= date('Y-m-d H:i:s') ?></li>
+    </ul>
+</div>
 
 <div class="video-thumbnail-form-container">
     <div class="field">
@@ -29,30 +27,25 @@ $selectUrl = $this->url('admin/default', ['controller' => 'media', 'action' => '
             <div class="field-description"><?= $this->translate('Select a video to display its thumbnail') ?></div>
         </div>
         <div class="inputs">
-            <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $this->escapeHtml($mediaId) ?>" class="media-id" data-value-key="value">
+            <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $this->escapeHtml($mediaId) ?>" class="media-id">
             
             <div class="value">
-                <span class="selected-resource selected-media">
+                <span class="selected-resource">
                     <?= $mediaTitle ? $this->escapeHtml($mediaTitle) : $this->translate('No media selected') ?>
                 </span>
             </div>
             
-            <div class="actions resource-select" 
-                 data-sidebar-content-url="<?= $this->escapeHtml($selectUrl) ?>"
-                 data-select-property="media_id"
-                 data-resource-type="<?= $resourceType ?>"
-                 data-sidebar-search-filter="video">
-                <button type="button" class="o-icon-add select-resource select-media"
-                        title="<?= $this->translate('Select media') ?>"></button>
+            <!-- STANDARD OMEKA RESOURCE SELECTION PATTERN -->
+            <div class="resource-select" data-sidebar-content-url="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'media', 'action' => 'sidebar-select'])) ?>">
+                <a href="#" class="select-resource button">
+                    <?= $this->translate('Select Video') ?>
+                </a>
                 <?php if ($mediaId): ?>
-                <button type="button" class="o-icon-delete remove-resource remove-media" 
-                        title="<?= $this->translate('Clear selection') ?>"></button>
+                <a href="#" class="remove-resource button">
+                    <?= $this->translate('Clear') ?>
+                </a>
                 <?php endif; ?>
             </div>
-            <?php 
-            $entry = date('Y-m-d H:i:s') . ' - Resource selector rendered' . "\n";
-            @file_put_contents($logPath, $entry, FILE_APPEND);
-            ?>
         </div>
     </div>
     
@@ -72,70 +65,72 @@ $selectUrl = $this->url('admin/default', ['controller' => 'media', 'action' => '
     </div>
 </div>
 
-<?php
-// Log that template rendering is complete
-$entry = date('Y-m-d H:i:s') . ' - Template render complete' . "\n";
-@file_put_contents($logPath, $entry, FILE_APPEND);
-?>
-
+<!-- Optional but helpful: inline JavaScript -->
 <script>
-// Initialize resource selection functionality when content is loaded
 $(document).ready(function() {
-    $('.resource-select').each(function() {
-        const selectButton = $(this).find('.select-resource');
-        const removeButton = $(this).find('.remove-resource');
-        const selectProperty = $(this).data('selectProperty');
-        const resourceType = $(this).data('resourceType');
-        const sidebarContentUrl = $(this).data('sidebarContentUrl');
+    console.log("Video Thumbnail Block Debug - Template loaded");
+    
+    // Add click handler for the select button
+    $('.select-resource').click(function(e) {
+        e.preventDefault();
+        console.log("Select button clicked");
         
-        // Select button handler
-        selectButton.on('click', function(e) {
-            e.preventDefault();
-            const thisButton = $(this);
-            const container = thisButton.closest('.field');
-            const selectContainer = thisButton.closest('.resource-select');
-            
-            Omeka.openSidebar(sidebarContentUrl);
-            
-            Omeka.mediaSidebar = {
-                selectedMedia: function(id, title) {
-                    const propertyName = selectContainer.data('selectProperty');
-                    const idInput = container.find('input[name$="[' + propertyName + ']"]');
-                    const displayElement = container.find('.selected-resource');
-                    
-                    idInput.val(id);
-                    displayElement.text(title || id);
-                    
-                    // Show the remove button if it was hidden
-                    const removeBtn = selectContainer.find('.remove-resource');
-                    if (removeBtn.length === 0) {
-                        $('<button type="button" class="o-icon-delete remove-resource remove-media" title="Clear selection"></button>')
-                            .insertAfter(thisButton)
-                            .on('click', function(e) {
-                                e.preventDefault();
-                                idInput.val('');
-                                displayElement.text('No media selected');
-                                $(this).remove();
-                            });
-                    }
-                    
-                    Omeka.closeSidebar();
+        var container = $(this).closest('.resource-select');
+        var sidebarUrl = container.data('sidebar-content-url');
+        
+        console.log("Opening sidebar with URL: " + sidebarUrl);
+        Omeka.openSidebar(sidebarUrl);
+        
+        // Setup sidebar callback
+        Omeka.mediaSidebar = {
+            selectedMedia: function(id, title) {
+                console.log("Media selected - ID: " + id + ", Title: " + title);
+                
+                // Find the form field elements
+                var block = container.closest('.video-thumbnail-form-container');
+                var mediaInput = block.find('.media-id');
+                var titleDisplay = block.find('.selected-resource');
+                
+                // Update the values
+                mediaInput.val(id);
+                titleDisplay.text(title || id);
+                
+                // Add remove button if not present
+                if (container.find('.remove-resource').length === 0) {
+                    $('<a href="#" class="remove-resource button"><?= $this->translate('Clear') ?></a>')
+                        .appendTo(container);
                 }
-            };
-        });
+                
+                // Close sidebar
+                Omeka.closeSidebar();
+                
+                // Update the debug info
+                $('.debug-media-id').text(id ? id : 'None selected');
+                $('.debug-media-title').text(title ? title : 'None');
+            }
+        };
+    });
+    
+    // Handle remove button clicks
+    $(document).on('click', '.remove-resource', function(e) {
+        e.preventDefault();
+        console.log("Remove button clicked");
         
-        // Remove button handler 
-        removeButton.on('click', function(e) {
-            e.preventDefault();
-            const container = $(this).closest('.field');
-            const propertyName = $(this).closest('.resource-select').data('selectProperty');
-            const idInput = container.find('input[name$="[' + propertyName + ']"]');
-            const displayElement = container.find('.selected-resource');
-            
-            idInput.val('');
-            displayElement.text('No media selected');
-            $(this).remove();
-        });
+        var container = $(this).closest('.resource-select');
+        var block = container.closest('.video-thumbnail-form-container');
+        var mediaInput = block.find('.media-id');
+        var titleDisplay = block.find('.selected-resource');
+        
+        // Clear values
+        mediaInput.val('');
+        titleDisplay.text('<?= $this->translate('No media selected') ?>');
+        
+        // Remove the button
+        $(this).remove();
+        
+        // Update debug info
+        $('.debug-media-id').text('None selected');
+        $('.debug-media-title').text('None');
     });
 });
 </script>

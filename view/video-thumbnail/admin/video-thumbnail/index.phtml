@@ -1,26 +1,24 @@
 <?php
 /**
  * Admin interface for VideoThumbnail module
- * Simplified version without messenger dependency
+ * Debug version with visible diagnostic information
  */
-$this->headTitle($this->translate('Video Thumbnail'));
+$this->headTitle($this->translate('Video Thumbnail Debug'));
 $this->htmlElement('body')->appendAttribute('class', 'video-thumbnail browse');
-
-// Add debug info
-error_log('DEBUG: Admin template rendering - ' . date('Y-m-d H:i:s'));
-error_log('DEBUG: Form object type: ' . (is_object($form) ? get_class($form) : 'not an object'));
-error_log('DEBUG: Form elements: ' . (is_object($form) && method_exists($form, 'getElements') ? implode(', ', array_keys($form->getElements())) : 'unknown'));
 ?>
 
-<!-- Debug information (remove in production) -->
-<div style="background:#ffe; border:1px solid #ccc; padding:10px; margin:10px 0; display:none;">
-    <h3>Debug Info</h3>
+<!-- VISIBLE DEBUG INFO - REMOVE IN PRODUCTION -->
+<div style="background:#fff0f0; border:2px solid red; padding:10px; margin:10px 0; font-size:14px;">
+    <h3 style="color:red">Debug Information</h3>
     <p>Template Variables:</p>
     <ul>
         <li>Form: <?= is_object($form) ? get_class($form) : 'not an object' ?></li>
+        <li>Form Elements: <?= is_object($form) && method_exists($form, 'getElements') ? implode(', ', array_keys($form->getElements())) : 'unknown' ?></li>
         <li>Video Count: <?= isset($videoCount) ? $videoCount : 'undefined' ?></li>
         <li>Default Frame: <?= isset($defaultFrame) ? $defaultFrame : 'undefined' ?></li>
         <li>Debug Mode: <?= isset($debugMode) ? ($debugMode ? 'true' : 'false') : 'undefined' ?></li>
+        <li>Module Version: 2.2.0 Debug</li>
+        <li>Timestamp: <?= date('Y-m-d H:i:s') ?></li>
     </ul>
 </div>
 
@@ -30,7 +28,7 @@ error_log('DEBUG: Form elements: ' . (is_object($form) && method_exists($form, '
     </a>
 </div>
 
-<h1><?= $this->translate('Video Thumbnail Manager'); ?></h1>
+<h1><?= $this->translate('Video Thumbnail Manager (Debug Version)'); ?></h1>
 
 <div class="video-thumbnail-overview">
     <h2><?= $this->translate('Overview'); ?></h2>
@@ -42,6 +40,7 @@ error_log('DEBUG: Form elements: ' . (is_object($form) && method_exists($form, '
     </div>
 </div>
 
+<?php if (is_object($form)): ?>
 <div class="video-thumbnail-configuration">
     <h2><?= $this->translate('Configuration'); ?></h2>
     
@@ -57,41 +56,68 @@ error_log('DEBUG: Form elements: ' . (is_object($form) && method_exists($form, '
     <fieldset id="settings-fieldset" class="section">
         <legend><?= $this->translate('Settings'); ?></legend>
         
+        <?php if ($form->has('default_frame_position')): ?>
         <div class="field">
             <?= $this->formLabel($form->get('default_frame_position')); ?>
             <div class="inputs"><?= $this->formNumber($form->get('default_frame_position')); ?></div>
             <div class="field-description"><?= $this->translate('Default position for thumbnail extraction as percentage of video duration (0-100).'); ?></div>
         </div>
+        <?php else: ?>
+            <div class="field" style="color:red">default_frame_position element missing from form</div>
+        <?php endif; ?>
         
+        <?php if ($form->has('supported_formats')): ?>
         <div class="field">
             <?= $this->formLabel($form->get('supported_formats')); ?>
             <div class="inputs"><?= $this->formMultiCheckbox($form->get('supported_formats')); ?></div>
             <div class="field-description"><?= $this->translate('Select video formats that should be processed.'); ?></div>
         </div>
+        <?php else: ?>
+            <div class="field" style="color:red">supported_formats element missing from form</div>
+        <?php endif; ?>
         
+        <?php if ($form->has('debug_mode')): ?>
         <div class="field">
             <?= $this->formLabel($form->get('debug_mode')); ?>
             <div class="inputs"><?= $this->formCheckbox($form->get('debug_mode')); ?></div>
             <div class="field-description"><?= $this->translate('Enable detailed debug logging.'); ?></div>
         </div>
+        <?php else: ?>
+            <div class="field" style="color:red">debug_mode element missing from form</div>
+        <?php endif; ?>
     </fieldset>
     
     <fieldset id="tools-fieldset" class="section">
         <legend><?= $this->translate('Tools'); ?></legend>
         
+        <?php if ($form->has('regenerate_thumbnails')): ?>
         <div class="field">
             <?= $this->formLabel($form->get('regenerate_thumbnails')); ?>
             <div class="inputs"><?= $this->formCheckbox($form->get('regenerate_thumbnails')); ?></div>
             <div class="field-description"><?= $this->translate('Check to regenerate all video thumbnails using settings above.'); ?></div>
         </div>
+        <?php else: ?>
+            <div class="field" style="color:red">regenerate_thumbnails element missing from form</div>
+        <?php endif; ?>
     </fieldset>
     
     <div class="form-submit">
-        <?= $this->formSubmit($form->get('submit')); ?>
+        <?php if ($form->has('submit')): ?>
+            <?= $this->formSubmit($form->get('submit')); ?>
+        <?php else: ?>
+            <div style="color:red">submit element missing from form</div>
+            <button type="submit">Save Settings</button>
+        <?php endif; ?>
     </div>
     
     <?= $this->form()->closeTag(); ?>
 </div>
+<?php else: ?>
+<div style="background:#ffe0e0; border:1px solid #f00; padding:15px; margin:15px 0;">
+    <h3>Form Object Error</h3>
+    <p>The form object is not available. This is likely due to an initialization error or a problem with the form factory.</p>
+</div>
+<?php endif; ?>
 
 <div class="usage">
     <h2><?= $this->translate('Usage'); ?></h2>
