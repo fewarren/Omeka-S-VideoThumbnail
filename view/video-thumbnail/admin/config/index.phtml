@@ -7,8 +7,8 @@ echo $this->formRow($form->get('ffmpeg_path'));
 echo $this->formRow($form->get('run_batch'));
 echo $this->formRow($form->get('last_run'));
 echo $this->formRow($form->get('debug'));
-<?php if ($form->get('debug')->getValue()): ?>
-<div style="background:#ffc;padding:4px 8px;margin:8px 0;">VideoThumbnail debug is ENABLED</div>
-<?php endif; ?>
+if ($form->get('debug')->getValue()) {
+    echo '<div style="background:#ffc;padding:4px 8px;margin:8px 0;">VideoThumbnail debug is ENABLED</div>';
+}
 echo $this->formSubmit($form->get('submit'));
 echo $this->form()->closeTag();
