@@ -3,8 +3,19 @@ $mediaId = isset($mediaId) ? $mediaId : null;
 $mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
 $framePercent = isset($framePercent) ? (int)$framePercent : 10;
 
+// Debug information
+$logPath = __DIR__ . '/../../../../videothumbnail_template_debug.log';
+$entry = date('Y-m-d H:i:s') . ' - Template loaded - mediaId: ' . ($mediaId ?: 'null') . 
+         ', mediaTitle: ' . $mediaTitle . ', framePercent: ' . $framePercent . "\n";
+@file_put_contents($logPath, $entry, FILE_APPEND);
+
 // Add our script and ensure it runs after Omeka's scripts
 $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
+
+// Log CSS classes from standard Omeka resource-select elements for reference
+$sampleSelector = '.resource-select';
+$entry = date('Y-m-d H:i:s') . ' - Looking for resource-select elements' . "\n";
+@file_put_contents($logPath, $entry, FILE_APPEND);
 
 // Prepare data for resource selector
 $resourceType = 'media'; 
@@ -38,6 +49,10 @@ $selectUrl = $this->url('admin/default', ['controller' => 'media', 'action' => '
                         title="<?= $this->translate('Clear selection') ?>"></button>
                 <?php endif; ?>
             </div>
+            <?php 
+            $entry = date('Y-m-d H:i:s') . ' - Resource selector rendered' . "\n";
+            @file_put_contents($logPath, $entry, FILE_APPEND);
+            ?>
         </div>
     </div>
     
@@ -56,6 +71,12 @@ $selectUrl = $this->url('admin/default', ['controller' => 'media', 'action' => '
         </div>
     </div>
 </div>
+
+<?php
+// Log that template rendering is complete
+$entry = date('Y-m-d H:i:s') . ' - Template render complete' . "\n";
+@file_put_contents($logPath, $entry, FILE_APPEND);
+?>
 
 <script>
 // Initialize resource selection functionality when content is loaded

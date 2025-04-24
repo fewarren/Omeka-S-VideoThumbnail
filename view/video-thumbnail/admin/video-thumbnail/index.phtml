@@ -5,7 +5,24 @@
  */
 $this->headTitle($this->translate('Video Thumbnail'));
 $this->htmlElement('body')->appendAttribute('class', 'video-thumbnail browse');
+
+// Add debug info
+error_log('DEBUG: Admin template rendering - ' . date('Y-m-d H:i:s'));
+error_log('DEBUG: Form object type: ' . (is_object($form) ? get_class($form) : 'not an object'));
+error_log('DEBUG: Form elements: ' . (is_object($form) && method_exists($form, 'getElements') ? implode(', ', array_keys($form->getElements())) : 'unknown'));
 ?>
+
+<!-- Debug information (remove in production) -->
+<div style="background:#ffe; border:1px solid #ccc; padding:10px; margin:10px 0; display:none;">
+    <h3>Debug Info</h3>
+    <p>Template Variables:</p>
+    <ul>
+        <li>Form: <?= is_object($form) ? get_class($form) : 'not an object' ?></li>
+        <li>Video Count: <?= isset($videoCount) ? $videoCount : 'undefined' ?></li>
+        <li>Default Frame: <?= isset($defaultFrame) ? $defaultFrame : 'undefined' ?></li>
+        <li>Debug Mode: <?= isset($debugMode) ? ($debugMode ? 'true' : 'false') : 'undefined' ?></li>
+    </ul>
+</div>
 
 <div id="page-actions">
     <a href="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'module'])) ?>" class="button">

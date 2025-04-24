@@ -66,15 +66,39 @@ class VideoThumbnailController extends AbstractActionController
     }
     
     /**
+     * Write debug info directly to a file
+     */
+    private function debugLog($message) 
+    {
+        // Try to use a path we're sure will be writable
+        $logPath = __DIR__ . '/../../../../videothumbnail_debug.log';
+        
+        // Append to log file with timestamp
+        $entry = date('Y-m-d H:i:s') . ' - ' . $message . "\n";
+        @file_put_contents($logPath, $entry, FILE_APPEND);
+        
+        // Also echo the message if in CLI mode
+        if (PHP_SAPI === 'cli') {
+            echo $entry;
+        }
+    }
+
+    /**
      * Main admin index action
      */
     public function indexAction()
     {
+        // Add explicit debug output to verify execution
+        $this->debugLog('VideoThumbnail indexAction called');
+        error_log('DEBUG: VideoThumbnail indexAction called - ' . date('Y-m-d H:i:s'));
+        
         // Create form - don't use form manager to avoid potential issues
         $form = new ConfigBatchForm();
+        $this->debugLog('Form created directly - ' . get_class($form));
         
         // Explicitly call init to ensure all elements are added
         $form->init();
+        error_log('DEBUG: Form initialized, elements: ' . implode(', ', array_keys($form->getElements())));
         
         // Get current settings with safer defaults
         $defaultFrame = 10;
