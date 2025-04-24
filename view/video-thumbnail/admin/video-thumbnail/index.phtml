@@ -1,90 +1,135 @@
 <?php
-$this->headTitle($this->translate('Video Thumbnail Configuration'));
-$this->htmlElement('body')->appendAttribute('class', 'video-thumbnail configuration');
-$form->prepare();
+/**
+ * Admin interface for VideoThumbnail module
+ * Simplified version without messenger dependency
+ */
+$this->headTitle($this->translate('Video Thumbnail'));
+$this->htmlElement('body')->appendAttribute('class', 'video-thumbnail browse');
 ?>
 
 <div id="page-actions">
-    <a href="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'module'])) ?>" class="button"><?= $this->translate('Back to modules'); ?></a>
+    <a href="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'module'])) ?>" class="button">
+        <?= $this->translate('Back to modules'); ?>
+    </a>
 </div>
 
-<h1><?= $this->translate('Video Thumbnail Configuration'); ?></h1>
+<h1><?= $this->translate('Video Thumbnail Manager'); ?></h1>
 
-<?php if ($this->messenger()->hasMessages()): ?>
-    <div class="admin-feedback-messages" role="alert" aria-live="assertive">
-        <?php foreach ($this->messenger()->getMessages() as $message): ?>
-            <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
-        <?php endforeach; ?>
+<div class="video-thumbnail-overview">
+    <h2><?= $this->translate('Overview'); ?></h2>
+    
+    <div class="stats">
+        <p><strong><?= $this->translate('Videos in repository:'); ?></strong> <?= $this->escapeHtml($videoCount); ?></p>
+        <p><strong><?= $this->translate('Default frame position:'); ?></strong> <?= $this->escapeHtml($defaultFrame); ?>%</p>
+        <p><strong><?= $this->translate('Debug mode:'); ?></strong> <?= $debugMode ? $this->translate('Enabled') : $this->translate('Disabled'); ?></p>
     </div>
-<?php endif; ?>
-
-<div class="configuration-section">
-    <h2><?= $this->translate('Statistics'); ?></h2>
-    <p><?= $this->translate('Total video files in the system'); ?>: <strong><?= $totalVideos ?></strong></p>
-    <p><?= $this->translate('Supported video formats'); ?>: <strong><?= $supportedFormats ?></strong></p>
 </div>
 
-<div class="configuration-section">
-    <h2><?= $this->translate('Settings'); ?></h2>
+<div class="video-thumbnail-configuration">
+    <h2><?= $this->translate('Configuration'); ?></h2>
     
-    <?php echo $this->form()->openTag($form); ?>
-    
-    <?php 
-    // Manually render form elements instead of using formCollection to avoid passing string values to FormInput
-    foreach ($form as $element):
-        if ($element->getName() != 'submit' && $element instanceof \Laminas\Form\ElementInterface) {
-    ?>
-        <div class="field">
-            <div class="field-meta">
-                <?php echo $this->formLabel($element); ?>
-                <?php if ($element->getOption('info')): ?>
-                <div class="field-description"><?php echo $this->translate($element->getOption('info')); ?></div>
-                <?php endif; ?>
-            </div>
-            <div class="inputs">
-                <?php echo $this->formElement($element); ?>
-                <?php echo $this->formElementErrors($element); ?>
-            </div>
-        </div>
     <?php
-        }
-    endforeach;
+    // Ensure form has correct action URL
+    $form->setAttribute('action', $this->url('admin/video-thumbnail'));
+    $form->setAttribute('method', 'post');
+    $form->prepare();
     ?>
     
-    <div class="form-actions">
-        <?php echo $this->formElement($form->get('submit')); ?>
+    <?= $this->form()->openTag($form); ?>
+    
+    <fieldset id="settings-fieldset" class="section">
+        <legend><?= $this->translate('Settings'); ?></legend>
+        
+        <div class="field">
+            <?= $this->formLabel($form->get('default_frame_position')); ?>
+            <div class="inputs"><?= $this->formNumber($form->get('default_frame_position')); ?></div>
+            <div class="field-description"><?= $this->translate('Default position for thumbnail extraction as percentage of video duration (0-100).'); ?></div>
+        </div>
+        
+        <div class="field">
+            <?= $this->formLabel($form->get('supported_formats')); ?>
+            <div class="inputs"><?= $this->formMultiCheckbox($form->get('supported_formats')); ?></div>
+            <div class="field-description"><?= $this->translate('Select video formats that should be processed.'); ?></div>
+        </div>
+        
+        <div class="field">
+            <?= $this->formLabel($form->get('debug_mode')); ?>
+            <div class="inputs"><?= $this->formCheckbox($form->get('debug_mode')); ?></div>
+            <div class="field-description"><?= $this->translate('Enable detailed debug logging.'); ?></div>
+        </div>
+    </fieldset>
+    
+    <fieldset id="tools-fieldset" class="section">
+        <legend><?= $this->translate('Tools'); ?></legend>
+        
+        <div class="field">
+            <?= $this->formLabel($form->get('regenerate_thumbnails')); ?>
+            <div class="inputs"><?= $this->formCheckbox($form->get('regenerate_thumbnails')); ?></div>
+            <div class="field-description"><?= $this->translate('Check to regenerate all video thumbnails using settings above.'); ?></div>
+        </div>
+    </fieldset>
+    
+    <div class="form-submit">
+        <?= $this->formSubmit($form->get('submit')); ?>
     </div>
     
-    <?php echo $this->form()->closeTag(); ?>
+    <?= $this->form()->closeTag(); ?>
+</div>
+
+<div class="usage">
+    <h2><?= $this->translate('Usage'); ?></h2>
+    <ol>
+        <li><?= $this->translate('Upload video files to your Omeka S repository.'); ?></li>
+        <li><?= $this->translate('Add a "Video Thumbnail" block to a page.'); ?></li>
+        <li><?= $this->translate('Select a video using the "Select Video" button.'); ?></li>
+        <li><?= $this->translate('Choose a frame position (0-100%) from the video to use as the thumbnail.'); ?></li>
+    </ol>
 </div>
 
 <style>
-.configuration-section {
-    margin-bottom: 2em;
-    background: #f8f8f8;
-    padding: 1em;
-    border-radius: 4px;
+fieldset {
+    border: 1px solid #dfdfdf;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 3px;
+    background-color: #f9f9f9;
 }
-
-.field {
-    margin-bottom: 1.5em;
-}
-
-.field .field-meta {
-    margin-bottom: 0.5em;
-}
-
-.field .field-meta label {
+legend {
     font-weight: bold;
+    font-size: 1.1em;
+    background: #fff;
+    padding: 0 10px;
 }
-
-.field .field-meta .field-description {
-    font-style: italic;
-    color: #666;
-    margin-top: 0.25em;
+.form-input {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
 }
-
-.field .inputs {
-    margin-left: 0.5em;
+.form-input:last-child {
+    border-bottom: none;
+}
+.form-input label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+.stats {
+    background: #f5f5f5;
+    padding: 1rem;
+    border-radius: 3px;
+    margin-bottom: 1rem;
+}
+.video-thumbnail-configuration,
+.video-thumbnail-overview,
+.usage {
+    margin-bottom: 2rem;
+}
+#submit {
+    padding: 0.5rem 1rem;
+    background-color: #3c8dbc;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
 }
 </style>

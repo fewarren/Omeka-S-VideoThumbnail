@@ -1,0 +1,316 @@
+<?php
+namespace VideoThumbnail\Controller\Admin;
+
+use Laminas\Mvc\Controller\AbstractActionController;
+use Laminas\View\Model\ViewModel;
+use Laminas\View\Model\JsonModel;
+use VideoThumbnail\Form\ConfigBatchForm;
+
+/**
+ * Admin controller for VideoThumbnail module
+ */
+class VideoThumbnail extends AbstractActionController
+{
+    /**
+     * @var \Doctrine\ORM\EntityManager
+     */
+    protected $entityManager;
+    
+    /**
+     * @var \Omeka\Settings\Settings
+     */
+    protected $settings;
+    
+    /**
+     * @var \VideoThumbnail\Stdlib\VideoFrameExtractor
+     */
+    protected $frameExtractor;
+    
+    /**
+     * Constructor
+     *
+     * @param \Doctrine\ORM\EntityManager $entityManager
+     * @param \Omeka\Settings\Settings $settings
+     * @param \VideoThumbnail\Stdlib\VideoFrameExtractor $frameExtractor
+     */
+    public function __construct($entityManager, $settings, $frameExtractor)
+    {
+        $this->entityManager = $entityManager;
+        $this->settings = $settings;
+        $this->frameExtractor = $frameExtractor;
+    }
+    
+    /**
+     * Main admin index action - display settings form
+     *
+     * @return ViewModel
+     */
+    public function indexAction()
+    {
+        // Log for diagnostics
+        error_log('VideoThumbnail: Admin controller index action accessed');
+        
+        // Create form and get current settings
+        $form = $this->getForm(ConfigBatchForm::class);
+        
+        // Get configuration and settings
+        $defaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
+        $supportedFormats = $this->settings->get('videothumbnail_supported_formats', [
+            'video/mp4',
+            'video/quicktime',
+            'video/x-msvideo'
+        ]);
+        $debugMode = $this->settings->get('videothumbnail_debug_mode', false);
+        
+        // Get video count
+        $videoCount = $this->getVideoCount($supportedFormats);
+        
+        // If we have a post request, process the form
+        $request = $this->getRequest();
+        if ($request->isPost()) {
+            $formData = $request->getPost()->toArray();
+            $form->setData($formData);
+            
+            if ($form->isValid()) {
+                $data = $form->getData();
+                
+                // Save settings
+                $this->settings->set('videothumbnail_default_frame', $data['default_frame_position']);
+                $this->settings->set('videothumbnail_supported_formats', $data['supported_formats']);
+                $this->settings->set('videothumbnail_debug_mode', $data['debug_mode'] === '1');
+                
+                // Check if we need to regenerate thumbnails
+                if ($data['regenerate_thumbnails'] === '1') {
+                    $this->dispatchThumbnailJob($data['default_frame_position'], $data['supported_formats']);
+                }
+                
+                $this->messenger()->addSuccess('Video thumbnail settings updated');
+                return $this->redirect()->toRoute('admin/videothumbnail');
+            } else {
+                $this->messenger()->addError('There was an error in your form submission');
+            }
+        } else {
+            // Populate form with current settings
+            $form->setData([
+                'default_frame_position' => $defaultFrame,
+                'supported_formats' => $supportedFormats,
+                'debug_mode' => $debugMode ? '1' : '0',
+                'regenerate_thumbnails' => '0', // Default to off
+            ]);
+        }
+        
+        // Create view model
+        $view = new ViewModel([
+            'form' => $form,
+            'defaultFrame' => $defaultFrame,
+            'supportedFormats' => $supportedFormats,
+            'videoCount' => $videoCount,
+            'debugMode' => $debugMode,
+        ]);
+        
+        return $view;
+    }
+    
+    /**
+     * Create a job to regenerate all video thumbnails
+     *
+     * @param int $framePosition Default frame position percentage
+     * @param array $supportedFormats Supported video formats
+     */
+    protected function dispatchThumbnailJob($framePosition, $supportedFormats)
+    {
+        try {
+            $job = $this->jobDispatcher()->dispatch('VideoThumbnail\Job\ExtractFrames', [
+                'frame_position' => $framePosition, 
+                'formats' => $supportedFormats,
+            ]);
+            
+            $this->messenger()->addSuccess('Started job to regenerate video thumbnails');
+            return true;
+        } catch (\Exception $e) {
+            $this->messenger()->addError('Failed to start thumbnail job: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Action to extract a single frame from a video
+     *
+     * @return JsonModel
+     */
+    public function extractFrameAction()
+    {
+        if (!$this->getRequest()->isXmlHttpRequest()) {
+            return $this->redirect()->toRoute('admin/videothumbnail');
+        }
+        
+        $mediaId = $this->params()->fromPost('media_id');
+        $position = $this->params()->fromPost('position', 10);
+        
+        if (!$mediaId) {
+            return new JsonModel([
+                'success' => false,
+                'message' => 'Missing media ID parameter',
+            ]);
+        }
+        
+        try {
+            // Load the media
+            $media = $this->api()->read('media', $mediaId)->getContent();
+            $mediaType = $media->mediaType();
+            
+            // Validate that it's a video
+            if (!$mediaType || strpos($mediaType, 'video/') !== 0) {
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Not a video media type',
+                ]);
+            }
+            
+            // Get file path
+            $storagePath = 'original/' . $media->filename();
+            $fileManager = $this->getServiceLocator()->get('Omeka\File\Store');
+            $filePath = $fileManager->getLocalPath($storagePath);
+            
+            // Calculate position
+            $timeInSeconds = $this->getTimeFromPosition($filePath, $position);
+            if ($timeInSeconds === false) {
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Could not determine video duration',
+                ]);
+            }
+            
+            // Extract frame
+            $framePath = $this->frameExtractor->extractFrame($filePath, $timeInSeconds);
+            if (!$framePath) {
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Failed to extract frame',
+                ]);
+            }
+            
+            // Store as thumbnail
+            $result = $this->storeThumbnail($media, $framePath, $position, $timeInSeconds);
+            
+            // Clean up temporary file
+            @unlink($framePath);
+            
+            return new JsonModel($result);
+            
+        } catch (\Exception $e) {
+            return new JsonModel([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Get the number of seconds based on percentage position
+     *
+     * @param string $filePath
+     * @param int $position Percentage position (0-100)
+     * @return float|false
+     */
+    protected function getTimeFromPosition($filePath, $position)
+    {
+        // Get duration
+        $duration = $this->frameExtractor->getVideoDuration($filePath);
+        if ($duration <= 0) {
+            return false;
+        }
+        
+        // Convert position to seconds
+        $position = max(0, min(100, (int)$position));
+        $timeInSeconds = ($duration * $position) / 100;
+        
+        // Make sure we're not at the very end or beginning
+        return max(0.1, min($timeInSeconds, $duration - 0.1));
+    }
+    
+    /**
+     * Store extracted frame as media thumbnail
+     *
+     * @param \Omeka\Api\Representation\MediaRepresentation $media
+     * @param string $framePath
+     * @param int $position
+     * @param float $timeInSeconds
+     * @return array
+     */
+    protected function storeThumbnail($media, $framePath, $position, $timeInSeconds)
+    {
+        try {
+            $tempFileFactory = $this->getServiceLocator()->get('Omeka\File\TempFileFactory');
+            $tempFile = $tempFileFactory->build();
+            
+            // Copy frame to temp location
+            if (!copy($framePath, $tempFile->getTempPath())) {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to process frame',
+                ];
+            }
+            
+            // Get media entity
+            $mediaEntity = $this->entityManager->find('Omeka\Entity\Media', $media->id());
+            if (!$mediaEntity) {
+                return [
+                    'success' => false,
+                    'message' => 'Media entity not found',
+                ];
+            }
+            
+            // Store thumbnails
+            $tempFile->setStorageId($mediaEntity->getStorageId());
+            $hasThumbnails = $tempFile->storeThumbnails();
+            
+            // Update media data
+            $mediaEntity->setHasThumbnails($hasThumbnails);
+            $mediaData = $mediaEntity->getData() ?: [];
+            $mediaData['videothumbnail_frame_percentage'] = $position;
+            $mediaData['videothumbnail_frame_time'] = $timeInSeconds;
+            $mediaEntity->setData($mediaData);
+            
+            // Save changes
+            $this->entityManager->persist($mediaEntity);
+            $this->entityManager->flush();
+            
+            // Clean up
+            $tempFile->delete();
+            
+            return [
+                'success' => true,
+                'message' => 'Thumbnail updated successfully',
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ];
+        }
+    }
+    
+    /**
+     * Count videos in the system
+     *
+     * @param array $supportedFormats
+     * @return int
+     */
+    protected function getVideoCount($supportedFormats)
+    {
+        try {
+            $qb = $this->entityManager->createQueryBuilder();
+            $qb->select('COUNT(m.id)')
+               ->from('Omeka\Entity\Media', 'm')
+               ->where($qb->expr()->in('m.mediaType', ':formats'))
+               ->setParameter('formats', $supportedFormats);
+            
+            return (int)$qb->getQuery()->getSingleScalarResult();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Error counting videos: ' . $e->getMessage());
+            return 0;
+        }
+    }
+}

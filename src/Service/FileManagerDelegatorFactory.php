@@ -37,49 +37,35 @@ class FileManagerDelegatorFactory implements DelegatorFactoryInterface
             throw $e;
         }
 
-        // Define all possible service identifiers to look for
-        $possibleServiceNames = [
-            ThumbnailSynchronizer::class,
-            'VideoThumbnail\Thumbnail\ThumbnailSynchronizer',
-            'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer'
-        ];
-
+        // Try to get the ThumbnailSynchronizer service
+        $serviceName = 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer';
         $thumbnailSynchronizer = null;
-        $serviceFound = false;
         
-        // Attempt to retrieve the ThumbnailSynchronizer using any of the possible names
-        foreach ($possibleServiceNames as $serviceName) {
+        try {
             if ($container->has($serviceName)) {
-                $serviceFound = true;
-                try {
-                    $thumbnailSynchronizer = $container->get($serviceName);
-                    Debug::log(sprintf(
-                        'Successfully retrieved ThumbnailSynchronizer using service name "%s"',
-                        $serviceName
-                    ), __METHOD__);
-                    break;
-                } catch (\Exception $e) {
-                    Debug::logError(sprintf(
-                        'Error retrieving ThumbnailSynchronizer using service name "%s": %s',
-                        $serviceName,
-                        $e->getMessage()
-                    ), __METHOD__, $e);
-                }
+                $thumbnailSynchronizer = $container->get($serviceName);
+                Debug::log(sprintf(
+                    'Successfully retrieved ThumbnailSynchronizer service'
+                ), __METHOD__);
+            } else {
+                Debug::logWarning(
+                    'ThumbnailSynchronizer service not found. ' .
+                    'Make sure service_manager configuration is correct.',
+                    __METHOD__
+                );
+                return $fileManager;
             }
-        }
-        
-        if (!$serviceFound) {
-            Debug::logWarning(
-                'ThumbnailSynchronizer service not found under any known name. ' .
-                'Make sure service_manager configuration is correct.',
-                __METHOD__
-            );
+        } catch (\Exception $e) {
+            Debug::logError(sprintf(
+                'Error retrieving ThumbnailSynchronizer: %s',
+                $e->getMessage()
+            ), __METHOD__, $e);
             return $fileManager;
         }
         
         if ($thumbnailSynchronizer === null) {
             Debug::logWarning(
-                'Failed to retrieve ThumbnailSynchronizer despite service being registered. ' .
+                'Failed to retrieve ThumbnailSynchronizer. ' .
                 'This may indicate a dependency issue in the service.',
                 __METHOD__
             );

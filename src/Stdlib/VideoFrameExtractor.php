@@ -1,353 +1,250 @@
 <?php
 namespace VideoThumbnail\Stdlib;
 
-use VideoThumbnail\Stdlib\Debug;
-
+/**
+ * Utility class for extracting frames from videos using FFmpeg
+ */
 class VideoFrameExtractor
 {
+    /**
+     * @var string Path to the FFmpeg executable
+     */
     protected $ffmpegPath;
+    
+    /**
+     * @var string Base directory to store temporary files
+     */
     protected $tempDir;
-    protected $lastError;
-    protected $timeout = 60;
-    protected $maxFrameRetries = 3;
-
-    public function __construct($ffmpegPath)
+    
+    /**
+     * Constructor
+     *
+     * @param string $ffmpegPath Path to FFmpeg executable
+     * @param string $tempDir Temporary directory for extracted frames
+     */
+    public function __construct($ffmpegPath = '/usr/bin/ffmpeg', $tempDir = null)
     {
         $this->ffmpegPath = $ffmpegPath;
-        $this->tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
-        $this->ensureTempDir();
-    }
-
-    public function extractFrame($filePath, $timeInSeconds)
-    {
-        Debug::log("Attempting to extract frame at {$timeInSeconds}s from video: " . basename($filePath), __METHOD__);
         
-        try {
-            $outputPath = $this->createTempPath();
-            Debug::log("Using temporary output path: {$outputPath}", __METHOD__);
-
-            $command = sprintf(
-                '%s -i %s -ss %f -vframes 1 -f image2 %s',
-                escapeshellarg($this->ffmpegPath),
-                escapeshellarg($filePath),
-                $timeInSeconds,
-                escapeshellarg($outputPath)
-            );
-            
-            Debug::log("Executing FFmpeg command: {$command}", __METHOD__);
-            
-            $output = [];
-            $returnVar = 0;
-            exec($command . " 2>&1", $output, $returnVar);
-            
-            if ($returnVar !== 0) {
-                Debug::logError("FFmpeg frame extraction failed with code {$returnVar}. Output: " . implode("\n", $output), __METHOD__);
-                return false;
+        if ($tempDir === null) {
+            // Set default temporary directory
+            if (defined('OMEKA_PATH')) {
+                $this->tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
+            } else {
+                $this->tempDir = sys_get_temp_dir() . '/video-thumbnails';
             }
-
-            if (!file_exists($outputPath) || filesize($outputPath) === 0) {
-                Debug::logError("Frame extraction failed - output file is missing or empty", __METHOD__);
-                return false;
-            }
-
-            Debug::log("Successfully extracted frame to: {$outputPath}", __METHOD__);
-            return $outputPath;
-
-        } catch (\Exception $e) {
-            Debug::logError("Frame extraction error: " . $e->getMessage(), __METHOD__, $e);
-            return false;
-        }
-    }
-
-    public function extractFrames($filePath, $count = 5)
-    {
-        Debug::log("Attempting to extract {$count} frames from video: " . basename($filePath), __METHOD__);
-        
-        try {
-            $duration = $this->getVideoDuration($filePath);
-            if ($duration <= 0) {
-                Debug::logError("Could not determine video duration", __METHOD__);
-                return [];
-            }
-
-            Debug::log("Video duration: {$duration} seconds", __METHOD__);
-            
-            $frames = [];
-            $interval = $duration / ($count + 1);
-            
-            for ($i = 1; $i <= $count; $i++) {
-                $timePosition = $interval * $i;
-                Debug::log("Extracting frame {$i}/{$count} at position {$timePosition}s", __METHOD__);
-                
-                $framePath = $this->extractFrame($filePath, $timePosition);
-                if ($framePath) {
-                    $frames[] = $framePath;
-                    Debug::log("Successfully extracted frame {$i}", __METHOD__);
-                } else {
-                    Debug::logWarning("Failed to extract frame {$i}", __METHOD__);
-                }
-            }
-
-            Debug::log("Completed frame extraction. Successfully extracted " . count($frames) . " frames", __METHOD__);
-            return $frames;
-
-        } catch (\Exception $e) {
-            Debug::logError("Frame extraction error: " . $e->getMessage(), __METHOD__, $e);
-            return [];
-        }
-    }
-
-    public function getVideoDuration($filePath)
-    {
-        Debug::log("Getting duration for video: " . basename($filePath), __METHOD__);
-        
-        try {
-            $command = sprintf(
-                '%s -i %s 2>&1',
-                escapeshellarg($this->ffmpegPath),
-                escapeshellarg($filePath)
-            );
-            
-            $output = [];
-            $returnVar = 0;
-            exec($command, $output, $returnVar);
-            
-            $output = implode("\n", $output);
-            Debug::log("FFmpeg output: " . $output, __METHOD__);
-
-            // Try to find duration in FFmpeg output
-            if (preg_match('/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/', $output, $matches)) {
-                $hours = intval($matches[1]);
-                $minutes = intval($matches[2]);
-                $seconds = intval($matches[3]);
-                $milliseconds = intval($matches[4]);
-                
-                $duration = $hours * 3600 + $minutes * 60 + $seconds + $milliseconds / 100;
-                Debug::log("Detected video duration: {$duration} seconds", __METHOD__);
-                return $duration;
-            }
-
-            Debug::logWarning("Could not detect video duration from FFmpeg output", __METHOD__);
-            return 0;
-
-        } catch (\Exception $e) {
-            Debug::logError("Error getting video duration: " . $e->getMessage(), __METHOD__, $e);
-            return 0;
-        }
-    }
-
-    protected function validateVideo($videoPath)
-    {
-        if (!file_exists($videoPath)) {
-            throw new \RuntimeException('Video file does not exist');
-        }
-
-        if (!is_readable($videoPath)) {
-            throw new \RuntimeException('Video file is not readable');
-        }
-
-        $mimeType = mime_content_type($videoPath);
-        if (strpos($mimeType, 'video/') !== 0) {
-            throw new \RuntimeException('File is not a video');
-        }
-    }
-
-    protected function validateFFmpeg()
-    {
-        if (!file_exists($this->ffmpegPath) || !is_executable($this->ffmpegPath)) {
-            throw new \RuntimeException('FFmpeg not found or not executable');
-        }
-    }
-
-    protected function getExtractionStrategies($timeStr, $outputPath)
-    {
-        // Windows compatibility: ensure .exe extension for ffmpeg if missing
-        $ffmpegPath = $this->ffmpegPath;
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' && strtolower(substr($ffmpegPath, -4)) !== '.exe') {
-            if (file_exists($ffmpegPath . '.exe')) {
-                $ffmpegPath .= '.exe';
-            }
-        }
-        // Use local variable for videoPath (fix undefined variable bug)
-        return [
-            // Strategy 1: Basic frame extraction
-            [
-                'command' => sprintf(
-                    '%s -y -ss %s -i %s -vframes 1 -q:v 2 %s 2>&1',
-                    escapeshellcmd($ffmpegPath),
-                    escapeshellarg($timeStr),
-                    escapeshellarg($GLOBALS['videoPath'] ?? ''),
-                    escapeshellarg($outputPath)
-                ),
-                'message' => 'Basic frame extraction'
-            ],
-            // Strategy 2: Seek before input for better accuracy
-            [
-                'command' => sprintf(
-                    '%s -y -ss %s -accurate_seek -i %s -vframes 1 -q:v 2 %s 2>&1',
-                    escapeshellcmd($ffmpegPath),
-                    escapeshellarg($timeStr),
-                    escapeshellarg($GLOBALS['videoPath'] ?? ''),
-                    escapeshellarg($outputPath)
-                ),
-                'message' => 'Accurate seek frame extraction'
-            ],
-            // Strategy 3: Force key frame
-            [
-                'command' => sprintf(
-                    '%s -y -ss %s -i %s -vframes 1 -force_key_frames 1 -q:v 2 %s 2>&1',
-                    escapeshellcmd($ffmpegPath),
-                    escapeshellarg($timeStr),
-                    escapeshellarg($GLOBALS['videoPath'] ?? ''),
-                    escapeshellarg($outputPath)
-                ),
-                'message' => 'Force keyframe extraction'
-            ]
-        ];
-    }
-
-    protected function getDurationDetectionStrategies()
-    {
-        return [
-            // Strategy 1: Fast duration detection
-            [
-                'command' => '-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1',
-                'parser' => function($output) {
-                    return floatval(trim($output));
-                }
-            ],
-            // Strategy 2: Detailed probe
-            [
-                'command' => '-v quiet -print_format json -show_format',
-                'parser' => function($output) {
-                    $data = json_decode($output, true);
-                    return isset($data['format']['duration']) ? 
-                        floatval($data['format']['duration']) : 0;
-                }
-            ],
-            // Strategy 3: Frame count based estimation
-            [
-                'command' => '-v error -select_streams v:0 -show_entries stream=nb_frames,r_frame_rate -of default=noprint_wrappers=1:nokey=1',
-                'parser' => function($output) {
-                    $parts = explode("\n", trim($output));
-                    if (count($parts) >= 2) {
-                        $frameCount = intval($parts[0]);
-                        $fpsStr = $parts[1];
-                        if (preg_match('/(\d+)\/(\d+)/', $fpsStr, $matches)) {
-                            $fps = $matches[1] / $matches[2];
-                            return $frameCount / $fps;
-                        }
-                    }
-                    return 0;
-                }
-            ]
-        ];
-    }
-
-    protected function executeDurationStrategy($strategy, $videoPath)
-    {
-        Debug::log("Attempting duration strategy: " . ($strategy['message'] ?? 'Unknown strategy'), __METHOD__);
-        $command = sprintf(
-            '%s %s %s',
-            escapeshellcmd($this->ffmpegPath),
-            $strategy['command'],
-            escapeshellarg($videoPath)
-        );
-
-        $output = [];
-        $returnVar = 0;
-        exec($command . ' 2>&1', $output, $returnVar);
-
-        if ($returnVar !== 0) {
-            throw new \RuntimeException('FFmpeg duration command failed');
-        }
-
-        $output = implode("\n", $output);
-        return $strategy['parser']($output);
-    }
-
-    protected function executeFFmpeg($command, $description)
-    {
-        Debug::log(sprintf('Executing FFmpeg command: %s', $description), __METHOD__);
-
-        $output = [];
-        $returnVar = 0;
-        
-        exec($command . ' 2>&1', $output, $returnVar);
-        
-        if ($returnVar !== 0) {
-            $error = implode("\n", $output);
-            Debug::logError(
-                sprintf('FFmpeg command failed: %s', $error),
-                __METHOD__
-            );
-            return false;
+        } else {
+            $this->tempDir = $tempDir;
         }
         
-        Debug::log(sprintf('FFmpeg command successful: %s', $description), __METHOD__);
-        return true;
+        // Ensure temporary directory exists
+        $this->ensureTempDirExists();
     }
-
-    protected function generateTempPath($extension)
-    {
-        return sprintf(
-            '%s/%s.%s',
-            $this->tempDir,
-            uniqid('frame_', true),
-            $extension
-        );
-    }
-
-    protected function ensureTempDir()
+    
+    /**
+     * Ensure temporary directory exists
+     *
+     * @return bool True if directory exists or was created
+     */
+    protected function ensureTempDirExists()
     {
         if (!file_exists($this->tempDir)) {
-            Debug::log("Creating temporary directory: {$this->tempDir}", __METHOD__);
-            if (!mkdir($this->tempDir, 0777, true)) {
-                Debug::logError("Failed to create temporary directory: {$this->tempDir}", __METHOD__);
-                throw new \RuntimeException('Failed to create temporary directory');
-            }
-            Debug::log("Successfully created temporary directory: {$this->tempDir}", __METHOD__);
-        }
-    }
-
-    protected function formatTimeString($seconds)
-    {
-        $hours = floor($seconds / 3600);
-        $minutes = floor(($seconds % 3600) / 60);
-        $seconds = $seconds % 60;
-        return sprintf('%02d:%02d:%06.3f', $hours, $minutes, $seconds);
-    }
-
-    /**
-     * Remove temp files older than 24 hours from the temp directory.
-     */
-    public function cleanupOldTempFiles($maxAgeHours = 24)
-    {
-        $now = time();
-        $maxAge = $maxAgeHours * 3600;
-        if (!is_dir($this->tempDir)) return;
-        foreach (glob($this->tempDir . DIRECTORY_SEPARATOR . 'frame_*') as $file) {
-            if (is_file($file) && ($now - filemtime($file)) > $maxAge) {
-                @unlink($file);
-            }
-        }
-    }
-
-    public function getLastError()
-    {
-        return $this->lastError;
-    }
-
-    private function createTempPath()
-    {
-        $tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
-        if (!file_exists($tempDir)) {
-            Debug::log("Creating temporary directory: {$tempDir}", __METHOD__);
-            mkdir($tempDir, 0777, true);
+            return @mkdir($this->tempDir, 0755, true);
         }
         
-        $path = $tempDir . '/' . uniqid('frame_', true) . '.jpg';
-        Debug::log("Created temporary path: {$path}", __METHOD__);
-        return $path;
+        return is_dir($this->tempDir) && is_writable($this->tempDir);
+    }
+    
+    /**
+     * Extract a single frame from a video file at the specified time
+     *
+     * @param string $videoFile Path to video file
+     * @param float $timeInSeconds Time position in seconds
+     * @return string|false Path to extracted frame or false on failure
+     */
+    public function extractFrame($videoFile, $timeInSeconds)
+    {
+        $this->log("Extracting frame at {$timeInSeconds}s from {$videoFile}");
+        
+        if (!file_exists($videoFile) || !is_readable($videoFile)) {
+            $this->log("Video file not found or not readable: {$videoFile}");
+            return false;
+        }
+        
+        // Create temporary filename
+        $outputFile = $this->tempDir . '/frame_' . md5($videoFile . $timeInSeconds) . '.jpg';
+        
+        // Build FFmpeg command
+        $ffmpegCmd = escapeshellcmd($this->ffmpegPath) . 
+                  ' -y' . // Overwrite output files
+                  ' -ss ' . escapeshellarg($timeInSeconds) . // Seek to position
+                  ' -i ' . escapeshellarg($videoFile) . // Input file
+                  ' -vframes 1' . // Extract just one frame
+                  ' -q:v 2' . // High quality
+                  ' ' . escapeshellarg($outputFile) . // Output file
+                  ' 2>&1'; // Redirect stderr to stdout
+        
+        // Execute command
+        $output = [];
+        $returnCode = 0;
+        exec($ffmpegCmd, $output, $returnCode);
+        
+        // Check if extraction was successful
+        if ($returnCode !== 0 || !file_exists($outputFile)) {
+            $this->log("FFmpeg execution failed with code {$returnCode}: " . implode("\n", $output));
+            return false;
+        }
+        
+        return $outputFile;
+    }
+    
+    /**
+     * Extract multiple frames evenly distributed throughout the video
+     *
+     * @param string $videoFile Path to video file
+     * @param int $frameCount Number of frames to extract
+     * @return array Array of paths to extracted frames
+     */
+    public function extractFrames($videoFile, $frameCount = 5)
+    {
+        $this->log("Extracting {$frameCount} frames from {$videoFile}");
+        
+        // Get video duration
+        $duration = $this->getVideoDuration($videoFile);
+        if ($duration <= 0) {
+            $this->log("Could not determine video duration, using default of 60 seconds");
+            $duration = 60.0;
+        }
+        
+        $frames = [];
+        
+        // Calculate time points for extracting frames
+        for ($i = 0; $i < $frameCount; $i++) {
+            // Calculate position (avoid the very beginning and end)
+            $percentage = ($i + 1) / ($frameCount + 1);
+            $timeInSeconds = $duration * $percentage;
+            
+            // Extract frame at this position
+            $framePath = $this->extractFrame($videoFile, $timeInSeconds);
+            if ($framePath !== false) {
+                $frames[] = $framePath;
+            }
+        }
+        
+        return $frames;
+    }
+    
+    /**
+     * Get video duration in seconds
+     *
+     * @param string $videoFile Path to video file
+     * @return float Duration in seconds or 0 on failure
+     */
+    public function getVideoDuration($videoFile)
+    {
+        $this->log("Getting duration of {$videoFile}");
+        
+        if (!file_exists($videoFile) || !is_readable($videoFile)) {
+            $this->log("Video file not found or not readable: {$videoFile}");
+            return 0;
+        }
+        
+        // Build FFmpeg command to get duration
+        $ffmpegCmd = escapeshellcmd($this->ffmpegPath) . 
+                   ' -i ' . escapeshellarg($videoFile) . 
+                   ' 2>&1'; // FFmpeg outputs to stderr
+        
+        $output = [];
+        exec($ffmpegCmd, $output);
+        
+        // Parse output to get duration
+        $durationStr = $this->parseDurationFromOutput(implode("\n", $output));
+        if ($durationStr === false) {
+            $this->log("Could not parse duration from FFmpeg output");
+            return 0;
+        }
+        
+        $duration = $this->convertTimeToSeconds($durationStr);
+        $this->log("Video duration: {$duration} seconds");
+        
+        return $duration;
+    }
+    
+    /**
+     * Parse video duration from FFmpeg output
+     *
+     * @param string $output FFmpeg command output
+     * @return string|false Duration string or false if not found
+     */
+    protected function parseDurationFromOutput($output)
+    {
+        if (preg_match('/Duration: ([0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+)/', $output, $matches)) {
+            return $matches[1];
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Convert time string (hh:mm:ss.ms) to seconds
+     *
+     * @param string $timeString Time string in format hh:mm:ss.ms
+     * @return float Time in seconds
+     */
+    protected function convertTimeToSeconds($timeString)
+    {
+        $parts = explode(':', $timeString);
+        
+        if (count($parts) === 3) {
+            $hours = (float)$parts[0];
+            $minutes = (float)$parts[1];
+            $seconds = (float)$parts[2];
+            
+            return $hours * 3600 + $minutes * 60 + $seconds;
+        }
+        
+        return 0;
+    }
+    
+    /**
+     * Simple logging function
+     *
+     * @param string $message Message to log
+     */
+    protected function log($message)
+    {
+        error_log('[VideoThumbnail] ' . $message);
+    }
+    
+    /**
+     * Clean up temporary files
+     *
+     * @param array $files Optional array of specific files to delete
+     * @return int Number of files deleted
+     */
+    public function cleanup($files = [])
+    {
+        $count = 0;
+        
+        if (empty($files)) {
+            // Clean all temporary files older than 1 hour
+            $files = glob($this->tempDir . '/frame_*.jpg');
+            foreach ($files as $file) {
+                if (filemtime($file) < time() - 3600) {
+                    if (@unlink($file)) {
+                        $count++;
+                    }
+                }
+            }
+        } else {
+            // Clean only specified files
+            foreach ($files as $file) {
+                if (file_exists($file) && @unlink($file)) {
+                    $count++;
+                }
+            }
+        }
+        
+        return $count;
     }
 }

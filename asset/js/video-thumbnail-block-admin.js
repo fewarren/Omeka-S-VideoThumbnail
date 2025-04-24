@@ -1,54 +1,99 @@
 /**
- * JavaScript for the Video Thumbnail Block configuration in the admin interface.
+ * VideoThumbnail Block Admin JavaScript
+ * 
+ * Handles media selection functionality for the video thumbnail block.
+ * Simplified to avoid causing Omeka S bootstrap hanging issues.
  */
-$(document).ready(function() {
-    console.log('video-thumbnail-block-admin.js loaded'); // Add this line
-
-    $(document).on('click', '.select-media', function(e) {
+(function($) {
+    // Wait for document ready
+    $(document).ready(function() {
+        initVideoThumbnailBlock();
+    });
+    
+    // Initialize on Omeka events
+    $(document).on('o:sidebar-content-loaded o:block-added', function() {
+        initVideoThumbnailBlock();
+    });
+    
+    /**
+     * Initialize the block functionality
+     */
+    function initVideoThumbnailBlock() {
+        // Remove any existing handlers to avoid duplicates
+        $(document).off('click', '.select-media');
+        $(document).off('click', '.remove-media');
+        
+        // Add new handlers
+        $(document).on('click', '.select-media', handleMediaSelection);
+        $(document).on('click', '.remove-media', handleMediaRemoval);
+    }
+    
+    /**
+     * Handle the select media button click
+     */
+    function handleMediaSelection(e) {
         e.preventDefault();
-        console.log('Select media button clicked');
-        try {
-            const button = $(this);
-            const blockContainer = button.closest('.block-form, .block');
-            const mediaIdInput = blockContainer.find('.media-id');
-            const selectedMediaSpan = blockContainer.find('.selected-media');
-
-            if (typeof Omeka === 'undefined' || typeof Omeka.openMediaBrowser !== 'function') {
-                console.error('Omeka.openMediaBrowser is not available.');
-                alert('Media browser is not available.');
-                return;
-            }
-
+        e.stopPropagation();
+        
+        var $button = $(this);
+        var $container = $button.closest('.field');
+        var $mediaIdInput = $container.find('.media-id');
+        var $selectedMediaSpan = $container.find('.selected-media');
+        
+        // Use Omeka's media browser if available
+        if (typeof Omeka !== 'undefined' && typeof Omeka.openMediaBrowser === 'function') {
             Omeka.openMediaBrowser(function(selections) {
-                console.log('Media selected:', selections);
-                if (!selections) {
-                    console.warn('No selections returned from media browser.');
-                    return;
+                if (selections && selections.length > 0) {
+                    var selection = selections[0];
+                    if (selection.id) {
+                        $mediaIdInput.val(selection.id);
+                        $selectedMediaSpan.text(selection.display_title || selection.title || selection.id);
+                        
+                        // Add clear button if needed
+                        if ($container.find('.remove-media').length === 0) {
+                            $('<button type="button" class="remove-media button">Clear</button>')
+                                .insertAfter($button);
+                        }
+                    }
                 }
-                if (selections.length < 1) {
-                    console.warn('Empty selection array from media browser.');
-                    return;
-                }
-                const selection = selections[0];
-                if (!selection.id) {
-                    console.error('Selected media has no ID:', selection);
-                    alert('Selected media is invalid.');
-                    return;
-                }
-                mediaIdInput.val(selection.id);
-                selectedMediaSpan.text(selection.display_title || selection.id);
-                blockContainer.find('.video-thumbnail-block').addClass('selected');
             });
-        } catch (err) {
-            console.error('Error handling select-media click:', err);
-            alert('An error occurred while selecting media.');
+        } else if (typeof Omeka !== 'undefined' && typeof Omeka.resourceSelectorOpen === 'function') {
+            // Fallback to resource selector for older Omeka versions
+            Omeka.resourceSelectorOpen($button, 'media', function(selections) {
+                if (selections && selections.length > 0) {
+                    var selection = selections[0];
+                    $mediaIdInput.val(selection.value || selection.id);
+                    $selectedMediaSpan.text(selection.text || selection.display_title || selection.id);
+                    
+                    // Add clear button if needed
+                    if ($container.find('.remove-media').length === 0) {
+                        $('<button type="button" class="remove-media button">Clear</button>')
+                            .insertAfter($button);
+                    }
+                }
+            });
+        } else {
+            alert('Media browser not available. Please refresh the page and try again.');
         }
-    });
-    // Optional: Add input validation for percent field
-    $(document).on('input', '.frame-percent', function() {
-        let val = parseInt($(this).val(), 10);
-        if (isNaN(val) || val < 0) val = 0;
-        if (val > 100) val = 100;
-        $(this).val(val);
-    });
-});
+    }
+    
+    /**
+     * Handle the clear button click
+     */
+    function handleMediaRemoval(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        var $button = $(this);
+        var $container = $button.closest('.field');
+        var $mediaIdInput = $container.find('.media-id');
+        var $selectedMediaSpan = $container.find('.selected-media');
+        
+        // Clear the selection
+        $mediaIdInput.val('');
+        $selectedMediaSpan.text('No media selected');
+        
+        // Remove the clear button
+        $button.remove();
+    }
+})(window.jQuery);

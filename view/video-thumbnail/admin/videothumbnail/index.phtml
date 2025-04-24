@@ -1,0 +1,134 @@
+<?php
+/**
+ * Admin interface for VideoThumbnail module
+ */
+$this->headTitle($this->translate('Video Thumbnail'));
+$this->htmlElement('body')->appendAttribute('class', 'video-thumbnail browse');
+
+// Load required scripts for form functionality
+$this->headScript()->appendFile($this->assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
+?>
+
+<div id="page-actions">
+    <a href="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'module'])) ?>" class="button">
+        <?= $this->translate('Back to modules'); ?>
+    </a>
+</div>
+
+<h1><?= $this->translate('Video Thumbnail Manager'); ?></h1>
+
+<div class="video-thumbnail-overview">
+    <h2><?= $this->translate('Overview'); ?></h2>
+    
+    <p>
+        <?= $this->translate('This module allows you to select specific frames from videos to use as thumbnails.'); ?>
+    </p>
+    
+    <div class="stats">
+        <p>
+            <strong><?= $this->translate('Videos in repository:'); ?></strong> 
+            <?= $this->escapeHtml($videoCount); ?>
+        </p>
+        
+        <p>
+            <strong><?= $this->translate('Default frame position:'); ?></strong> 
+            <?= $this->escapeHtml($defaultFrame); ?>%
+        </p>
+        
+        <p>
+            <strong><?= $this->translate('Debug mode:'); ?></strong> 
+            <?= $debugMode ? $this->translate('Enabled') : $this->translate('Disabled'); ?>
+        </p>
+        
+        <p>
+            <strong><?= $this->translate('Supported formats:'); ?></strong> 
+            <?= $this->escapeHtml(implode(', ', $supportedFormats)); ?>
+        </p>
+    </div>
+</div>
+
+<div class="configuration-section">
+    <h2><?= $this->translate('Settings'); ?></h2>
+    
+    <?php 
+    // Use form helper to render the entire form
+    echo $this->form($form); 
+?>
+</div>
+
+<div class="usage">
+    <h2><?= $this->translate('Usage'); ?></h2>
+    
+    <ol>
+        <li><?= $this->translate('Upload video files to your Omeka S repository.'); ?></li>
+        <li><?= $this->translate('Add a "Video Thumbnail" block to a page.'); ?></li>
+        <li><?= $this->translate('Select a video using the "Select Video" button.'); ?></li>
+        <li><?= $this->translate('Choose a frame position (0-100%) from the video to use as the thumbnail.'); ?></li>
+        <li><?= $this->translate('Thumbnails will be automatically extracted from the video at the specified position.'); ?></li>
+    </ol>
+</div>
+
+<style>
+.stats {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 3px;
+    margin: 1rem 0;
+}
+.configuration-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 3px;
+    margin: 2rem 0;
+}
+.usage {
+    margin-top: 2rem;
+}
+.usage ol {
+    margin-left: 1.5rem;
+}
+.usage li {
+    margin-bottom: 0.5rem;
+}
+.field {
+    margin-bottom: 1.5rem;
+}
+.field-meta label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+.field-description {
+    color: #666;
+    font-size: 0.9em;
+    margin-bottom: 0.5rem;
+}
+#submit {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#submit:hover {
+    background-color: #45a049;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmableCheckboxes = document.querySelectorAll('.confirmable-checkbox');
+    confirmableCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function(e) {
+            if (this.checked) {
+                const message = this.dataset.confirmMessage || 'Are you sure?';
+                if (!confirm(message)) {
+                    this.checked = false;
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+});
+</script>
