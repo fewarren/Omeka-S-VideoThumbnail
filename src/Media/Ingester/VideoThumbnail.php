@@ -60,7 +60,6 @@ class VideoThumbnail
 
     private static function debugLog($message, $entityManager = null)
     {
-        // Only log if debug flag is set in settings
         try {
             $settings = null;
             $container = null;
@@ -77,27 +76,25 @@ class VideoThumbnail
             if ($settings && is_object($settings)) {
                 $debug = $settings->get('videothumbnail_debug', false);
             }
+            // Diagnostic: log debug flag value
+            error_log('[VideoThumbnail] Debug flag is ' . ($debug ? 'ON' : 'OFF'));
             if (!$debug) return;
 
-            // Check if the Log module is active and use its logger if available
-            if ($container && $container->has('Omeka\Log')) {
-                $logService = $container->get('Omeka\Log');
-                if (method_exists($logService, 'info')) {
-                    $logService->info('[VideoThumbnail] ' . $message);
-                    return;
-                }
+            // Use OMEKA_PATH for log directory if defined
+            $logDir = defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'logs';
+            if (!is_dir($logDir)) {
+                @mkdir($logDir, 0777, true);
+            }
+            $logFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
+            // Diagnostic: log log file path
+            error_log('[VideoThumbnail] Debug log file path: ' . $logFile);
+            $entry = date('Y-m-d H:i:s') . ' ' . $message . "\n";
+            if (@file_put_contents($logFile, $entry, FILE_APPEND) === false) {
+                error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
             }
         } catch (\Exception $e) {
-            // If settings can't be checked, don't log
-            return;
+            error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
         }
-        $logDir = dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'logs';
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0777, true);
-        }
-        $logFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
-        $entry = date('Y-m-d H:i:s') . ' ' . $message . "\n";
-        @file_put_contents($logFile, $entry, FILE_APPEND);
     }
 
     public static function getVideoDuration($file, $ffmpegPath)
