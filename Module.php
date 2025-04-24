@@ -90,11 +90,9 @@ class Module extends AbstractModule
             
             // Register forms
             'form_elements' => [
-                'factories' => [
-                    'VideoThumbnail\Form\ConfigBatchForm' => 'Laminas\Form\FormElementManagerFactory',
-                ],
                 'invokables' => [
                     'VideoThumbnail\Form\ConfigBatchForm' => 'VideoThumbnail\Form\ConfigBatchForm',
+                    'VideoThumbnail\Form\VideoThumbnailBlockForm' => 'VideoThumbnail\Form\VideoThumbnailBlockForm',
                 ],
             ],
         ];

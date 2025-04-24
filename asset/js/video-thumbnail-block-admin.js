@@ -2,7 +2,6 @@
  * VideoThumbnail Block Admin JavaScript
  * 
  * Handles media selection functionality for the video thumbnail block.
- * Simplified to avoid causing Omeka S bootstrap hanging issues.
  */
 (function($) {
     // Wait for document ready
@@ -19,6 +18,8 @@
      * Initialize the block functionality
      */
     function initVideoThumbnailBlock() {
+        console.log('VideoThumbnail: Initializing block selection');
+        
         // Remove any existing handlers to avoid duplicates
         $(document).off('click', '.select-media');
         $(document).off('click', '.remove-media');
@@ -40,41 +41,27 @@
         var $mediaIdInput = $container.find('.media-id');
         var $selectedMediaSpan = $container.find('.selected-media');
         
-        // Use Omeka's media browser if available
-        if (typeof Omeka !== 'undefined' && typeof Omeka.openMediaBrowser === 'function') {
-            Omeka.openMediaBrowser(function(selections) {
-                if (selections && selections.length > 0) {
-                    var selection = selections[0];
-                    if (selection.id) {
-                        $mediaIdInput.val(selection.id);
-                        $selectedMediaSpan.text(selection.display_title || selection.title || selection.id);
-                        
-                        // Add clear button if needed
-                        if ($container.find('.remove-media').length === 0) {
-                            $('<button type="button" class="remove-media button">Clear</button>')
-                                .insertAfter($button);
-                        }
-                    }
+        // Get the URL from the data attribute
+        var sidebarContentUrl = $button.data('sidebar-content-url');
+        
+        // Use Omeka's sidebar select functionality
+        Omeka.openSidebar(sidebarContentUrl);
+        
+        // Handle the selection
+        Omeka.mediaSidebar = {
+            selectedMedia: function(id, title) {
+                $mediaIdInput.val(id);
+                $selectedMediaSpan.text(title || id);
+                
+                // Add clear button if needed
+                if ($container.find('.remove-media').length === 0) {
+                    $('<button type="button" class="remove-media button">Clear</button>')
+                        .appendTo($button.parent());
                 }
-            });
-        } else if (typeof Omeka !== 'undefined' && typeof Omeka.resourceSelectorOpen === 'function') {
-            // Fallback to resource selector for older Omeka versions
-            Omeka.resourceSelectorOpen($button, 'media', function(selections) {
-                if (selections && selections.length > 0) {
-                    var selection = selections[0];
-                    $mediaIdInput.val(selection.value || selection.id);
-                    $selectedMediaSpan.text(selection.text || selection.display_title || selection.id);
-                    
-                    // Add clear button if needed
-                    if ($container.find('.remove-media').length === 0) {
-                        $('<button type="button" class="remove-media button">Clear</button>')
-                            .insertAfter($button);
-                    }
-                }
-            });
-        } else {
-            alert('Media browser not available. Please refresh the page and try again.');
-        }
+                
+                Omeka.closeSidebar();
+            }
+        };
     }
     
     /**

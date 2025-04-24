@@ -3,7 +3,7 @@ $mediaId = isset($mediaId) ? $mediaId : null;
 $mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
 $framePercent = isset($framePercent) ? (int)$framePercent : 10;
 
-// Just add our script - rely on Omeka to load its own dependencies
+// Add our script and ensure it runs after Omeka's scripts
 $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'));
 ?>
 
@@ -22,13 +22,16 @@ $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail-block-admin.
                 </span>
             </div>
             
-            <button type="button" class="select-media button">
-                <?= $this->translate('Select Video') ?>
-            </button>
-            
-            <?php if ($mediaId): ?>
-            <button type="button" class="remove-media button"><?= $this->translate('Clear') ?></button>
-            <?php endif; ?>
+            <div class="actions">
+                <button type="button" class="select-media button"
+                        data-sidebar-content-url="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'media', 'action' => 'sidebar-select'])) ?>">
+                    <?= $this->translate('Select Video') ?>
+                </button>
+                
+                <?php if ($mediaId): ?>
+                <button type="button" class="remove-media button"><?= $this->translate('Clear') ?></button>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
     
