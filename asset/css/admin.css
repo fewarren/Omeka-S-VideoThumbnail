@@ -1,0 +1,25 @@
+/* VideoThumbnail Admin Config UI */
+.field label {
+    font-weight: bold;
+}
+.field {
+    margin-bottom: 1em;
+}
+.formRow input[type="number"],
+.formRow input[type="text"] {
+    width: 200px;
+    padding: 0.3em;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+}
+.button {
+    background: #3c8dbc;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    padding: 0.5em 1em;
+    cursor: pointer;
+}
+.button:hover {
+    background: #367fa9;
+}

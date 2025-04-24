@@ -1,0 +1,44 @@
+msgid "Default Thumbnail Position (%)"
+msgstr "Default Thumbnail Position (%)"
+
+msgid "Percent into the video to extract the thumbnail (0-100)."
+msgstr "Percent into the video to extract the thumbnail (0-100)."
+
+msgid "FFmpeg Path"
+msgstr "FFmpeg Path"
+
+msgid "Path to the ffmpeg executable on your server."
+msgstr "Path to the ffmpeg executable on your server."
+
+msgid "Regenerate All Thumbnails Now"
+msgstr "Regenerate All Thumbnails Now"
+
+msgid "Check to start a background job to regenerate all video thumbnails."
+msgstr "Check to start a background job to regenerate all video thumbnails."
+
+msgid "Last Batch Run"
+msgstr "Last Batch Run"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Select Video"
+msgstr "Select Video"
+
+msgid "No video selected"
+msgstr "No video selected"
+
+msgid "Choose a video from your Omeka S media library."
+msgstr "Choose a video from your Omeka S media library."
+
+msgid "Thumbnail Position (%)"
+msgstr "Thumbnail Position (%)"
+
+msgid "No video selected. Please select a video to display its thumbnail."
+msgstr "No video selected. Please select a video to display its thumbnail."
+
+msgid "Video Thumbnail"
+msgstr "Video Thumbnail"
+
+msgid "No thumbnail available for the selected video."
+msgstr "No thumbnail available for the selected video."

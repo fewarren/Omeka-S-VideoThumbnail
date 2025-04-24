@@ -1,0 +1,10 @@
+<?php
+$form->prepare();
+echo $this->form()->openTag($form);
+echo $this->formRow($form->get('percent'));
+echo $this->formRow($form->get('ffmpeg_path'));
+echo $this->formRow($form->get('run_batch'));
+echo $this->formRow($form->get('last_run'));
+echo $this->formRow($form->get('debug'));
+echo $this->formSubmit($form->get('submit'));
+echo $this->form()->closeTag();

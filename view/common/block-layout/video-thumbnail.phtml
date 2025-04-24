@@ -1,0 +1,9 @@
+<?php if (!empty($thumbnailUrl)): ?>
+<div class="video-thumbnail-block">
+    <img src="<?= $this->escapeHtml($thumbnailUrl) ?>" alt="<?= $this->translate('Video Thumbnail') ?>">
+</div>
+<?php else: ?>
+<div class="block-message warning">
+    <?= $this->translate('No thumbnail available for the selected video.') ?>
+</div>
+<?php endif; ?>

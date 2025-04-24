@@ -1,0 +1,40 @@
+<div class="field">
+    <label for="media_id"><?= $this->translate('Select Video') ?></label>
+    <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $mediaId ?? '' ?>" class="media-id">
+    <button type="button" class="select-media button"><?= $this->translate('Select Video') ?></button>
+    <span class="selected-media"><?= $mediaTitle ?? $this->translate('No video selected') ?></span>
+    <div class="field-description">
+        <?= $this->translate('Choose a video from your Omeka S media library.') ?>
+    </div>
+</div>
+<div class="field">
+    <label for="percent"><?= $this->translate('Thumbnail Position (%)') ?></label>
+    <input type="number" name="o:block[__blockIndex__][o:data][percent]" min="0" max="100" value="<?= $percent ?? 10 ?>">
+    <div class="field-description">
+        <?= $this->translate('Percent into the video to extract the thumbnail (0-100).') ?>
+    </div>
+</div>
+<?php if (empty($mediaId)): ?>
+<div class="block-message warning">
+    <?= $this->translate('No video selected. Please select a video to display its thumbnail.') ?>
+</div>
+<?php endif; ?>
+<script>
+$(function() {
+    $('.select-media').click(function(e) {
+        e.preventDefault();
+        var $input = $(this).siblings('.media-id');
+        var $label = $(this).siblings('.selected-media');
+        if (typeof Omeka !== 'undefined' && typeof Omeka.openMediaBrowser === 'function') {
+            Omeka.openMediaBrowser(function(selections) {
+                if (selections && selections.length > 0) {
+                    $input.val(selections[0].id);
+                    $label.text(selections[0].display_title || selections[0].id);
+                }
+            });
+        } else {
+            alert('Media browser not available.');
+        }
+    });
+});
+</script>
