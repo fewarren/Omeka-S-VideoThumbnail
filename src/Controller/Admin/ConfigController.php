@@ -9,7 +9,7 @@ class ConfigController extends AbstractActionController
 {
     public function indexAction()
     {
-        if (!$this->userIsAllowed('Omeka:Module', 'update')) {
+        if (!$this->userIsAllowed('Omeka\\Controller\\Admin\\Index', 'browse')) {
             return $this->createHttpException(403);
         }
         $form = $this->getForm(ConfigForm::class);
