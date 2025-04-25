@@ -61,82 +61,107 @@ class VideoThumbnail
     public static function debugLog($message, $entityManager = null)
     {
         try {
-            // Robust log directory resolution
+            // Improved log directory resolution
             $logDir = null;
+            
+            // First try OMEKA_PATH constant
             if (defined('OMEKA_PATH')) {
                 $logDir = OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs';
-            } else {
-                $logDir = realpath(__DIR__ . '/../../../../../logs');
+            } 
+            // Then try relative path (assuming we're in src/Media/Ingester)
+            else {
+                $possiblePaths = [
+                    __DIR__ . '/../../../../../logs',
+                    __DIR__ . '/../../../../logs',
+                    __DIR__ . '/../../../logs',
+                    getcwd() . DIRECTORY_SEPARATOR . 'logs'
+                ];
+                
+                foreach ($possiblePaths as $path) {
+                    if (is_dir($path) || @mkdir($path, 0775, true)) {
+                        $logDir = $path;
+                        break;
+                    }
+                }
             }
+            
+            // If we couldn't find or create a logs directory, fallback to system temp
             if (!$logDir) {
-                $logDir = getcwd() . DIRECTORY_SEPARATOR . 'logs';
+                $logDir = sys_get_temp_dir();
             }
-            if (!is_dir($logDir)) {
-                if (!@mkdir($logDir, 0777, true)) {
-                    error_log('[VideoThumbnail] Failed to create log directory: ' . $logDir);
-                    return;
-                }
+            
+            // Make sure log directory is writable
+            if (!is_writable($logDir)) {
+                error_log('[VideoThumbnail] Log directory is not writable: ' . $logDir);
+                return;
             }
-            // Changed from 'VideoThumbnailDebug' to 'VideoThumbnailDebug.log' for clarity
+            
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug.log';
-
-            $debug = false;
-            $settings = null;
-            $debugRaw = null;
-
-            // Try global $application variable if available
-            global $application;
-            if (!$settings && isset($application) && method_exists($application, 'getServiceManager')) {
-                $sm = $application->getServiceManager();
-                if ($sm->has('Omeka\\Settings')) {
-                    $settings = $sm->get('Omeka\\Settings');
-                }
-            }
-
-            // Try Laminas Application::getInstance
-            if (!$settings && class_exists('Laminas\\Mvc\\Application') && method_exists('Laminas\\Mvc\\Application', 'getInstance')) {
-                $app = \Laminas\Mvc\Application::getInstance();
-                if ($app && method_exists($app, 'getServiceManager')) {
-                    $sm = $app->getServiceManager();
-                    if ($sm->has('Omeka\\Settings')) {
-                        $settings = $sm->get('Omeka\\Settings');
-                    }
-                }
-            }
-
-            // Fallback to entity manager/container logic
-            if (!$settings && $entityManager && method_exists($entityManager, 'getConfiguration')) {
-                $config = $entityManager->getConfiguration();
-                if (method_exists($config, 'getAttribute')) {
-                    $container = $config->getAttribute('container');
-                    if ($container && method_exists($container, 'has') && $container->has('Omeka\\Settings')) {
-                        $settings = $container->get('Omeka\\Settings');
-                    }
-                }
-            }
-
-            $settingsType = is_object($settings) ? get_class($settings) : gettype($settings);
-            if ($settings && is_object($settings) && method_exists($settings, 'get')) {
-                // FIXED: Use the correct prefixed setting name to match ConfigController
-                $debugRaw = $settings->get('videothumbnail_debug', false);
-                $debug = (bool)$debugRaw;
-            }
-
-            // Always write a [TEST] entry to verify file creation and debug diagnostics
-            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debugLog called (flag: " . ($debug ? 'ON' : 'OFF') . ") settingsType: $settingsType debugRaw: " . var_export($debugRaw, true) . "\n";
+            
+            // Always log a basic entry to test file writing works
+            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debug check. Log location: $logFile\n";
             if (@file_put_contents($logFile, $testEntry, FILE_APPEND) === false) {
                 error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
+                return;
             }
 
-            if ($debug) {
+            // First check if debug is enabled via file flag for easier testing
+            $flagFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug_enabled';
+            $debugEnabled = file_exists($flagFile);
+            
+            // If no flag file, check the settings
+            if (!$debugEnabled) {
+                $settings = self::getSettings($entityManager);
+                $debugEnabled = $settings ? (bool)$settings->get('videothumbnail_debug', false) : false;
+            }
+            
+            // Log the actual message if debugging is enabled
+            if ($debugEnabled) {
                 $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
-                if (@file_put_contents($logFile, $entry, FILE_APPEND) === false) {
-                    error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
-                }
+                @file_put_contents($logFile, $entry, FILE_APPEND);
             }
         } catch (\Exception $e) {
             error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Helper method to retrieve Omeka settings
+     */
+    private static function getSettings($entityManager = null)
+    {
+        // Try global $application variable if available
+        global $application;
+        if (isset($application) && method_exists($application, 'getServiceManager')) {
+            $sm = $application->getServiceManager();
+            if ($sm->has('Omeka\\Settings')) {
+                return $sm->get('Omeka\\Settings');
+            }
+        }
+
+        // Try Laminas Application::getInstance
+        if (class_exists('Laminas\\Mvc\\Application') && method_exists('Laminas\\Mvc\\Application', 'getInstance')) {
+            $app = \Laminas\Mvc\Application::getInstance();
+            if ($app && method_exists($app, 'getServiceManager')) {
+                $sm = $app->getServiceManager();
+                if ($sm->has('Omeka\\Settings')) {
+                    return $sm->get('Omeka\\Settings');
+                }
+            }
+        }
+
+        // Fallback to entity manager
+        if ($entityManager && method_exists($entityManager, 'getConfiguration')) {
+            $config = $entityManager->getConfiguration();
+            if (method_exists($config, 'getAttribute')) {
+                $container = $config->getAttribute('container');
+                if ($container && method_exists($container, 'has') && $container->has('Omeka\\Settings')) {
+                    return $container->get('Omeka\\Settings');
+                }
+            }
+        }
+
+        return null;
     }
 
     public static function getVideoDuration($file, $ffmpegPath)
