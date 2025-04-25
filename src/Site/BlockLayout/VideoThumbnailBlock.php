@@ -67,9 +67,9 @@ class VideoThumbnailBlock extends AbstractBlockLayout
         // No additional preparation needed for rendering
     }
     
-    public function onHydrate(SitePageBlockRepresentation $block, ErrorStore $errorStore)
+    public function onHydrate(\Omeka\Entity\SitePageBlock $block, \Omeka\Stdlib\ErrorStore $errorStore)
     {
-        $data = $block->data();
+        $data = $block->getData();
         if (!isset($data['media_id']) || empty($data['media_id'])) {
             $errorStore->addError('media_id', 'A media item must be selected.');
         }
