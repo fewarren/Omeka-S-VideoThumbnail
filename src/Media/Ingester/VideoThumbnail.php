@@ -116,7 +116,8 @@ class VideoThumbnail
 
             $settingsType = is_object($settings) ? get_class($settings) : gettype($settings);
             if ($settings && is_object($settings) && method_exists($settings, 'get')) {
-                $debugRaw = $settings->get('videothumbnail_debug', false);
+                // Fixed: Check for 'debug' instead of 'videothumbnail_debug' to match ConfigForm.php
+                $debugRaw = $settings->get('debug', false);
                 $debug = (bool)$debugRaw;
             }
 
