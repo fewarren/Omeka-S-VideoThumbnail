@@ -61,9 +61,21 @@ class VideoThumbnail
     public static function debugLog($message, $entityManager = null)
     {
         try {
-            $logDir = defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'logs';
+            // Robust log directory resolution
+            $logDir = null;
+            if (defined('OMEKA_PATH')) {
+                $logDir = OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs';
+            } else {
+                $logDir = realpath(__DIR__ . '/../../../../../logs');
+            }
+            if (!$logDir) {
+                $logDir = getcwd() . DIRECTORY_SEPARATOR . 'logs';
+            }
             if (!is_dir($logDir)) {
-                @mkdir($logDir, 0777, true);
+                if (!@mkdir($logDir, 0777, true)) {
+                    error_log('[VideoThumbnail] Failed to create log directory: ' . $logDir);
+                    return;
+                }
             }
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug';
 
@@ -84,12 +96,21 @@ class VideoThumbnail
             if ($settings && is_object($settings) && method_exists($settings, 'get')) {
                 $debug = $settings->get('videothumbnail_debug', false);
             }
+
+            // Always write a [TEST] entry to verify file creation
+            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debugLog called (flag: " . ($debug ? 'ON' : 'OFF') . ")\n";
+            if (@file_put_contents($logFile, $testEntry, FILE_APPEND) === false) {
+                error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
+            }
+
             if ($debug) {
                 $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
-                @file_put_contents($logFile, $entry, FILE_APPEND);
+                if (@file_put_contents($logFile, $entry, FILE_APPEND) === false) {
+                    error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
+                }
             }
         } catch (\Exception $e) {
-            // Silently fail if logging fails
+            error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
         }
     }
 
