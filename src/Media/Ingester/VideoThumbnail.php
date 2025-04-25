@@ -61,46 +61,35 @@ class VideoThumbnail
     public static function debugLog($message, $entityManager = null)
     {
         try {
-            $settings = null;
-            $container = null;
-            if ($entityManager && method_exists($entityManager, 'getConfiguration')) {
-                $container = $entityManager->getConfiguration()->getAttribute('container');
-                if ($container && $container->has('Omeka\\Settings')) {
-                    $settings = $container->get('Omeka\\Settings');
-                }
-            }
-            if (!$settings && class_exists('Omeka\\Settings\Settings')) {
-                $settings = \Omeka\Settings\Settings::class;
-            }
-            $debug = false;
-            if ($settings && is_object($settings)) {
-                $debug = $settings->get('videothumbnail_debug', false);
-            }
-            error_log('[VideoThumbnail] Debug flag is ' . ($debug ? 'ON' : 'OFF'));
-            if (!$debug) return;
-
-            // Always log to PHP error log
-            error_log('[VideoThumbnail DEBUG] ' . $message);
-
-            // Use OMEKA_PATH for log directory if defined
             $logDir = defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : dirname(__DIR__, 5) . DIRECTORY_SEPARATOR . 'logs';
             if (!is_dir($logDir)) {
                 @mkdir($logDir, 0777, true);
             }
-            $logFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
-            $entry = date('Y-m-d H:i:s') . ' ' . $message . "\n";
-            if (@file_put_contents($logFile, $entry, FILE_APPEND) === false) {
-                error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
-                // Fallback to sys_get_temp_dir()
-                $tmpFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'videothumbnail_debug.log';
-                if (@file_put_contents($tmpFile, $entry, FILE_APPEND) === false) {
-                    error_log('[VideoThumbnail] Failed to write to temp log file: ' . $tmpFile);
-                } else {
-                    error_log('[VideoThumbnail] Wrote debug log to temp: ' . $tmpFile);
+            $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug';
+
+            $debug = false;
+            $settings = null;
+            if ($entityManager && method_exists($entityManager, 'getConfiguration')) {
+                $config = $entityManager->getConfiguration();
+                if (method_exists($config, 'getAttribute')) {
+                    $container = $config->getAttribute('container');
+                    if ($container && method_exists($container, 'has') && $container->has('Omeka\\Settings')) {
+                        $settings = $container->get('Omeka\\Settings');
+                    }
                 }
             }
+            if (!$settings && class_exists('Omeka\\Settings\\Settings')) {
+                $settings = \Omeka\Settings\Settings::class;
+            }
+            if ($settings && is_object($settings) && method_exists($settings, 'get')) {
+                $debug = $settings->get('videothumbnail_debug', false);
+            }
+            if ($debug) {
+                $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
+                @file_put_contents($logFile, $entry, FILE_APPEND);
+            }
         } catch (\Exception $e) {
-            error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
+            // Silently fail if logging fails
         }
     }
 
