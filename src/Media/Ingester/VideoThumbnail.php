@@ -81,6 +81,7 @@ class VideoThumbnail
 
             $debug = false;
             $settings = null;
+            $debugRaw = null;
             // Try to get settings from Omeka's service manager if available
             if (class_exists('Laminas\\Mvc\\Application') && method_exists('Laminas\\Mvc\\Application', 'getInstance')) {
                 $app = \Laminas\Mvc\Application::getInstance();
@@ -101,12 +102,14 @@ class VideoThumbnail
                     }
                 }
             }
+            $settingsType = is_object($settings) ? get_class($settings) : gettype($settings);
             if ($settings && is_object($settings) && method_exists($settings, 'get')) {
-                $debug = $settings->get('videothumbnail_debug', false);
+                $debugRaw = $settings->get('videothumbnail_debug', false);
+                $debug = (bool)$debugRaw;
             }
 
-            // Always write a [TEST] entry to verify file creation
-            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debugLog called (flag: " . ($debug ? 'ON' : 'OFF') . ")\n";
+            // Always write a [TEST] entry to verify file creation and debug diagnostics
+            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debugLog called (flag: " . ($debug ? 'ON' : 'OFF') . ") settingsType: $settingsType debugRaw: " . var_export($debugRaw, true) . "\n";
             if (@file_put_contents($logFile, $testEntry, FILE_APPEND) === false) {
                 error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
             }
