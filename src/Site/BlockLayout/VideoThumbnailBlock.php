@@ -45,6 +45,10 @@ class VideoThumbnailBlock extends AbstractBlockLayout
             error_log('VideoThumbnailBlock: Could not fetch video media: ' . $e->getMessage());
         }
 
+        // Load Omeka Media Browser assets for admin block form
+        $view->headScript()->appendFile($view->assetUrl('js/media-browser.js', 'Omeka'));
+        $view->headLink()->appendStylesheet($view->assetUrl('css/media-browser.css', 'Omeka'));
+
         return $view->partial('common/block-layout/video-thumbnail-form', [
             'data' => $data,
             'mediaId' => $data['media_id'] ?? null,
