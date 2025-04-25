@@ -23,7 +23,9 @@ class VideoThumbnailBlock extends AbstractBlockLayout
                 $mediaTitle = $media->displayTitle();
             } catch (\Exception $e) {}
         }
-        \VideoThumbnail\Media\Ingester\VideoThumbnail::debugLog("Block form called: mediaId=$mediaId, percent=$percent");
+        // Get entity manager from view helper for more reliable settings access
+        $entityManager = $view->api()->__invoke()->getEntityManager();
+        \VideoThumbnail\Media\Ingester\VideoThumbnail::debugLog("Block form called: mediaId=$mediaId, percent=$percent", $entityManager);
         return $view->partial('common/block-layout/video-thumbnail-form', [
             'mediaId' => $mediaId,
             'mediaTitle' => $mediaTitle,
@@ -42,7 +44,9 @@ class VideoThumbnailBlock extends AbstractBlockLayout
                 $thumbnailUrl = \VideoThumbnail\Media\Ingester\VideoThumbnail::getThumbnailUrl($media);
             } catch (\Exception $e) {}
         }
-        \VideoThumbnail\Media\Ingester\VideoThumbnail::debugLog("Block render called: mediaId=$mediaId, percent=$percent, thumbnailUrl=" . ($thumbnailUrl ?: 'none'));
+        // Get entity manager from view helper for more reliable settings access
+        $entityManager = $view->api()->__invoke()->getEntityManager();
+        \VideoThumbnail\Media\Ingester\VideoThumbnail::debugLog("Block render called: mediaId=$mediaId, percent=$percent, thumbnailUrl=" . ($thumbnailUrl ?: 'none'), $entityManager);
         return $view->partial('common/block-layout/video-thumbnail', [
             'thumbnailUrl' => $thumbnailUrl,
         ]);

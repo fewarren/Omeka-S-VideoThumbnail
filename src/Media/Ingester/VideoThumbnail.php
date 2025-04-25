@@ -77,7 +77,8 @@ class VideoThumbnail
                     return;
                 }
             }
-            $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug';
+            // Changed from 'VideoThumbnailDebug' to 'VideoThumbnailDebug.log' for clarity
+            $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug.log';
 
             $debug = false;
             $settings = null;
@@ -116,8 +117,8 @@ class VideoThumbnail
 
             $settingsType = is_object($settings) ? get_class($settings) : gettype($settings);
             if ($settings && is_object($settings) && method_exists($settings, 'get')) {
-                // Fixed: Check for 'debug' instead of 'videothumbnail_debug' to match ConfigForm.php
-                $debugRaw = $settings->get('debug', false);
+                // FIXED: Use the correct prefixed setting name to match ConfigController
+                $debugRaw = $settings->get('videothumbnail_debug', false);
                 $debug = (bool)$debugRaw;
             }
 
