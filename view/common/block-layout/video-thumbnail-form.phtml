@@ -1,8 +1,19 @@
+<?php
+$view = $this;
+$isAdmin = ($view->getHelperPluginManager()->has('userIsAllowed') && $view->userIsAllowed('Omeka\\Controller\\Admin\\Index', 'browse'));
+$mediaId = $mediaId ?? '';
+$videoMedia = $videoMedia ?? [];
+?>
 <div class="field">
     <label for="media_id"><?= $this->translate('Select Video') ?></label>
-    <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $mediaId ?? '' ?>" class="media-id">
-    <button type="button" class="select-media button"><?= $this->translate('Select Video') ?></button>
-    <span class="selected-media"><?= $mediaTitle ?? $this->translate('No video selected') ?></span>
+    <select name="o:block[__blockIndex__][o:data][media_id]" class="media-id" id="media_id">
+        <option value=""><?= $this->translate('No video selected') ?></option>
+        <?php foreach ($videoMedia as $media): ?>
+            <option value="<?= $media['id'] ?>" <?= ($mediaId == $media['id']) ? 'selected' : '' ?>>
+                <?= $this->escapeHtml($media['title']) ?> (ID: <?= $media['id'] ?>)
+            </option>
+        <?php endforeach; ?>
+    </select>
     <div class="field-description">
         <?= $this->translate('Choose a video from your Omeka S media library.') ?>
     </div>

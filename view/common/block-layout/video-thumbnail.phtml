@@ -1,6 +1,24 @@
+<?php
+$media = $media ?? null;
+$thumbnailUrl = '';
+$mediaUrl = '';
+if ($media) {
+    if (method_exists($media, 'thumbnailUrl')) {
+        $thumbnailUrl = $media->thumbnailUrl('large');
+    }
+    $mediaUrl = $this->url('site/resource-id', [
+        'controller' => 'media',
+        'action' => 'show',
+        'id' => $media->id(),
+        'site-slug' => $site->slug(),
+    ], true);
+}
+?>
 <?php if (!empty($thumbnailUrl)): ?>
 <div class="video-thumbnail-block">
-    <img src="<?= $this->escapeHtml($thumbnailUrl) ?>" alt="<?= $this->translate('Video Thumbnail') ?>">
+    <a href="<?= $this->escapeHtml($mediaUrl) ?>" target="_blank">
+        <img src="<?= $this->escapeHtml($thumbnailUrl) ?>" alt="<?= $this->translate('Video Thumbnail') ?>">
+    </a>
 </div>
 <?php else: ?>
 <div class="block-message warning">

@@ -21,11 +21,34 @@ class VideoThumbnailBlock extends AbstractBlockLayout
         // Get the current values or set defaults
         $data = $block ? $block->data() : [];
         $data['media_id'] = $data['media_id'] ?? null;
-        
-        error_log('VideoThumbnailBlock form method called');
+
+        // Fetch all video media items for dropdown
+        $videoMedia = [];
+        try {
+            $response = $view->api()->search('media', [
+                'limit' => 500,
+                'property' => [],
+                'sort_by' => 'created',
+                'sort_order' => 'desc',
+                'media_type' => 'video/%',
+            ]);
+            foreach ($response->getContent() as $media) {
+                if (strpos($media->mediaType(), 'video/') === 0) {
+                    $videoMedia[] = [
+                        'id' => $media->id(),
+                        'title' => $media->displayTitle(),
+                        'mediaType' => $media->mediaType(),
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            error_log('VideoThumbnailBlock: Could not fetch video media: ' . $e->getMessage());
+        }
+
         return $view->partial('common/block-layout/video-thumbnail-form', [
             'data' => $data,
             'mediaId' => $data['media_id'] ?? null,
+            'videoMedia' => $videoMedia,
         ]);
     }
     
@@ -72,6 +95,20 @@ class VideoThumbnailBlock extends AbstractBlockLayout
         $data = $block->getData();
         if (!isset($data['media_id']) || empty($data['media_id'])) {
             $errorStore->addError('media_id', 'A media item must be selected.');
+            return;
+        }
+        // Extract and save thumbnail if media and percent are set
+        if (isset($data['percent']) && is_numeric($data['percent'])) {
+            try {
+                $services = $GLOBALS['application']->getServiceManager();
+                $entityManager = $services->get('Omeka\\EntityManager');
+                $media = $entityManager->find('Omeka\\Entity\\Media', $data['media_id']);
+                $settings = $services->get('Omeka\\Settings');
+                $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
+                \VideoThumbnail\Media\Ingester\VideoThumbnail::extractAndSaveThumbnail($media, $data['percent'], $ffmpegPath, $entityManager);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnailBlock: Exception in onHydrate thumbnail extraction: ' . $e->getMessage());
+            }
         }
     }
 }
