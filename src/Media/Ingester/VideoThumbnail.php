@@ -82,8 +82,18 @@ class VideoThumbnail
             $debug = false;
             $settings = null;
             $debugRaw = null;
-            // Try to get settings from Omeka's service manager if available
-            if (class_exists('Laminas\\Mvc\\Application') && method_exists('Laminas\\Mvc\\Application', 'getInstance')) {
+
+            // Try global $application variable if available
+            global $application;
+            if (!$settings && isset($application) && method_exists($application, 'getServiceManager')) {
+                $sm = $application->getServiceManager();
+                if ($sm->has('Omeka\\Settings')) {
+                    $settings = $sm->get('Omeka\\Settings');
+                }
+            }
+
+            // Try Laminas Application::getInstance
+            if (!$settings && class_exists('Laminas\\Mvc\\Application') && method_exists('Laminas\\Mvc\\Application', 'getInstance')) {
                 $app = \Laminas\Mvc\Application::getInstance();
                 if ($app && method_exists($app, 'getServiceManager')) {
                     $sm = $app->getServiceManager();
@@ -92,6 +102,7 @@ class VideoThumbnail
                     }
                 }
             }
+
             // Fallback to entity manager/container logic
             if (!$settings && $entityManager && method_exists($entityManager, 'getConfiguration')) {
                 $config = $entityManager->getConfiguration();
@@ -102,6 +113,7 @@ class VideoThumbnail
                     }
                 }
             }
+
             $settingsType = is_object($settings) ? get_class($settings) : gettype($settings);
             if ($settings && is_object($settings) && method_exists($settings, 'get')) {
                 $debugRaw = $settings->get('videothumbnail_debug', false);
