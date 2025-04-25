@@ -61,22 +61,16 @@ class VideoThumbnail
     public static function debugLog($message, $entityManager = null)
     {
         try {
-            // Improved log directory resolution
             $logDir = null;
-            
-            // First try OMEKA_PATH constant
             if (defined('OMEKA_PATH')) {
                 $logDir = OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs';
-            } 
-            // Then try relative path (assuming we're in src/Media/Ingester)
-            else {
+            } else {
                 $possiblePaths = [
                     __DIR__ . '/../../../../../logs',
                     __DIR__ . '/../../../../logs',
                     __DIR__ . '/../../../logs',
                     getcwd() . DIRECTORY_SEPARATOR . 'logs'
                 ];
-                
                 foreach ($possiblePaths as $path) {
                     if (is_dir($path) || @mkdir($path, 0775, true)) {
                         $logDir = $path;
@@ -84,37 +78,37 @@ class VideoThumbnail
                     }
                 }
             }
-            
-            // If we couldn't find or create a logs directory, fallback to system temp
             if (!$logDir) {
                 $logDir = sys_get_temp_dir();
             }
-            
-            // Make sure log directory is writable
             if (!is_writable($logDir)) {
                 error_log('[VideoThumbnail] Log directory is not writable: ' . $logDir);
                 return;
             }
-            
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug.log';
-            
-            // Always log a basic entry to test file writing works
-            $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debug check. Log location: $logFile\n";
-            if (@file_put_contents($logFile, $testEntry, FILE_APPEND) === false) {
-                error_log('[VideoThumbnail] Failed to write to log file: ' . $logFile);
-                return;
+
+            // Only write the test entry if the file does not exist
+            if (!file_exists($logFile)) {
+                $testEntry = date('Y-m-d H:i:s') . " [TEST] VideoThumbnail debug check. Log location: $logFile\n";
+                @file_put_contents($logFile, $testEntry, FILE_APPEND);
             }
 
-            // First check if debug is enabled via file flag for easier testing
+            // Check if debug is enabled via flag file
             $flagFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug_enabled';
             $debugEnabled = file_exists($flagFile);
-            
+
             // If no flag file, check the settings
             if (!$debugEnabled) {
                 $settings = self::getSettings($entityManager);
-                $debugEnabled = $settings ? (bool)$settings->get('videothumbnail_debug', false) : false;
+                if ($settings) {
+                    $debugEnabled = (bool)$settings->get('videothumbnail_debug', false);
+                } else {
+                    // If settings cannot be retrieved, log a warning and skip debug logging
+                    error_log('[VideoThumbnail] Could not retrieve Omeka settings for debugLog.');
+                    return;
+                }
             }
-            
+
             // Log the actual message if debugging is enabled
             if ($debugEnabled) {
                 $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
