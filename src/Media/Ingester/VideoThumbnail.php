@@ -82,7 +82,7 @@ class VideoThumbnail
                 $logDir = sys_get_temp_dir();
             }
             if (!is_writable($logDir)) {
-                error_log('[VideoThumbnail] Log directory is not writable: ' . $logDir);
+                error_log('[VideoThumbnail] Log directory is not writable: ' . $logDir . ' (check permissions)');
                 return;
             }
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'VideoThumbnailDebug.log';
@@ -93,27 +93,21 @@ class VideoThumbnail
                 @file_put_contents($logFile, $testEntry, FILE_APPEND);
             }
 
-            // Check if debug is enabled via flag file
+            // Check if debug is enabled via flag file or Omeka setting
             $flagFile = $logDir . DIRECTORY_SEPARATOR . 'videothumbnail_debug_enabled';
             $debugEnabled = file_exists($flagFile);
-
-            // If no flag file, check the settings
+            $settings = self::getSettings($entityManager);
+            if ($settings && $settings->get('videothumbnail_debug', false)) {
+                $debugEnabled = true;
+            }
             if (!$debugEnabled) {
-                $settings = self::getSettings($entityManager);
-                if ($settings) {
-                    $debugEnabled = (bool)$settings->get('videothumbnail_debug', false);
-                } else {
-                    // If settings cannot be retrieved, log a warning and skip debug logging
-                    error_log('[VideoThumbnail] Could not retrieve Omeka settings for debugLog.');
-                    return;
-                }
+                // Log a warning to the PHP error log if debug is not enabled
+                error_log('[VideoThumbnail] Debug logging is not enabled. Create the flag file or enable the Omeka setting.');
+                return;
             }
-
             // Log the actual message if debugging is enabled
-            if ($debugEnabled) {
-                $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
-                @file_put_contents($logFile, $entry, FILE_APPEND);
-            }
+            $entry = date('Y-m-d H:i:s') . ' [DEBUG] ' . $message . "\n";
+            @file_put_contents($logFile, $entry, FILE_APPEND);
         } catch (\Exception $e) {
             error_log('[VideoThumbnail] Exception in debugLog: ' . $e->getMessage());
         }

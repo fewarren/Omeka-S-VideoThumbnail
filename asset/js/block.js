@@ -6,12 +6,12 @@ jQuery(function($) {
     }
     // Use event delegation for dynamically added blocks
     $(document).on('click', '.select-media', function(e) {
-        console.log('Select Video button clicked');
-        e.preventDefault();
-        alert('VideoThumbnail: Select Video button clicked!');
-        var $input = $(this).siblings('.media-id');
-        var $label = $(this).siblings('.selected-media');
         if (typeof Omeka !== 'undefined' && typeof Omeka.openMediaBrowser === 'function') {
+            console.log('Select Video button clicked');
+            e.preventDefault();
+            alert('VideoThumbnail: Select Video button clicked!');
+            var $input = $(this).siblings('.media-id');
+            var $label = $(this).siblings('.selected-media');
             Omeka.openMediaBrowser(function(selections) {
                 if (selections && selections.length > 0) {
                     $input.val(selections[0].id);
@@ -19,7 +19,12 @@ jQuery(function($) {
                 }
             });
         } else {
-            alert('Media browser not available.');
+            e.preventDefault();
+            if (!window._videoThumbnailMediaBrowserWarned) {
+                alert('Media browser not available.');
+                console.warn('VideoThumbnail: Omeka.openMediaBrowser is not available.');
+                window._videoThumbnailMediaBrowserWarned = true;
+            }
         }
     });
 });
