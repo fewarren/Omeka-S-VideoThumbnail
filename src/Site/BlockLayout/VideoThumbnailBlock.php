@@ -60,26 +60,24 @@ class VideoThumbnailBlock extends AbstractBlockLayout
     {
         $data = $block->data();
         $mediaId = $data['media_id'] ?? null;
+        $site = $block->page() ? $block->page()->site() : null;
         
         error_log('VideoThumbnailBlock render method called with mediaId: ' . $mediaId);
         
-        // Only attempt to render if we have a media ID
-        if (!$mediaId) {
-            return 'No video media selected.';
+        $media = null;
+        if ($mediaId) {
+            try {
+                $media = $view->api()->read('media', $mediaId)->getContent();
+            } catch (\Exception $e) {
+                error_log('VideoThumbnailBlock error: ' . $e->getMessage());
+            }
         }
-        
-        try {
-            $media = $view->api()->read('media', $mediaId)->getContent();
-            // Pass $site to the partial for correct URL generation
-            return $view->partial('common/block-layout/video-thumbnail', [
-                'media' => $media,
-                'data' => $data,
-                'site' => $block->page()->site(),
-            ]);
-        } catch (\Exception $e) {
-            error_log('VideoThumbnailBlock error: ' . $e->getMessage());
-            return 'Error loading video media (' . $mediaId . ').';
-        }
+        // Always render the partial, passing media (may be null), data, and site (may be null)
+        return $view->partial('common/block-layout/video-thumbnail', [
+            'media' => $media,
+            'data' => $data,
+            'site' => $site,
+        ]);
     }
     
     public function prepareForm(PhpRenderer $view)
