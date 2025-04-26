@@ -1,72 +1,212 @@
-# VideoThumbnail Plugin Troubleshooting
+# Video Thumbnail Module Troubleshooting Guide
 
-This document provides solutions for common issues with the VideoThumbnail plugin for Omeka-S.
+## Common Issues and Solutions
 
-## Debug Mode
+### FFmpeg Issues
 
-The plugin includes a debug mode that can be enabled from the admin settings page. When enabled, detailed logs will be written to the Omeka-S error log, which is typically stored in `/var/log/apache2/omeka-s_error.log`.
+#### FFmpeg Not Found
+**Symptoms:**
+- Error message: "FFmpeg not found or not executable"
+- No thumbnails are generated
 
-## Common Issues
-
-### Job Scheduling Failures
-
-If the scheduled batch job for video thumbnail generation fails:
-
-1. **Check for job failures**: Review the job log in the Omeka-S admin panel (Jobs menu)
-2. **Debug logging**: Enable debug mode in the plugin settings for more detailed logs
-3. **PHP CLI availability**: Ensure that PHP CLI is available and properly configured
-4. **Memory limits**: Consider increasing PHP memory_limit in your php.ini
-5. **Timeouts**: The plugin now has fallback mechanisms if jobs time out
-6. **FFmpeg path**: Verify FFmpeg is accessible by the PHP CLI user (not just the web server)
-
-### Plugin Hanging or Taking Too Long
-
-If the plugin seems to hang or takes too long when generating thumbnails:
-
-1. Make sure FFmpeg is properly installed and accessible at the path specified in settings
-2. Enable debug mode to log detailed information about FFmpeg processes
-3. Lower the timeout values in the VideoFrameExtractor class if needed
-4. Check for FFmpeg errors in the error log
-
-### Debug Messages Not Appearing
-
-If debug messages aren't appearing in the error log:
-
-1. Make sure debug mode is explicitly enabled in the plugin settings
-2. Verify that Apache has permission to write to the log directory
-3. Check that your PHP logging configuration is set correctly
-4. Restart Apache after making configuration changes:
+**Solutions:**
+1. Verify FFmpeg is installed:
+   ```bash
+   ffmpeg -version
    ```
-   sudo systemctl restart apache2
+2. Check the FFmpeg path in module configuration
+3. Ensure the FFmpeg executable has proper permissions
+4. On Windows, make sure to use the full path with .exe extension
+
+#### FFmpeg Permission Errors
+**Symptoms:**
+- Error message: "Permission denied"
+- Thumbnail generation fails
+
+**Solutions:**
+1. Check FFmpeg executable permissions
+2. Verify web server user has execute permissions
+3. On Windows, run as administrator if needed
+
+### Thumbnail Generation Issues
+
+#### No Frames Generated
+**Symptoms:**
+- Error message: "Failed to extract any frames"
+- Empty frame selection interface
+
+**Solutions:**
+1. Check video file permissions
+2. Verify video format is supported
+3. Increase memory limit in module settings
+4. Check logs for specific FFmpeg errors
+5. Try different frame positions
+
+#### Poor Quality Thumbnails
+**Symptoms:**
+- Blurry or pixelated thumbnails
+- Incorrect aspect ratio
+
+**Solutions:**
+1. Increase quality settings in configuration
+2. Verify video source quality
+3. Check for proper video codec support
+4. Adjust frame selection position
+
+### Performance Issues
+
+#### Slow Processing
+**Symptoms:**
+- Long wait times for thumbnail generation
+- Timeout errors
+
+**Solutions:**
+1. Reduce number of frame extractions
+2. Increase PHP timeout settings
+3. Optimize memory limit settings
+4. Use hardware acceleration if available
+5. Check server load
+
+#### Memory Errors
+**Symptoms:**
+- "Out of memory" errors
+- Process termination
+
+**Solutions:**
+1. Increase PHP memory_limit
+2. Adjust module memory settings
+3. Enable debug mode for detailed logs
+4. Process fewer frames simultaneously
+5. Check for memory leaks in logs
+
+### Storage Issues
+
+#### Missing Thumbnails
+**Symptoms:**
+- Thumbnails not appearing after generation
+- "File not found" errors
+
+**Solutions:**
+1. Check storage directory permissions
+2. Verify temp directory exists and is writable
+3. Clear temporary files
+4. Check file system quotas
+5. Validate storage paths
+
+#### Temp File Cleanup
+**Symptoms:**
+- Disk space warnings
+- Accumulating temporary files
+
+**Solutions:**
+1. Enable automatic cleanup
+2. Run manual cleanup:
+   ```bash
+   rm -rf files/temp/video-thumbnails/*
    ```
+3. Schedule periodic cleanup
+4. Monitor disk usage
 
-### 500 Server Errors
+### Debug Mode
 
-If you encounter 500 server errors when accessing the VideoThumbnail admin page:
+#### Enabling Debug Mode
+1. Set 'videothumbnail_debug_mode' to true in settings
+2. Check logs in `OMEKA_PATH/logs/videothumbnail.log`
+3. Set appropriate log level:
+   - error: Only errors
+   - warning: Errors and warnings
+   - info: General operation info
+   - debug: Detailed debugging info
 
-1. Enable debug mode to get detailed error information
-2. Check the Apache error logs at `/var/log/apache2/error.log` and `/var/log/apache2/omeka-s_error.log`
-3. Ensure all PHP classes are properly defined and files are not truncated
-4. Verify FFmpeg path settings
+#### Reading Debug Logs
+Debug logs contain:
+- Timestamp
+- Log level
+- Process ID
+- Memory usage
+- Method name
+- Detailed message
 
-## FFmpeg Compatibility
+Example:
+```
+[2025-04-20 10:15:30] [DEBUG] [PID:1234] [MEM:256MB] [extractFrame] Starting frame extraction for video.mp4
+```
 
-This plugin requires FFmpeg to be installed on your server. To verify FFmpeg is working:
+### Integration Issues
 
-1. Run `ffmpeg -version` from the command line
-2. Ensure the path in the plugin settings matches the FFmpeg executable
-3. Check that the Apache/PHP process has permission to execute FFmpeg
+#### Media Type Detection
+**Symptoms:**
+- Videos not recognized
+- "Unsupported format" errors
 
-If issues persist, check your system's FFmpeg logs or try updating FFmpeg to the latest version.
+**Solutions:**
+1. Verify MIME type detection
+2. Add format to supported formats list
+3. Check file extension mapping
+4. Update media type configuration
 
-## Job System Troubleshooting
+#### Database Synchronization
+**Symptoms:**
+- Inconsistent thumbnail status
+- Missing database entries
 
-The plugin now uses a more robust job execution system that:
+**Solutions:**
+1. Run database synchronization
+2. Check media entity status
+3. Verify thumbnail flags
+4. Clear cache if needed
 
-1. Uses Omeka S's PHP CLI strategy as a fallback
-2. Provides better error logging and handling
-3. Manages memory more effectively during batch processing
-4. Can be interrupted safely without corrupting the system
-5. Handles FFmpeg timeouts better to prevent server hangs
+## Advanced Troubleshooting
 
-If job scheduling continues to fail after these improvements, please report the exact error message from your logs.
+### Command Line Tools
+
+#### FFmpeg Diagnostic Commands
+```bash
+# Check FFmpeg capabilities
+ffmpeg -formats
+ffmpeg -codecs
+
+# Test frame extraction
+ffmpeg -i video.mp4 -ss 00:00:10 -vframes 1 test.jpg
+```
+
+#### Debug Mode CLI Tools
+```bash
+# Check log file
+tail -f logs/videothumbnail.log
+
+# Monitor process status
+ps aux | grep ffmpeg
+```
+
+### Configuration Validation
+
+#### Testing Configuration
+1. Verify config file syntax
+2. Check for path consistency
+3. Validate service configuration
+4. Test file permissions
+
+#### Performance Tuning
+1. Monitor resource usage
+2. Adjust batch processing size
+3. Optimize frame extraction
+4. Configure caching
+
+## Getting Help
+
+### Support Resources
+1. Check GitHub issues
+2. Review documentation
+3. Enable debug logging
+4. Contact maintainers
+
+### Reporting Issues
+1. Enable debug mode
+2. Collect relevant logs
+3. Document reproduction steps
+4. Provide system information:
+   - PHP version
+   - FFmpeg version
+   - OS details
+   - File permissions

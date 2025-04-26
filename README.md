@@ -1,72 +1,185 @@
-# Video Thumbnail
+# Video Thumbnail Module for Omeka S
 
-Video Thumbnail is an Omeka S module that allows automatic thumbnail generation for video files with frame selection capabilities.
+## Overview
+This module enhances Omeka S with advanced video thumbnail generation capabilities. It allows users to extract and select custom thumbnails from video files using FFmpeg, with support for multiple video formats, batch processing, and a user-friendly interface.
 
 ## Features
 
-- Automatically generates thumbnails for video files (MP4, MOV) during upload
-- Provides a user interface to select specific frames from videos to use as thumbnails
-- Includes a batch processing job to regenerate thumbnails for all videos in the site
-- Integrates with Omeka S's existing media management system
+### Core Features
+- Extract thumbnails from multiple points in videos
+- Interactive frame selection interface
+- Support for multiple video formats
+- Batch thumbnail regeneration
+- Configurable frame extraction settings
+- Memory-efficient processing
+- Automatic error recovery
+- Dark mode support
+- Accessibility compliant
+
+### Supported Video Formats
+- MP4 (.mp4)
+- WebM (.webm)
+- QuickTime/MOV (.mov)
+- AVI (.avi)
+- WMV (.wmv)
+- MKV (.mkv)
+- 3GP (.3gp)
+- 3G2 (.3g2)
+- FLV (.flv)
 
 ## Requirements
 
-- Omeka S (tested with versions 3.x and 4.x)
-- PHP 7.4 or higher
-- FFmpeg (must be installed on the server)
+### System Requirements
+- Omeka S 3.0 or later
+- PHP 7.4 or later
+- FFmpeg installed and executable
+- Sufficient disk space for temporary files
+- GD or ImageMagick extension
+- Write permissions for temporary directories
+
+### PHP Configuration
+- memory_limit: 512M recommended
+- max_execution_time: 300 recommended
+- upload_max_filesize: Adequate for your video files
+- post_max_size: Larger than upload_max_filesize
 
 ## Installation
 
-1. Download the latest release
-2. Unzip the module into the `modules` directory
-3. Rename the unzipped directory to `VideoThumbnail`
-4. Install the module from the admin panel
+1. Download and unzip in your modules directory
+2. Install FFmpeg if not already present
+3. Enable the module in Omeka S admin interface
+4. Configure FFmpeg path and other settings
+
+### FFmpeg Installation
+#### Linux (Debian/Ubuntu)
+```bash
+sudo apt-get update
+sudo apt-get install ffmpeg
+```
+
+#### Windows
+1. Download FFmpeg from https://ffmpeg.org/download.html
+2. Extract to a permanent location
+3. Add to system PATH or configure full path in module settings
 
 ## Configuration
 
-After installation, navigate to the module's configuration page:
+### Basic Settings
+- FFmpeg Path: Full path to FFmpeg executable
+- Default Frame Position: Position for automatic thumbnail extraction (0-100%)
+- Number of Frames: How many frames to extract for selection
+- Memory Limit: Maximum memory allocation for processing
 
-1. Set the path to the FFmpeg executable (e.g., `/usr/bin/ffmpeg`)
-2. Configure the number of frames to extract for selection (default: 5)
-3. Set the default frame position as a percentage of video duration (default: 10%)
+### Advanced Settings
+- Debug Mode: Enable detailed logging
+- Log Level: Set logging detail level
+- Supported Formats: Enable/disable specific video formats
+- Process Timeout: Maximum processing time per video
 
 ## Usage
 
-### Uploading Videos
-
-When you upload a video file (MP4 or MOV), the module automatically generates a thumbnail using the default frame position.
-
-### Selecting a Different Frame
-
-To select a different frame as the thumbnail:
-
-1. Navigate to the media edit page
-2. Scroll down to the "Video Thumbnail" section
-3. Click "Select Frame"
-4. Choose from the available frames
-5. Click "Select" under your preferred frame
+### Single Video Processing
+1. Upload a video file
+2. Edit the media item
+3. Select "Choose Thumbnail"
+4. Pick from extracted frames or generate new ones
+5. Save selection
 
 ### Batch Processing
+1. Go to Video Thumbnail admin page
+2. Select videos to process
+3. Choose processing options
+4. Start batch operation
+5. Monitor progress in job status
 
-To regenerate thumbnails for all videos:
+### Custom Frame Selection
+1. Open video media item
+2. Click "Select Frame"
+3. Use slider or frame previews
+4. Click desired frame
+5. Confirm selection
 
-1. Navigate to the admin dashboard
-2. Click on the "Add a new job" link in the notification
-3. Select "VideoThumbnail\Job\ExtractFrames" from the job type dropdown
-4. Click "Submit"
+## Advanced Features
 
-The job will run in the background and update all video thumbnails.
+### Debug Mode
+Enable detailed logging for troubleshooting:
+1. Set debug_mode = true in config
+2. Check logs in OMEKA_PATH/logs
+3. Use log level setting to control detail
+
+### Custom Thumbnail Sizes
+Configure in module.config.php:
+```php
+'thumbnail_options' => [
+    'sizes' => [
+        'large' => ['width' => 800, 'height' => 450],
+        'medium' => ['width' => 400, 'height' => 225],
+        'square' => ['width' => 200, 'height' => 200]
+    ]
+]
+```
+
+### Performance Optimization
+1. Adjust memory_limit based on video size
+2. Configure process timeout for large files
+3. Use hardware acceleration if available
+4. Enable temporary file cleanup
+
+## API Integration
+
+### REST API Endpoints
+```
+GET /api/video-thumbnail/info/:id
+POST /api/video-thumbnail/extract/:id
+POST /api/video-thumbnail/select/:id
+GET /api/video-thumbnail/status/:id
+```
+
+### Event Hooks
+- video_thumbnail.pre_extract
+- video_thumbnail.post_extract
+- video_thumbnail.pre_save
+- video_thumbnail.post_save
 
 ## Troubleshooting
 
-- **FFmpeg not found**: Ensure FFmpeg is properly installed and the path is correctly set in the configuration.
-- **No frames appear**: Check if the video file is readable by the server and is in a supported format.
-- **Job processing errors**: Check the job logs for detailed error messages.
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed guidance on:
+- Common issues and solutions
+- Error messages
+- Debug procedures
+- Performance optimization
+- System compatibility
+
+## Contributing
+
+### Development Setup
+1. Clone repository
+2. Install dependencies
+3. Configure development environment
+4. Run tests
+
+### Testing
+Run PHPUnit tests:
+```bash
+cd tests
+../vendor/bin/phpunit
+```
+
+### Coding Standards
+- Follow PSR-12
+- Add PHPDoc blocks
+- Include unit tests
+- Update documentation
 
 ## License
+Released under the GNU General Public License v3.0.
 
-This module is licensed under the MIT License.
+## Credits
+- FFmpeg for video processing
+- Omeka S team for the platform
+- Contributors and testers
 
 ## Support
-
-For issues and feature requests, please use the [module's GitHub issue tracker](https://github.com/omeka-s-modules/VideoThumbnail/issues).
+- GitHub Issues for bug reports
+- User Manual for documentation
+- Community forums for discussion

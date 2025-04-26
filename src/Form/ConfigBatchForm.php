@@ -11,6 +11,17 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
 {
     public function init()
     {
+        $supportedFormats = [
+            'video/mp4' => 'MP4 (video/mp4)',
+            'video/webm' => 'WebM (video/webm)',
+            'video/quicktime' => 'MOV/QuickTime (video/quicktime)',
+            'video/x-msvideo' => 'AVI (video/x-msvideo)',
+            'video/x-ms-wmv' => 'WMV (video/x-ms-wmv)',
+            'video/x-matroska' => 'MKV (video/x-matroska)',
+            'video/3gpp' => '3GP (video/3gpp)',
+            'video/3gpp2' => '3G2 (video/3gpp2)',
+            'video/x-flv' => 'FLV (video/x-flv)'
+        ];
         $this->add([
             'name' => 'default_frame_position',
             'type' => Number::class,
@@ -34,33 +45,27 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
             'options' => [
                 'label' => 'Supported Video Formats', // @translate
                 'info' => 'Select the video formats that should be processed by the video thumbnail generator', // @translate
-                'value_options' => [
-                    'video/mp4' => 'MP4 (video/mp4)',
-                    'video/quicktime' => 'MOV/QuickTime (video/quicktime)',
-                    'video/x-msvideo' => 'AVI (video/x-msvideo)',
-                    'video/webm' => 'WebM (video/webm)',
-                    'video/ogg' => 'OGG (video/ogg)',
-                ],
+                'value_options' => $supportedFormats,
             ],
             'attributes' => [
                 'id' => 'supported_formats',
-                'value' => [
-                    'video/mp4', // Default to MP4
-                    'video/quicktime', // Default to MOV/QuickTime
-                ],
+                'value' => array_keys($supportedFormats), // Default to all formats enabled
             ],
         ]);
         
-        // Add debug mode toggle
+        // Update debug mode toggle with default to true
         $this->add([
             'name' => 'debug_mode',
             'type' => Checkbox::class,
             'options' => [
-                'label' => 'Enable Debug Mode', // @translate
-                'info' => 'When enabled, detailed debug information will be logged to the Omeka-S error log. This helps troubleshoot issues with FFmpeg and frame extraction.', // @translate
+                'label' => 'Debug Mode', // @translate
+                'info' => 'Enable detailed debug logging. When enabled, all operations will be logged to videothumbnail.log', // @translate
+                'checked_value' => true,
+                'unchecked_value' => false
             ],
             'attributes' => [
                 'id' => 'debug_mode',
+                'value' => true  // Set default to true
             ],
         ]);
 

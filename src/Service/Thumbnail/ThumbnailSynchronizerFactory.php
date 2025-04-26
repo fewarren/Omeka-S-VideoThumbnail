@@ -2,16 +2,26 @@
 namespace VideoThumbnail\Service\Thumbnail;
 
 use Interop\Container\ContainerInterface;
-use Laminas\ServiceManager\Factory\FactoryInterface;
-use VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer;
+use VideoThumbnail\Stdlib\Debug;
 
-class ThumbnailSynchronizerFactory implements FactoryInterface
+class ThumbnailSynchronizerFactory
 {
-    public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
+    public function __invoke(ContainerInterface $services)
     {
-        $fileManager = $services->get('Omeka\File\Store');
-        $entityManager = $services->get('Omeka\EntityManager');
-        
-        return new ThumbnailSynchronizer($fileManager, $entityManager);
+        try {
+            Debug::log(sprintf(
+                'Creating ThumbnailSynchronizer with services: %s',
+                implode(', ', array_keys($services->getKnownServiceNames()))
+            ), __METHOD__);
+            
+            return new ThumbnailSynchronizer(
+                $services->get('Omeka\EntityManager'),
+                $services->get('Omeka\File\Store'),
+                $services->get('Config')
+            );
+        } catch (\Exception $e) {
+            Debug::logError('Failed to create ThumbnailSynchronizer: ' . $e->getMessage(), __METHOD__);
+            throw $e;
+        }
     }
 }

@@ -12,6 +12,7 @@ use Laminas\Http\PhpEnvironment\UploadProgressData;
 use Laminas\View\Renderer\PhpRenderer;
 use VideoThumbnail\Stdlib\VideoFrameExtractor;
 use Doctrine\ORM\EntityManager;
+use Laminas\Log\LoggerInterface; // Import LoggerInterface
 
 class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
 {
@@ -45,6 +46,9 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     protected $entityManager;
 
+    /** @var LoggerInterface */
+    protected $logger; // Add logger property
+
     /**
      * @param TempFileFactory $tempFileFactory
      * @param $settings
@@ -52,6 +56,7 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      * @param $uploader
      * @param $fileStore
      * @param EntityManager $entityManager
+     * @param LoggerInterface $logger // Add logger to constructor
      */
     public function __construct(
         TempFileFactory $tempFileFactory, 
@@ -59,7 +64,8 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         VideoFrameExtractor $videoFrameExtractor,
         $uploader,
         $fileStore,
-        EntityManager $entityManager
+        EntityManager $entityManager,
+        LoggerInterface $logger // Add logger to constructor
     )
     {
         $this->tempFileFactory = $tempFileFactory;
@@ -68,6 +74,7 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         $this->uploader = $uploader;
         $this->fileStore = $fileStore;
         $this->entityManager = $entityManager;
+        $this->logger = $logger; // Assign logger
     }
 
     /**
@@ -90,75 +97,73 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     public function ingest(Media $media, Request $request, ErrorStore $errorStore)
     {
-        \VideoThumbnail\Stdlib\Debug::init($this->settings);
-        $fileData = $request->getValue('file');
+        $this->logger->info(sprintf('VideoThumbnail Ingester: Starting ingestion for media ID %d', $media->getId()), ['method' => __METHOD__]);
+
+        $data = $request->getContent();
+        $fileData = $request->getFileData();
         
-        // Log the actual file data to troubleshoot
-        \VideoThumbnail\Stdlib\Debug::log("Raw file data: " . json_encode($fileData), __METHOD__);
-        
-        // Check if a file was actually uploaded
-        // The structure can vary based on how the file was selected
-        if (empty($fileData)) {
-            $errorStore->addError('file', 'No file uploaded for VideoThumbnail ingester');
+        if (!isset($fileData['file'])) {
+            $errorStore->addError('error', 'No file was uploaded');
             return false;
         }
-        
-        // Handle different file structure scenarios
-        if (isset($fileData['error']) && $fileData['error'] === UPLOAD_ERR_OK) {
-            // Direct file upload structure
-            \VideoThumbnail\Stdlib\Debug::log("Direct file upload detected", __METHOD__);
-        } 
-        else if (isset($fileData['file'])) {
-            // Nested file structure
-            if (isset($fileData['file']['error']) && $fileData['file']['error'] !== UPLOAD_ERR_OK) {
-                $errorStore->addError('file', 'File upload error: ' . $fileData['file']['error']);
-                \VideoThumbnail\Stdlib\Debug::logError("File upload error: " . $fileData['file']['error'], __METHOD__);
-                return false;
+
+        $file = $fileData['file'];
+        $tempPath = $file['tmp_name'];
+        $originalFilename = $file['name'];
+
+        try {
+            // Validate the video file
+            $this->validateVideo($tempPath, $originalFilename);
+
+            // Get video duration for validation
+            $duration = $this->videoFrameExtractor->getVideoDuration($tempPath);
+            if ($duration <= 0) {
+                throw new \RuntimeException('Unable to process video file. The file may be corrupted or in an unsupported format.');
             }
+
+            // Extract initial thumbnail with fallback positions
+            $frameTime = $duration * 0.1; // Start at 10% of duration
+            $tempFile = $this->extractThumbnailWithFallback($tempPath, $frameTime, $duration);
+
+            if (!$tempFile) {
+                throw new \RuntimeException('Failed to extract thumbnail from video');
+            }
+
+            // Store the original video file
+            $tempFile = $this->tempFileFactory->build();
+            $tempFile->setSourceName($originalFilename);
+            $tempFile->setTempPath($file['tmp_name']);
             
-            if (empty($fileData['file']['name'])) {
-                $errorStore->addError('file', 'No file name specified for VideoThumbnail ingester');
-                \VideoThumbnail\Stdlib\Debug::logError("No file name in upload", __METHOD__);
-                return false;
+            $store = $this->store;
+            $storagePath = $store->put($tempFile);
+            if (!$storagePath) {
+                throw new \RuntimeException('Failed to store video file');
             }
-        } 
-        else {
-            // Neither structure matches - log the structure for debugging
-            $errorStore->addError('file', 'Invalid file upload format for VideoThumbnail ingester');
-            \VideoThumbnail\Stdlib\Debug::logError("Invalid file data structure: " . json_encode($fileData), __METHOD__);
+
+            // Set the storage ID and data
+            $media->setStorageId($storagePath);
+            $media->setExtension(pathinfo($originalFilename, PATHINFO_EXTENSION));
+            $media->setMediaType($file['type']);
+            $media->setData([
+                'video_metadata' => [
+                    'duration' => $duration,
+                    'original_name' => $originalFilename,
+                    'size' => $file['size'],
+                    'type' => $file['type']
+                ]
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            $this->logger->err(sprintf('VideoThumbnail Ingester Error: %s', $e->getMessage()), [
+                'method' => __METHOD__,
+                'media_id' => $media->getId(),
+                'exception' => $e
+            ]);
+            $errorStore->addError('error', $e->getMessage());
             return false;
         }
-        
-        // Ensure file_index is provided in the request
-        $request = clone $request;
-        $requestData = $request->getContent();
-        
-        // If no file index is specified, default to index 0
-        if (!isset($requestData['file_index'])) {
-            $requestData['file_index'] = 0;
-            $request->setContent($requestData);
-        }
-        
-        \VideoThumbnail\Stdlib\Debug::log("Ingesting video with file data: " . json_encode(array_keys($fileData)), __METHOD__);
-        
-        // This ingester leverages the standard file ingester
-        // Use the directly injected uploader service
-        $fileIngester = new \Omeka\Media\Ingester\Upload($this->uploader);
-        if (!$fileIngester->ingest($media, $request, $errorStore)) {
-            \VideoThumbnail\Stdlib\Debug::logError("Standard file ingester failed", __METHOD__);
-            return false;
-        }
-
-        // Now extract frame for thumbnail if it's a video
-        $mediaType = $media->getMediaType();
-        if ($this->isVideoMedia($mediaType)) {
-            $extension = pathinfo($media->getFilename(), PATHINFO_EXTENSION);
-            $storagePath = $this->getStoragePath('original', $media->getStorageId(), $extension);
-            $filePath = $this->fileStore->getLocalPath($storagePath);
-            $this->extractAndSetDefaultThumbnail($filePath, $media);
-        }
-
-        return true;
     }
 
     /**
@@ -191,7 +196,6 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     protected function extractAndSetDefaultThumbnail($filePath, Media $media)
     {
         // Initialize VideoThumbnail debugging
-        \VideoThumbnail\Stdlib\Debug::init($this->settings);
         \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__, ['filePath' => $filePath]);
         
         try {
@@ -404,7 +408,6 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
      */
     public function update(Media $media, Request $request, ErrorStore $errorStore)
     {
-        \VideoThumbnail\Stdlib\Debug::init($this->settings);
         $fileData = $request->getValue('file');
         
         // Log the actual file data to troubleshoot
@@ -560,6 +563,74 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
     }
     
+    protected function validateVideo($filePath, $originalName)
+    {
+        if (!file_exists($filePath) || !is_readable($filePath)) {
+            throw new \RuntimeException('Video file does not exist or is not readable');
+        }
+
+        // Validate file extension
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        $validExtensions = ['mp4', 'mov', 'avi', 'wmv', 'mkv', 'webm', '3gp', '3g2', 'flv'];
+        
+        if (!in_array($extension, $validExtensions)) {
+            throw new \RuntimeException(sprintf(
+                'Invalid video file extension. Supported extensions are: %s',
+                implode(', ', $validExtensions)
+            ));
+        }
+
+        // Validate MIME type
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = $finfo->file($filePath);
+        
+        if (strpos($mimeType, 'video/') !== 0) {
+            throw new \RuntimeException(sprintf(
+                'Invalid file type. Expected video file, got %s',
+                $mimeType
+            ));
+        }
+
+        // Validate file size
+        $maxSize = 2147483648; // 2GB
+        $fileSize = filesize($filePath);
+        
+        if ($fileSize > $maxSize) {
+            throw new \RuntimeException(sprintf(
+                'File size exceeds maximum allowed size of %s GB',
+                $maxSize / 1073741824
+            ));
+        }
+
+        return true;
+    }
+
+    protected function extractThumbnailWithFallback($videoPath, $initialTime, $duration)
+    {
+        // Try positions at 10%, 25%, and start of video
+        $positions = [
+            $initialTime,
+            $duration * 0.25,
+            1.0
+        ];
+
+        foreach ($positions as $timePosition) {
+            try {
+                $framePath = $this->videoFrameExtractor->extractFrame($videoPath, $timePosition);
+                if ($framePath && file_exists($framePath) && filesize($framePath) > 0) {
+                    return $framePath;
+                }
+            } catch (\Exception $e) {
+                \VideoThumbnail\Stdlib\Debug::logError(
+                    sprintf('Failed to extract frame at position %.2f: %s', $timePosition, $e->getMessage()),
+                    __METHOD__
+                );
+                continue;
+            }
+        }
+
+        return null;
+    }
     
     /**
      * Get the renderer for this ingester.
@@ -569,5 +640,58 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     public function getRenderer()
     {
         return 'videothumbnail';
+    }
+
+    /**
+     * Get the local path to the original media file.
+     *
+     * @param Media $media
+     * @return string|null
+     */
+    protected function getOriginalFilePath(Media $media): ?string
+    {
+        $storageId = $media->getStorageId();
+        $extension = $media->getExtension();
+        $filename = $media->getFilename();
+
+        if (!$filename && $storageId && $extension) {
+            // Reconstruct filename if missing (might happen in some edge cases)
+            $filename = $storageId . '.' . $extension;
+            $this->logger->warn(sprintf('Reconstructed filename for media ID %d as %s', $media->getId(), $filename), ['method' => __METHOD__]);
+        }
+
+        if (!$filename) {
+            $this->logger->err('Cannot determine filename for media.', ['method' => __METHOD__, 'media_id' => $media->getId()]);
+            return null;
+        }
+
+        // Assuming 'original' is the standard directory for original files
+        $storagePath = 'original' . DIRECTORY_SEPARATOR . $filename;
+        
+        try {
+            $localPath = $this->fileStore->getLocalPath($storagePath);
+            if ($localPath && file_exists($localPath)) {
+                return $localPath;
+            }
+            $this->logger->warn(sprintf('Original file not found at expected local path: %s', $localPath ?: '(null)'), ['method' => __METHOD__, 'storage_path' => $storagePath]);
+        } catch (\Exception $e) {
+            $this->logger->err(sprintf('Error getting local path for storage path "%s": %s', $storagePath, $e->getMessage()), ['method' => __METHOD__]);
+        }
+
+        // Fallback: Try finding based on storage ID if filename path failed
+        if ($storageId) {
+            try {
+                $localPathById = $this->fileStore->getLocalPath($storageId);
+                if ($localPathById && file_exists($localPathById)) {
+                    $this->logger->info(sprintf('Found original file using storage ID path: %s', $localPathById), ['method' => __METHOD__]);
+                    return $localPathById;
+                }
+            } catch (\Exception $e) {
+                 $this->logger->warn(sprintf('Error getting local path via storage ID "%s": %s', $storageId, $e->getMessage()), ['method' => __METHOD__]);
+            }
+        }
+
+        $this->logger->err('Failed to locate the original file path for media.', ['method' => __METHOD__, 'media_id' => $media->getId()]);
+        return null;
     }
 }

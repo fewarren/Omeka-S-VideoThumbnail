@@ -3,6 +3,7 @@ namespace VideoThumbnail\Controller\Plugin;
 
 use Laminas\Mvc\Controller\Plugin\AbstractPlugin;
 use VideoThumbnail\Stdlib\VideoFrameExtractor;
+use VideoThumbnail\Stdlib\Debug;
 
 class ExtractVideoFrames extends AbstractPlugin
 {
@@ -19,6 +20,7 @@ class ExtractVideoFrames extends AbstractPlugin
     public function __construct(VideoFrameExtractor $videoFrameExtractor)
     {
         $this->videoFrameExtractor = $videoFrameExtractor;
+        Debug::log('ExtractVideoFrames controller plugin initialized', __METHOD__);
     }
     
     /**
@@ -30,7 +32,22 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function extractFrame($videoPath, $position)
     {
-        return $this->videoFrameExtractor->extractFrame($videoPath, $position);
+        Debug::log("Controller plugin extracting frame at position {$position}s from: " . basename($videoPath), __METHOD__);
+        
+        try {
+            $result = $this->videoFrameExtractor->extractFrame($videoPath, $position);
+            
+            if ($result) {
+                Debug::log("Frame extraction successful via controller plugin", __METHOD__);
+            } else {
+                Debug::logWarning("Frame extraction failed via controller plugin", __METHOD__);
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            Debug::logError("Exception in extractFrame: " . $e->getMessage(), __METHOD__, $e);
+            return null;
+        }
     }
     
     /**
@@ -42,7 +59,17 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function extractFrames($videoPath, $count = 5)
     {
-        return $this->videoFrameExtractor->extractFrames($videoPath, $count);
+        Debug::log("Controller plugin extracting {$count} frames from: " . basename($videoPath), __METHOD__);
+        
+        try {
+            $frames = $this->videoFrameExtractor->extractFrames($videoPath, $count);
+            
+            Debug::log("Extracted " . count($frames) . " frames via controller plugin", __METHOD__);
+            return $frames;
+        } catch (\Exception $e) {
+            Debug::logError("Exception in extractFrames: " . $e->getMessage(), __METHOD__, $e);
+            return [];
+        }
     }
     
     /**
@@ -53,6 +80,21 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function getVideoDuration($videoPath)
     {
-        return $this->videoFrameExtractor->getVideoDuration($videoPath);
+        Debug::log("Controller plugin getting duration for: " . basename($videoPath), __METHOD__);
+        
+        try {
+            $duration = $this->videoFrameExtractor->getVideoDuration($videoPath);
+            
+            if ($duration > 0) {
+                Debug::log("Video duration detected: {$duration}s", __METHOD__);
+            } else {
+                Debug::logWarning("Failed to detect video duration", __METHOD__);
+            }
+            
+            return $duration;
+        } catch (\Exception $e) {
+            Debug::logError("Exception in getVideoDuration: " . $e->getMessage(), __METHOD__, $e);
+            return 0;
+        }
     }
 }
