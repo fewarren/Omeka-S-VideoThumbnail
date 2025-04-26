@@ -35,3 +35,9 @@ foreach ($videoMedia as $media) {
 </div>
 <?php endif; ?>
 <div style="background:#ffc;padding:4px 8px;margin:8px 0;">VideoThumbnail block form rendered</div>
+<?= $this->partial('common/media-browser') ?>
+<script>
+  var Omeka = Omeka || {};
+</script>
+<script src="<?= $this->assetUrl('js/omeka.js', 'Omeka') ?>"></script>
+<script src="<?= $this->assetUrl('js/media-browser.js', 'Omeka') ?>"></script>
