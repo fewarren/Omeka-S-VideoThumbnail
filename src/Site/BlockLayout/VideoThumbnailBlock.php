@@ -70,9 +70,11 @@ class VideoThumbnailBlock extends AbstractBlockLayout
         
         try {
             $media = $view->api()->read('media', $mediaId)->getContent();
+            // Pass $site to the partial for correct URL generation
             return $view->partial('common/block-layout/video-thumbnail', [
                 'media' => $media,
                 'data' => $data,
+                'site' => $block->page()->site(),
             ]);
         } catch (\Exception $e) {
             error_log('VideoThumbnailBlock error: ' . $e->getMessage());
