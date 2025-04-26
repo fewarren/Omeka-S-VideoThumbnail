@@ -7,6 +7,14 @@ use VideoThumbnail\View\Helper\VideoThumbnailSelector;
 
 class VideoThumbnailSelectorFactory implements FactoryInterface
 {
+    /**
+     * Creates and returns a VideoThumbnailSelector view helper with injected dependencies.
+     *
+     * Retrieves application settings and a video frame extractor from the service container,
+     * or creates the extractor if not registered, then constructs the VideoThumbnailSelector.
+     *
+     * @return VideoThumbnailSelector
+     */
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
         // Get required dependencies for the view helper

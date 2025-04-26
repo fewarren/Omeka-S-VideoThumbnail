@@ -11,6 +11,11 @@ class VideoFrameExtractor
     protected $timeout = 60;
     protected $maxFrameRetries = 3;
 
+    /**
+     * Initializes the VideoFrameExtractor with the specified FFmpeg path and sets up the temporary directory for extracted frames.
+     *
+     * @param string $ffmpegPath Path to the FFmpeg executable.
+     */
     public function __construct($ffmpegPath)
     {
         $this->ffmpegPath = $ffmpegPath;
@@ -18,6 +23,13 @@ class VideoFrameExtractor
         $this->ensureTempDir();
     }
 
+    /**
+     * Extracts a single video frame at the specified time using FFmpeg.
+     *
+     * @param string $filePath Path to the video file.
+     * @param float $timeInSeconds Time position (in seconds) to extract the frame.
+     * @return string|false Path to the extracted frame image on success, or false on failure.
+     */
     public function extractFrame($filePath, $timeInSeconds)
     {
         Debug::log("Attempting to extract frame at {$timeInSeconds}s from video: " . basename($filePath), __METHOD__);
@@ -59,6 +71,16 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Extracts multiple frames evenly spaced throughout a video file.
+     *
+     * Attempts to extract the specified number of frames at equal intervals based on the video's duration.
+     * Returns an array of file paths to the successfully extracted frames. If the video duration cannot be determined or extraction fails, returns an empty array.
+     *
+     * @param string $filePath Path to the video file.
+     * @param int $count Number of frames to extract (default is 5).
+     * @return string[] Array of file paths to the extracted frames.
+     */
     public function extractFrames($filePath, $count = 5)
     {
         Debug::log("Attempting to extract {$count} frames from video: " . basename($filePath), __METHOD__);
@@ -97,6 +119,14 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Retrieves the duration of a video file in seconds using FFmpeg.
+     *
+     * Parses the FFmpeg output to extract the duration. Returns 0 if the duration cannot be determined or an error occurs.
+     *
+     * @param string $filePath Path to the video file.
+     * @return float Duration of the video in seconds, or 0 if not found.
+     */
     public function getVideoDuration($filePath)
     {
         Debug::log("Getting duration for video: " . basename($filePath), __METHOD__);
@@ -136,6 +166,12 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Validates that the given file exists, is readable, and is a video file.
+     *
+     * @param string $videoPath Path to the video file to validate.
+     * @throws \RuntimeException If the file does not exist, is not readable, or is not a recognized video file.
+     */
     protected function validateVideo($videoPath)
     {
         if (!file_exists($videoPath)) {
@@ -152,6 +188,11 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Validates that the FFmpeg executable exists and is executable.
+     *
+     * @throws \RuntimeException If FFmpeg is not found or is not executable.
+     */
     protected function validateFFmpeg()
     {
         if (!file_exists($this->ffmpegPath) || !is_executable($this->ffmpegPath)) {
@@ -159,6 +200,15 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Returns an array of FFmpeg command strategies for extracting a video frame at a specific time.
+     *
+     * Each strategy includes a command string and a descriptive message, offering different FFmpeg options for frame extraction accuracy and compatibility.
+     *
+     * @param string $timeStr Time position in the video (formatted as HH:MM:SS or seconds).
+     * @param string $outputPath Path where the extracted frame image will be saved.
+     * @return array[] Array of strategies, each containing 'command' and 'message' keys.
+     */
     protected function getExtractionStrategies($timeStr, $outputPath)
     {
         // Windows compatibility: ensure .exe extension for ffmpeg if missing
@@ -206,6 +256,13 @@ class VideoFrameExtractor
         ];
     }
 
+    /**
+     * Returns a list of strategies for detecting video duration using different FFmpeg command options and parsers.
+     *
+     * Each strategy includes a command string and a parser function to extract the duration from the command output.
+     *
+     * @return array Strategies for video duration detection, each with a 'command' and a 'parser' callable.
+     */
     protected function getDurationDetectionStrategies()
     {
         return [
@@ -244,6 +301,14 @@ class VideoFrameExtractor
         ];
     }
 
+    /**
+     * Executes a video duration detection strategy using FFmpeg and parses the output.
+     *
+     * @param array $strategy An associative array containing the FFmpeg command and a parser callback.
+     * @param string $videoPath Path to the video file.
+     * @return float The detected video duration in seconds.
+     * @throws \RuntimeException If the FFmpeg command fails.
+     */
     protected function executeDurationStrategy($strategy, $videoPath)
     {
         Debug::log("Attempting duration strategy: " . ($strategy['message'] ?? 'Unknown strategy'), __METHOD__);
@@ -266,6 +331,13 @@ class VideoFrameExtractor
         return $strategy['parser']($output);
     }
 
+    /**
+     * Executes an FFmpeg command and logs the result.
+     *
+     * @param string $command The FFmpeg command to execute.
+     * @param string $description Description of the command for logging purposes.
+     * @return bool True if the command executed successfully, false otherwise.
+     */
     protected function executeFFmpeg($command, $description)
     {
         Debug::log(sprintf('Executing FFmpeg command: %s', $description), __METHOD__);
@@ -288,6 +360,12 @@ class VideoFrameExtractor
         return true;
     }
 
+    /**
+     * Generates a unique temporary file path with the specified extension in the temp directory.
+     *
+     * @param string $extension File extension to use for the temporary file.
+     * @return string Full path to the generated temporary file.
+     */
     protected function generateTempPath($extension)
     {
         return sprintf(
@@ -298,6 +376,11 @@ class VideoFrameExtractor
         );
     }
 
+    /**
+     * Ensures that the temporary directory exists, creating it if necessary.
+     *
+     * @throws \RuntimeException If the directory cannot be created.
+     */
     protected function ensureTempDir()
     {
         if (!file_exists($this->tempDir)) {
@@ -310,6 +393,12 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Formats a number of seconds as a time string in HH:MM:SS.sss format.
+     *
+     * @param float $seconds Number of seconds to format.
+     * @return string Time string formatted as hours, minutes, and seconds with milliseconds.
+     */
     protected function formatTimeString($seconds)
     {
         $hours = floor($seconds / 3600);
@@ -319,7 +408,9 @@ class VideoFrameExtractor
     }
 
     /**
-     * Remove temp files older than 24 hours from the temp directory.
+     * Deletes temporary frame files older than the specified number of hours from the temp directory.
+     *
+     * @param int $maxAgeHours Maximum file age in hours before deletion. Defaults to 24.
      */
     public function cleanupOldTempFiles($maxAgeHours = 24)
     {
@@ -333,11 +424,23 @@ class VideoFrameExtractor
         }
     }
 
+    /**
+     * Returns the last error message encountered during frame extraction or duration retrieval.
+     *
+     * @return string|null The last error message, or null if no error has occurred.
+     */
     public function getLastError()
     {
         return $this->lastError;
     }
 
+    /**
+     * Creates and returns a unique temporary file path for a JPEG image in the video thumbnails temp directory.
+     *
+     * Ensures the temporary directory exists before generating the file path.
+     *
+     * @return string Path to the new temporary JPEG file.
+     */
     private function createTempPath()
     {
         $tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';

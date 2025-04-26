@@ -10,6 +10,19 @@ use Laminas\ServiceManager\Exception\ServiceNotCreatedException;
 
 class VideoThumbnailControllerFactory implements FactoryInterface
 {
+    /**
+     * Creates and configures a VideoThumbnailController instance with required dependencies.
+     *
+     * Retrieves and validates the necessary services from the container, instantiates the controller,
+     * sets its settings, and returns the configured controller. Throws a ServiceNotFoundException if
+     * any required service is missing or an error occurs during creation.
+     *
+     * @param ContainerInterface $container The service container.
+     * @param string $requestedName The requested service name.
+     * @param array|null $options Optional creation options.
+     * @return VideoThumbnailController The fully configured controller instance.
+     * @throws ServiceNotFoundException If required services are missing or controller creation fails.
+     */
     public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
         Debug::log('VideoThumbnailControllerFactory: Starting controller creation', __METHOD__);
@@ -50,6 +63,17 @@ class VideoThumbnailControllerFactory implements FactoryInterface
         }
     }
     
+    /**
+     * Retrieves and validates required services from the container for controller creation.
+     *
+     * Ensures that the 'Omeka\EntityManager', 'Omeka\File\Store', and 'Omeka\Settings' services are present and available.
+     * Throws a ServiceNotFoundException if any required service is missing, or a ServiceNotCreatedException if a service cannot be instantiated.
+     *
+     * @param ContainerInterface $container The service container.
+     * @return array Associative array containing 'entityManager', 'fileManager', and 'settings' services.
+     * @throws ServiceNotFoundException If a required service is not found in the container.
+     * @throws ServiceNotCreatedException If a required service cannot be created.
+     */
     protected function getRequiredServices(ContainerInterface $container)
     {
         $services = [];

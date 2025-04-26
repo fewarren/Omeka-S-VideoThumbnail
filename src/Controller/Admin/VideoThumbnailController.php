@@ -15,6 +15,13 @@ class VideoThumbnailController extends AbstractActionController
     protected $settings;
     protected $serviceLocator;
 
+    /**
+     * Initializes the VideoThumbnailController with required services.
+     *
+     * @param object $entityManager The entity manager for database operations.
+     * @param object|null $fileManager Optional file manager for file operations.
+     * @param object|null $serviceLocator Optional service locator for retrieving additional services.
+     */
     public function __construct($entityManager, $fileManager = null, $serviceLocator = null)
     {
         $this->entityManager = $entityManager;
@@ -24,6 +31,11 @@ class VideoThumbnailController extends AbstractActionController
         Debug::log('VideoThumbnailController initialized', __METHOD__);
     }
 
+    /**
+     * Injects the settings service into the controller.
+     *
+     * @return $this
+     */
     public function setSettings($settings)
     {
         $this->settings = $settings;
@@ -31,6 +43,13 @@ class VideoThumbnailController extends AbstractActionController
         return $this;
     }
 
+    /**
+     * Handles the admin settings page for video thumbnail configuration.
+     *
+     * Initializes and displays the configuration form for video thumbnail settings, loads current settings with error handling, processes form submissions to update settings, and provides the total count of video media items. Passes relevant data to the view for rendering.
+     *
+     * @return \Laminas\View\Model\ViewModel The view model containing the settings form, total video count, and supported formats.
+     */
     public function indexAction()
     {
         Debug::logEntry(__METHOD__);
@@ -208,6 +227,13 @@ class VideoThumbnailController extends AbstractActionController
         return $view;
     }
 
+    /**
+     * Returns the total number of video media items matching supported formats.
+     *
+     * Counts media entities in the system whose MIME type matches the configured or default list of supported video formats. Returns 0 if the entity manager is unavailable or an error occurs.
+     *
+     * @return int Number of video media items.
+     */
     protected function getTotalVideos()
     {
         \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__);
@@ -263,6 +289,14 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Handles a POST request to save a selected video frame as the media's thumbnail.
+     *
+     * Validates input parameters, retrieves the specified media entity, and delegates frame extraction and storage.
+     * Returns a JSON response indicating success or failure, including error details if applicable.
+     *
+     * @return \Laminas\View\Model\JsonModel JSON response with operation result.
+     */
     public function saveFrameAction()
     {
         Debug::logEntry(__METHOD__, ['request' => 'Starting frame save']);
@@ -313,6 +347,15 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Extracts a video frame at a specified position and saves it as a thumbnail for the given media.
+     *
+     * Calculates the frame extraction time based on the provided position percentage, extracts the frame using the video frame extractor service, and stores it as a thumbnail. Returns an array indicating success or failure with a message.
+     *
+     * @param \Omeka\Entity\Media $media The media entity representing the video.
+     * @param float|int $position The position in the video (as a percentage) to extract the frame.
+     * @return array Result array with 'success' (bool) and 'message' (string).
+     */
     protected function extractAndSaveFrame($media, $position)
     {
         Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'position' => $position]);
@@ -366,6 +409,17 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Stores a video frame as a thumbnail for the specified media entity.
+     *
+     * Copies the extracted frame to a temporary file, generates and stores thumbnails, updates the media entity with frame metadata, and persists changes to the database. Cleans up temporary files after processing.
+     *
+     * @param object $media The media entity for which the thumbnail is being stored.
+     * @param string $framePath Path to the extracted video frame image.
+     * @param float $position Percentage position in the video where the frame was extracted.
+     * @param float $timeInSeconds Time in seconds where the frame was extracted.
+     * @return array Result array with 'success' (bool) and 'message' (string) keys.
+     */
     protected function storeThumbnail($media, $framePath, $position, $timeInSeconds)
     {
         Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'frame_path' => $framePath]);
@@ -429,6 +483,15 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Validates a video media file and attempts to extract a frame at a specified position.
+     *
+     * Checks the existence, readability, and MIME type of the video file, determines its duration, and calculates the frame extraction time based on the given or default position. Attempts to extract a frame with fallback strategies if the initial attempt fails.
+     *
+     * @param \Omeka\Entity\Media $media The media entity representing the video.
+     * @param float|null $position The desired frame position as a percentage (0–100); uses default if null.
+     * @return array Returns an array with 'success' (bool), and on success, 'framePath', 'position', and 'duration'; on failure, 'message'.
+     */
     protected function validateAndExtractFrame($media, $position = null)
     {
         $fileStore = $this->serviceLocator->get('Omeka\File\Store');
@@ -492,6 +555,17 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Attempts to extract a valid video frame at the specified time, with fallbacks to earlier positions if needed.
+     *
+     * Tries to extract a frame at the requested time, then at 25% of the video duration, and finally near the start of the video. Returns the path to the first valid frame found, or null if extraction fails at all positions.
+     *
+     * @param object $extractor Video frame extractor service.
+     * @param string $filePath Path to the video file.
+     * @param float $timeInSeconds Desired extraction time in seconds.
+     * @param float $duration Total duration of the video in seconds.
+     * @return string|null Path to the extracted frame image, or null if extraction fails.
+     */
     protected function extractFrameWithFallback($extractor, $filePath, $timeInSeconds, $duration)
     {
         // First attempt at specified position
@@ -516,11 +590,24 @@ class VideoThumbnailController extends AbstractActionController
         return null;
     }
 
+    /**
+     * Checks whether the specified frame file exists and is non-empty.
+     *
+     * @param string $framePath Path to the frame image file.
+     * @return bool True if the file exists and has a size greater than zero; otherwise, false.
+     */
     protected function isValidFrame($framePath)
     {
         return $framePath && file_exists($framePath) && filesize($framePath) > 0;
     }
 
+    /**
+     * Displays multiple extracted frames from a video media item for user selection.
+     *
+     * Retrieves the specified video media, extracts a configurable number of frames at different positions, copies them to a temporary web-accessible directory, and prepares frame data for display in the admin interface. Handles errors by logging and redirecting as needed.
+     *
+     * @return \Laminas\View\Model\ViewModel|\Laminas\Http\Response View with frame data on success, or redirect response on error.
+     */
     public function selectFrameAction()
     {
         Debug::log('VideoThumbnailController::selectFrameAction accessed', __METHOD__); // Add this line
@@ -610,6 +697,13 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Handles POST requests to generate multiple preview frames from a video media item.
+     *
+     * Extracts a configurable number of frames from the specified video, copies them to a temporary directory, and returns their URLs and metadata in a JSON response. Returns an error response if the request is invalid or frame extraction fails.
+     *
+     * @return \Laminas\View\Model\JsonModel JSON response containing frame data or error information.
+     */
     public function generateFramesAction()
     {
         Debug::logEntry(__METHOD__, ['request' => 'Starting frame generation']);

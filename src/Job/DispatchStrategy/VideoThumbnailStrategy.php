@@ -14,6 +14,15 @@ class VideoThumbnailStrategy implements StrategyInterface
     protected $defaultStrategy;
     protected $config;
 
+    /**
+     * Initializes the VideoThumbnailStrategy with required dependencies and configuration.
+     *
+     * @param mixed $jobDispatcher Service responsible for dispatching jobs.
+     * @param mixed $entityManager Entity manager for persisting job state.
+     * @param Dispatcher $dispatcher Omeka job dispatcher instance.
+     * @param StrategyInterface $defaultStrategy Fallback strategy for job dispatching.
+     * @param array $config Configuration options for job handling.
+     */
     public function __construct($jobDispatcher, $entityManager, Dispatcher $dispatcher, StrategyInterface $defaultStrategy, array $config)
     {
         $this->jobDispatcher = $jobDispatcher;
@@ -23,6 +32,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         $this->config = $config;
     }
 
+    /**
+     * Starts a video thumbnail job by initializing its status and dispatching it.
+     *
+     * Sets the job status to "Starting", resets progress, and attempts to dispatch the job. Returns true on success, or false if an error occurs.
+     *
+     * @param Job $job The job instance to start.
+     * @return bool True if the job was started successfully, false if an error occurred.
+     */
     public function start(Job $job)
     {
         try {
@@ -49,6 +66,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         }
     }
 
+    /**
+     * Stops the given job and updates its status to "Stopped".
+     *
+     * Attempts to persist the status change. Returns true on success, or false if an error occurs.
+     *
+     * @param Job $job The job to stop.
+     * @return bool True if the job was successfully stopped, false otherwise.
+     */
     public function stop(Job $job)
     {
         try {
@@ -67,6 +92,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         }
     }
 
+    /**
+     * Handles an expired job by attempting recovery or marking it as failed.
+     *
+     * If the job is eligible for recovery, initiates the recovery process. Otherwise, sets the job status to "Failed: Job expired" and persists the change.
+     *
+     * @param Job $job The job instance to handle.
+     * @return bool True if the job was recovered; false if marked as failed.
+     */
     public function handleExpired(Job $job)
     {
         // Check if job can be recovered
@@ -80,6 +113,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         return false;
     }
 
+    /**
+     * Determines if a job is eligible for recovery based on its progress and recovery attempts.
+     *
+     * Returns true if the job has made partial progress (greater than 0% but less than 100%) or if the number of recovery attempts is less than 3.
+     *
+     * @param Job $job The job to evaluate for recovery eligibility.
+     * @return bool True if the job can be recovered; otherwise, false.
+     */
     protected function canRecover(Job $job)
     {
         // Check if job has made some progress
@@ -93,6 +134,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         return $attempts < 3;
     }
 
+    /**
+     * Attempts to recover a failed or expired job by incrementing recovery attempts, saving a recovery point, and restarting the job.
+     *
+     * Updates the job's recovery attempt count and stores the current progress and last processed frame as a recovery point. Sets the job status to "Recovering" and restarts the job. Returns the result of the restart operation, or false if recovery fails.
+     *
+     * @param Job $job The job instance to recover.
+     * @return bool True if the job was successfully restarted; false on failure.
+     */
     protected function recoverJob(Job $job)
     {
         try {
@@ -123,6 +172,14 @@ class VideoThumbnailStrategy implements StrategyInterface
         }
     }
 
+    /**
+     * Sends a job using the default dispatch strategy, with automatic recovery on failure.
+     *
+     * Attempts to send the job via the default strategy. If an exception occurs, logs a warning and initiates a recovery process with retry logic.
+     *
+     * @param Job $job The job to be dispatched.
+     * @return mixed The result of the job dispatch or recovery attempt.
+     */
     public function send(Job $job)
     {
         // First try the default strategy
@@ -139,6 +196,15 @@ class VideoThumbnailStrategy implements StrategyInterface
         }
     }
 
+    /**
+     * Handles job retry logic with exponential backoff when a job send attempt fails.
+     *
+     * Increments the job's retry count, applies a delay before retrying, and re-sends the job using the default strategy. Throws a RuntimeException if the maximum number of retries is exceeded.
+     *
+     * @param Job $job The job to retry.
+     * @return mixed The result of the default strategy's send method.
+     * @throws \RuntimeException If the maximum number of retry attempts is exceeded.
+     */
     protected function handleRecovery(Job $job)
     {
         $args = $job->getArgs();
@@ -181,6 +247,15 @@ class VideoThumbnailStrategy implements StrategyInterface
         return $this->defaultStrategy->send($job);
     }
 
+    /**
+     * Initializes and returns the PhpCli job dispatch strategy from the service locator.
+     *
+     * Checks for the presence of required services and throws a RuntimeException if the Omeka job dispatcher is missing. Falls back to the PhpCli strategy if necessary.
+     *
+     * @param mixed $serviceLocator Service locator providing required services.
+     * @return mixed The PhpCli dispatch strategy instance.
+     * @throws \RuntimeException If the required Omeka job dispatcher service is not found.
+     */
     protected function initializeStrategy($serviceLocator)
     {
         \VideoThumbnail\Stdlib\Debug::log('Initializing VideoThumbnail strategy', __METHOD__);

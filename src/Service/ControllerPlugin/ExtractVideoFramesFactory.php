@@ -7,6 +7,16 @@ use VideoThumbnail\Controller\Plugin\ExtractVideoFrames;
 
 class ExtractVideoFramesFactory implements FactoryInterface
 {
+    /**
+     * Creates and returns an ExtractVideoFrames controller plugin instance.
+     *
+     * If a VideoFrameExtractor service is registered in the container, it is used; otherwise, a new VideoFrameExtractor is instantiated using the configured ffmpeg path.
+     *
+     * @param ContainerInterface $services Service container for dependency retrieval.
+     * @param string $requestedName Name of the requested service.
+     * @param array|null $options Optional configuration options.
+     * @return ExtractVideoFrames The configured controller plugin instance.
+     */
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
         // Attempt to retrieve VideoFrameExtractor from the service container

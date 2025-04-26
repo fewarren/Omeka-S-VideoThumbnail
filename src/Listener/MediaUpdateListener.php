@@ -13,6 +13,11 @@ class MediaUpdateListener extends AbstractListenerAggregate
     protected $serviceLocator;
     protected $settings;
 
+    /**
+     * Initializes the MediaUpdateListener with the provided service locator and settings.
+     *
+     * Stores dependencies for later use in handling media update events.
+     */
     public function __construct($serviceLocator, $settings)
     {
         $this->serviceLocator = $serviceLocator;
@@ -20,6 +25,12 @@ class MediaUpdateListener extends AbstractListenerAggregate
         Debug::log('MediaUpdateListener initialized', __METHOD__);
     }
 
+    /**
+     * Attaches event listeners for media update and creation events to trigger video thumbnail processing.
+     *
+     * @param EventManagerInterface $events The event manager to which listeners are attached.
+     * @param int $priority Optional priority for the event listeners.
+     */
     public function attach(EventManagerInterface $events, $priority = 1)
     {
         Debug::log('Attaching MediaUpdateListener events', __METHOD__);
@@ -36,6 +47,14 @@ class MediaUpdateListener extends AbstractListenerAggregate
         );
     }
 
+    /**
+     * Handles media update or creation events to generate and update video thumbnails.
+     *
+     * Processes API events for media entities, and if the media is a video and a thumbnail frame position is specified,
+     * extracts a video frame at the given position and updates the media's thumbnails accordingly.
+     *
+     * @param EventInterface $event The event containing request and response data for the media update or creation.
+     */
     public function handleMediaUpdate(EventInterface $event)
     {
         Debug::logEntry(__METHOD__, ['event' => 'api.update.post']);
@@ -122,6 +141,15 @@ class MediaUpdateListener extends AbstractListenerAggregate
         }
     }
 
+    /**
+     * Updates the thumbnails for a video media entity using an extracted video frame.
+     *
+     * Copies the provided frame image to a temporary file, generates and stores thumbnails, updates the media entity's thumbnail status and frame position metadata, and performs cleanup.
+     *
+     * @param object $media The media representation to update.
+     * @param string $framePath Path to the extracted video frame image.
+     * @param float $position The frame position as a percentage of the video duration.
+     */
     protected function updateThumbnails($media, $framePath, $position)
     {
         Debug::logEntry(__METHOD__, [

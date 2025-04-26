@@ -50,13 +50,9 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     protected $logger; // Add logger property
 
     /**
-     * @param TempFileFactory $tempFileFactory
-     * @param $settings
-     * @param VideoFrameExtractor $videoFrameExtractor
-     * @param $uploader
-     * @param $fileStore
-     * @param EntityManager $entityManager
-     * @param LoggerInterface $logger // Add logger to constructor
+     * Initializes the VideoThumbnail ingester with required services and configuration.
+     *
+     * Sets up dependencies for temporary file creation, settings, video frame extraction, file uploading, storage management, database operations, and logging.
      */
     public function __construct(
         TempFileFactory $tempFileFactory, 
@@ -78,9 +74,9 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Get the label for the ingester.
+     * Returns the display label for this video thumbnail ingester.
      *
-     * @return string
+     * @return string The label "Video Thumbnail".
      */
     public function getLabel()
     {
@@ -88,12 +84,14 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Create a new media entity from an uploaded file.
+     * Ingests a new video media entity from an uploaded file, validating the file, extracting a thumbnail, and storing metadata.
      *
-     * @param Media $media
-     * @param Request $request
-     * @param ErrorStore $errorStore
-     * @return bool
+     * Validates the uploaded video file, retrieves its duration, extracts a thumbnail frame with fallback strategies, stores the original video, and sets relevant metadata on the media entity. Returns true on success, or false if any step fails.
+     *
+     * @param Media $media The media entity to populate.
+     * @param Request $request The request containing the uploaded file data.
+     * @param ErrorStore $errorStore Used to record errors encountered during ingestion.
+     * @return bool True if ingestion succeeds; false otherwise.
      */
     public function ingest(Media $media, Request $request, ErrorStore $errorStore)
     {
@@ -167,10 +165,10 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Check if media type is a supported video format
+     * Determines if the given media type is a supported video MIME type.
      *
-     * @param string $mediaType
-     * @return bool
+     * @param string $mediaType The MIME type to check.
+     * @return bool True if the media type is a recognized video format; otherwise, false.
      */
     protected function isVideoMedia($mediaType)
     {
@@ -188,10 +186,12 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Extract a frame and set it as the thumbnail
+     * Extracts a video frame and sets it as the media's thumbnail, generating standard thumbnail sizes and updating media metadata.
      *
-     * @param string $filePath
-     * @param Media $media
+     * Attempts to extract a frame at a configured percentage of the video's duration, with fallbacks for short or problematic videos. Stores the resulting thumbnails and updates the media entity with duration and thumbnail information.
+     *
+     * @param string $filePath Path to the video file.
+     * @param Media $media Media entity to update with the extracted thumbnail.
      */
     protected function extractAndSetDefaultThumbnail($filePath, Media $media)
     {
@@ -327,11 +327,11 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Get the form elements required to configure ingest of a file.
+     * Generates the form markup for uploading a video file for ingestion.
      *
-     * @param PhpRenderer $view
-     * @param array $options
-     * @return string
+     * Returns HTML form elements for file upload and required hidden fields, including instructional text for supported video formats.
+     *
+     * @return string HTML markup for the video file upload form.
      */
     public function form(PhpRenderer $view, array $options = [])
     {
@@ -364,12 +364,12 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Get the form elements used to edit a media after ingest.
+     * Generates the form elements for updating a video media file, allowing optional replacement of the existing video.
      *
-     * @param PhpRenderer $view
-     * @param \Omeka\Api\Representation\MediaRepresentation $media
-     * @param array $options
-     * @return string
+     * @param PhpRenderer $view The view renderer for generating form markup.
+     * @param \Omeka\Api\Representation\MediaRepresentation $media The media representation being updated.
+     * @param array $options Optional parameters for form customization.
+     * @return string The HTML markup for the update form elements.
      */
     public function updateForm(PhpRenderer $view, \Omeka\Api\Representation\MediaRepresentation $media, array $options = [])
     {
@@ -401,10 +401,11 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * @param Media $media
-     * @param Request $request
-     * @param ErrorStore $errorStore
-     * @return bool
+     * Updates an existing media record, optionally replacing the video file and regenerating thumbnails if a new video is uploaded.
+     *
+     * If no new file is provided in the request, the update is considered successful and no changes are made. If a new video file is uploaded, the method validates the upload, updates the media using the standard file ingester, and extracts a new thumbnail if the media is a supported video type. Errors during file upload or update are recorded in the error store.
+     *
+     * @return bool True on successful update or if no new file is provided; false if an error occurs during file upload or update.
      */
     public function update(Media $media, Request $request, ErrorStore $errorStore)
     {
@@ -493,9 +494,11 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
     
     /**
-     * Update the storage paths for thumbnails in the database
+     * Updates the database to reflect the storage paths and availability of thumbnail images for the given media entity.
      *
-     * @param \Omeka\Entity\Media $media The media entity to update
+     * Ensures that standard thumbnail types ('large', 'medium', 'square') exist in storage and updates the media's thumbnail status in the database.
+     *
+     * @param \Omeka\Entity\Media $media The media entity whose thumbnail paths and status are updated.
      * @return void
      */
     protected function updateThumbnailStoragePaths($media)
@@ -551,18 +554,29 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
     
     /**
-     * Get a storage path.
+     * Constructs a storage path for a media file using the given prefix, storage ID, and optional extension.
      *
-     * @param string $prefix The storage prefix (e.g., 'original', 'thumbnail')
-     * @param string $storageId The unique storage ID of the media
-     * @param string $extension Optional file extension
-     * @return string The constructed storage path
+     * @param string $prefix Storage prefix such as 'original' or 'thumbnail'.
+     * @param string $storageId Unique identifier for the stored media.
+     * @param string $extension Optional file extension (without dot).
+     * @return string Full storage path for the media file.
      */
     protected function getStoragePath(string $prefix, string $storageId, string $extension = ''): string
     {
         return sprintf('%s/%s%s', $prefix, $storageId, strlen($extension) ? '.' . $extension : '');
     }
     
+    /**
+     * Validates a video file for existence, supported extension, MIME type, and size.
+     *
+     * Throws a RuntimeException if the file does not exist, is unreadable, has an unsupported extension,
+     * is not a video MIME type, or exceeds 2GB in size.
+     *
+     * @param string $filePath Path to the video file.
+     * @param string $originalName Original filename of the uploaded video.
+     * @return bool True if the video file passes all validation checks.
+     * @throws \RuntimeException If validation fails.
+     */
     protected function validateVideo($filePath, $originalName)
     {
         if (!file_exists($filePath) || !is_readable($filePath)) {
@@ -605,6 +619,16 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
         return true;
     }
 
+    /**
+     * Attempts to extract a video frame at multiple fallback positions.
+     *
+     * Tries to extract a thumbnail frame from the video at the specified initial time, then at 25% of the duration, and finally at 1 second. Returns the path to the first successfully extracted frame, or null if all attempts fail.
+     *
+     * @param string $videoPath Path to the video file.
+     * @param float $initialTime Initial time (in seconds) to attempt frame extraction.
+     * @param float $duration Total duration of the video in seconds.
+     * @return string|null Path to the extracted frame image, or null if extraction fails.
+     */
     protected function extractThumbnailWithFallback($videoPath, $initialTime, $duration)
     {
         // Try positions at 10%, 25%, and start of video
@@ -633,9 +657,9 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
     
     /**
-     * Get the renderer for this ingester.
+     * Returns the renderer identifier for this ingester.
      *
-     * @return string
+     * @return string The renderer name 'videothumbnail'.
      */
     public function getRenderer()
     {
@@ -643,10 +667,12 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
     }
 
     /**
-     * Get the local path to the original media file.
+     * Attempts to determine the local filesystem path of the original media file.
      *
-     * @param Media $media
-     * @return string|null
+     * Returns the absolute path to the original file if found, or null if the file cannot be located using standard or fallback strategies.
+     *
+     * @param Media $media The media entity whose original file path is to be resolved.
+     * @return string|null The local file path, or null if not found.
      */
     protected function getOriginalFilePath(Media $media): ?string
     {

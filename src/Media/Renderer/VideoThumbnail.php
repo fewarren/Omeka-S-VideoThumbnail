@@ -37,9 +37,9 @@ class VideoThumbnail implements RendererInterface
     protected $view;
 
     /**
-     * Set the view renderer
-     * 
-     * @param PhpRenderer $view
+     * Sets the view renderer instance used for rendering video thumbnails.
+     *
+     * @param PhpRenderer $view The view renderer to use.
      */
     public function setView(PhpRenderer $view)
     {
@@ -47,9 +47,9 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Get the view renderer
+     * Returns the current view renderer instance.
      *
-     * @return PhpRenderer
+     * @return PhpRenderer The view renderer used for rendering views.
      */
     protected function getView()
     {
@@ -57,11 +57,13 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Render a video with thumbnail support
+     * Renders a video element with thumbnail support for the given media.
      *
-     * @param MediaRepresentation $media
-     * @param array $options
-     * @return string
+     * Merges provided options with defaults, validates the media type, and constructs an HTML5 video tag with appropriate attributes and a source element. If the request is from an admin, appends a custom thumbnail selector. Returns an empty string if rendering fails or the media is unsupported.
+     *
+     * @param MediaRepresentation $media The media object to render as a video.
+     * @param array $options Optional rendering options to override defaults.
+     * @return string The rendered HTML for the video element, or an empty string on failure.
      */
     public function render(MediaRepresentation $media, array $options = [])
     {
@@ -125,10 +127,10 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Check if media type is a supported video format
+     * Determines whether the given media type is a supported video format.
      *
-     * @param string $mediaType
-     * @return bool
+     * @param string $mediaType The MIME type of the media.
+     * @return bool True if the media type is supported; otherwise, false.
      */
     protected function isVideoMedia($mediaType)
     {
@@ -136,10 +138,12 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Get the URL for the video file
+     * Retrieves the URL of the video file for the given media.
      *
-     * @param MediaRepresentation $media
-     * @return string|null
+     * Attempts to obtain the asset URL; if unavailable, falls back to the original URL.
+     *
+     * @param MediaRepresentation $media The media object to retrieve the video URL from.
+     * @return string|null The video file URL, or null if not available.
      */
     protected function getVideoUrl(MediaRepresentation $media)
     {
@@ -161,10 +165,12 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Build HTML attributes for the video element
+     * Constructs an array of HTML attributes for a video element based on the provided options.
      *
-     * @param array $options
-     * @return array
+     * Includes width, height, preload, and CSS class attributes, as well as boolean attributes such as controls, autoplay, loop, and muted if specified.
+     *
+     * @param array $options Options for configuring the video element.
+     * @return array Associative array of HTML attributes for the video tag.
      */
     protected function buildVideoAttributes(array $options)
     {
@@ -186,10 +192,12 @@ class VideoThumbnail implements RendererInterface
     }
 
     /**
-     * Format attributes into HTML attribute string
+     * Converts an array of HTML attributes into a properly escaped attribute string.
      *
-     * @param array $attributes
-     * @return string
+     * Boolean attributes are rendered without a value; all others are escaped and formatted as key="value".
+     *
+     * @param array $attributes Associative array of attribute names and values.
+     * @return string Escaped HTML attribute string suitable for inclusion in a tag.
      */
     protected function formatAttributes(array $attributes)
     {

@@ -19,6 +19,13 @@ class Module extends AbstractModule
 {
     const NAMESPACE = __NAMESPACE__;
 
+    /**
+     * Loads and returns the module configuration array.
+     *
+     * Returns an empty array if the configuration file cannot be loaded.
+     *
+     * @return array The module configuration settings.
+     */
     public function getConfig(): array
     {
         try {
@@ -30,6 +37,14 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Generates and returns the HTML for the module's configuration form.
+     *
+     * Retrieves current settings, initializes the configuration form with these values, and renders the form template. Returns an error message HTML if an exception occurs during form generation or rendering.
+     *
+     * @param PhpRenderer $renderer The view renderer used to render the form template.
+     * @return string The rendered HTML of the configuration form, or an error message if rendering fails.
+     */
     public function getConfigForm(PhpRenderer $renderer): string
     {
         try {
@@ -109,6 +124,14 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Processes and validates the module configuration form submission.
+     *
+     * Handles form instantiation, validation, and saving of configuration settings such as FFmpeg path, frame count, debug mode, memory limit, log level, timestamp property, and supported formats. Validates FFmpeg path and execution, updates debug configuration, and provides user feedback via flash messages. Returns true on success or false if validation or processing fails.
+     *
+     * @param AbstractController $controller The controller handling the form submission.
+     * @return bool True if the configuration was saved successfully, false otherwise.
+     */
     public function handleConfigForm(AbstractController $controller): bool
     {
         Debug::log('Starting config form handling', __METHOD__);
@@ -258,6 +281,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Returns the autoloader configuration for mapping the module namespace to the source directory.
+     *
+     * @return array Autoloader configuration array.
+     */
     public function getAutoloaderConfig(): array
     {
         return [
@@ -269,6 +297,11 @@ class Module extends AbstractModule
         ];
     }
 
+    /**
+     * Handles module bootstrap initialization, including debug setup, asset registration, ACL rules, and event listener registration.
+     *
+     * Initializes the debug system, registers view helpers, attaches CSS/JS assets, adds ACL rules, and registers event listeners during the application bootstrap process. Logs errors and critical failures encountered during initialization.
+     */
     public function onBootstrap(MvcEvent $event): void
     {        
         try {
@@ -325,6 +358,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Initializes the debug logging system for the VideoThumbnail module using current settings.
+     *
+     * Retrieves the debug mode setting from Omeka or module configuration and configures the debug logger with log directory, file name, size, and file count limits.
+     */
     protected function initializeDebugMode($serviceManager)
     {
         $settings = $serviceManager->get('Omeka\\Settings');
@@ -345,7 +383,9 @@ class Module extends AbstractModule
     }
 
     /**
-     * Get the module version from module.ini
+     * Retrieves the module version from the module.ini configuration file.
+     *
+     * @return string The module version, or 'unknown' if not found.
      */
     protected function getModuleVersion(): string
     {
@@ -359,7 +399,9 @@ class Module extends AbstractModule
     }
 
     /**
-     * Register CSS and JS assets
+     * Registers CSS and JavaScript assets for the admin interface.
+     *
+     * Attaches event listeners to load general and controller-specific stylesheets and scripts on relevant admin routes, including additional assets for video thumbnail management and page editing.
      */
     protected function attachListenersForAssets(MvcEvent $event): void
     {
@@ -411,6 +453,11 @@ class Module extends AbstractModule
         );
     }
 
+    /**
+     * Installs the module by setting default configuration values and creating required directories.
+     *
+     * Sets initial settings such as FFmpeg path, frame options, memory and timeout limits, debug mode, and supported video formats.
+     */
     public function install(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
@@ -443,6 +490,13 @@ class Module extends AbstractModule
         $this->createRequiredDirectories();
     }
 
+    /**
+     * Attempts to locate the FFmpeg executable on the server.
+     *
+     * Checks common installation paths for FFmpeg on Unix-like and Windows systems, and falls back to using the `which` command if available. Returns the path to the FFmpeg binary if found, or an empty string if not detected.
+     *
+     * @return string Path to the FFmpeg executable, or an empty string if not found.
+     */
     protected function detectFfmpegPath()
     {
         $possiblePaths = [
@@ -474,6 +528,9 @@ class Module extends AbstractModule
         return '';
     }
 
+    /**
+     * Ensures that required directories for temporary video thumbnails and logs exist, creating them if necessary.
+     */
     protected function createRequiredDirectories()
     {
         $directories = [
@@ -488,6 +545,9 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Uninstalls the module by deleting all related settings and cleaning up temporary directories.
+     */
     public function uninstall(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
@@ -506,6 +566,11 @@ class Module extends AbstractModule
         $this->cleanupTempDirectories();
     }
 
+    /**
+     * Removes temporary directories used for video thumbnails.
+     *
+     * Recursively deletes the video thumbnails temporary directory and its contents if it exists.
+     */
     protected function cleanupTempDirectories()
     {
         $directories = [
@@ -519,6 +584,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Recursively deletes all files and subdirectories within the specified directory, then removes the directory itself.
+     *
+     * @param string $directory Path to the directory to remove.
+     */
     protected function recursiveRemoveDirectory($directory): void
     {
         if (is_dir($directory)) {
@@ -533,6 +603,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Attaches event listeners for media creation, update, and admin edit form events.
+     *
+     * Registers handlers to process video thumbnail logic during media ingestion, updates, and after rendering the admin media edit form.
+     */
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
         // Handle media events directly in the module class
@@ -561,7 +636,11 @@ class Module extends AbstractModule
     }
     
     /**
-     * Handle media ingestion events
+     * Handles media ingestion events and logs when a video media item is ingested.
+     *
+     * If the ingested media is a video, logs its media ID for debugging purposes.
+     *
+     * @param mixed $event The event containing the media ingestion response.
      */
     public function handleMediaIngestion($event): void
     {
@@ -578,6 +657,13 @@ class Module extends AbstractModule
         \VideoThumbnail\Stdlib\Debug::log('Media ingestion detected for media ID: ' . $media->id(), __METHOD__);
     }
 
+    /**
+     * Renders the video thumbnail selector in the admin media edit form for video media.
+     *
+     * Outputs the video thumbnail selector view helper if the current media is a video.
+     *
+     * @param mixed $event The event containing the view and media context.
+     */
     public function handleViewEditFormAfter($event): void
     {
         $view = $event->getTarget();
@@ -590,6 +676,14 @@ class Module extends AbstractModule
         echo $view->videoThumbnailSelector($media);
     }
 
+    /**
+     * Handles media update post events to update the video thumbnail if a new frame is selected.
+     *
+     * If the updated media is a video and the request data includes a 'videothumbnail_frame' value,
+     * updates the video's thumbnail to the specified frame.
+     *
+     * @param mixed $event The event containing the request and media response.
+     */
     public function handleMediaUpdatePost($event): void
     {
         $request = $event->getParam('request');
@@ -605,6 +699,11 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Adds a success flash message with a link to start a job for regenerating all video thumbnails in the admin interface.
+     *
+     * @param mixed $event The event object containing the view context.
+     */
     public function addAdminWarning($event): void
     {
         $view = $event->getTarget();
@@ -624,12 +723,26 @@ class Module extends AbstractModule
         $flashMessenger->addSuccess($message);
     }
 
+    /**
+     * Determines whether the given media entity or representation is a video.
+     *
+     * @param mixed $media A Media entity or MediaRepresentation instance.
+     * @return bool True if the media type starts with 'video/', false otherwise.
+     */
     protected function isVideoMedia($media): bool
     {
         $mediaType = $media instanceof Media ? $media->getMediaType() : ($media instanceof MediaRepresentation ? $media->mediaType() : null);
         return $mediaType && strpos($mediaType, 'video/') === 0;
     }
 
+    /**
+     * Updates the video thumbnail for the specified media using a selected frame percentage.
+     *
+     * Extracts a frame from the video at the given percentage of its duration and sets it as the media's thumbnail. Handles both media entities and representations. Errors during the process are logged.
+     *
+     * @param mixed $media The media entity or representation to update.
+     * @param int|float $selectedFrame The frame position as a percentage of the video's duration.
+     */
     protected function updateVideoThumbnail($media, $selectedFrame): void
     {
         try {
@@ -675,7 +788,10 @@ class Module extends AbstractModule
     }
     
     /**
-     * Add ACL rules for this module
+     * Adds ACL resources and grants broad access for the module's admin controller and module adapter.
+     *
+     * Ensures that the VideoThumbnail admin controller and the Omeka module adapter are registered as ACL resources,
+     * and grants unrestricted access (null role) to both. Logs all actions and handles exceptions with error logging.
      */
     protected function addAclRules($serviceManager): void
     {
