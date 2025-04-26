@@ -11,6 +11,12 @@ class VideoThumbnailSelector extends AbstractHelper
     protected $videoFrameExtractor;
     protected $settings;
 
+    /**
+     * Initializes the VideoThumbnailSelector with a video frame extractor and configuration settings.
+     *
+     * @param mixed $videoFrameExtractor Service used to extract frames from video files.
+     * @param mixed $settings Configuration settings for thumbnail selection.
+     */
     public function __construct($videoFrameExtractor, $settings)
     {
         $this->videoFrameExtractor = $videoFrameExtractor;
@@ -19,6 +25,14 @@ class VideoThumbnailSelector extends AbstractHelper
         // register_shutdown_function([$this, 'cleanup']);
     }
 
+    /**
+     * Renders the video thumbnail selector partial view for the given media.
+     *
+     * Returns an empty string if no media is provided or if rendering fails.
+     *
+     * @param mixed $media The media object to render the thumbnail selector for.
+     * @return string The rendered HTML for the thumbnail selector, or an empty string on error.
+     */
     public function __invoke($media)
     {
         if (!$media) {
@@ -45,6 +59,14 @@ class VideoThumbnailSelector extends AbstractHelper
         }
     }
 
+    /**
+     * Determines if the provided media object is a valid video.
+     *
+     * Returns true if the media exists and its MIME type starts with 'video/', false otherwise.
+     *
+     * @param mixed $media The media object to validate.
+     * @return bool True if the media is a video, false otherwise.
+     */
     protected function validateMedia($media)
     {
         if (!$media) {
@@ -59,6 +81,12 @@ class VideoThumbnailSelector extends AbstractHelper
         return true;
     }
 
+    /**
+     * Merges provided options with default settings for video thumbnail selection.
+     *
+     * @param array $options User-supplied options to override defaults.
+     * @return array Combined options array with defaults applied where not specified.
+     */
     protected function normalizeOptions(array $options)
     {
         return array_merge([
@@ -70,6 +98,16 @@ class VideoThumbnailSelector extends AbstractHelper
         ], $options);
     }
 
+    /**
+     * Generates and caches preview frames for a given video media item.
+     *
+     * Extracts a specified number of frames from the local video file, processes them with metadata, and stores the result in an internal cache keyed by media ID. Throws a RuntimeException if the local file path cannot be determined.
+     *
+     * @param mixed $media The video media object to extract frames from.
+     * @param array $options Options array, must include 'frameCount' specifying the number of frames to extract.
+     * @return array Array of processed frame data including file paths, URLs, timestamps, and positions.
+     * @throws \RuntimeException If the local video file path cannot be determined.
+     */
     protected function generateFramePreviews($media, array $options)
     {
         $mediaId = $media->id();
@@ -95,6 +133,14 @@ class VideoThumbnailSelector extends AbstractHelper
         return $processed;
     }
 
+    /**
+     * Resolves the local file system path for the given media object.
+     *
+     * Attempts to retrieve the file path using the view's API adapter if available; falls back to constructing the path directly from the Omeka files directory if necessary.
+     *
+     * @param mixed $media Media object with a filename method.
+     * @return string|false The resolved file path, or false if the filename is missing.
+     */
     protected function getLocalFilePath($media)
     {
         // Get filename from the media
@@ -122,6 +168,14 @@ class VideoThumbnailSelector extends AbstractHelper
         return OMEKA_PATH . '/files/' . $storagePath;
     }
 
+    /**
+     * Extracts a specified number of frames from a video file.
+     *
+     * @param string $filePath Path to the video file.
+     * @param int $count Number of frames to extract.
+     * @return array Array of file paths to the extracted frames.
+     * @throws \RuntimeException If no frames could be extracted from the video.
+     */
     protected function extractFrames($filePath, $count)
     {
         $frames = $this->videoFrameExtractor->extractFrames($filePath, $count);
@@ -138,6 +192,15 @@ class VideoThumbnailSelector extends AbstractHelper
         return $frames;
     }
 
+    /**
+     * Processes extracted video frame file paths into an array with URLs, timestamps, and positions.
+     *
+     * Calculates the timestamp and position for each frame based on the video's duration and the frame's order.
+     *
+     * @param array $frames Array of frame file paths.
+     * @param mixed $media Media object representing the video.
+     * @return array Array of processed frames, each containing 'path', 'url', 'timestamp', and 'position'.
+     */
     protected function processFrames(array $frames, $media)
     {
         $processed = [];
@@ -159,6 +222,12 @@ class VideoThumbnailSelector extends AbstractHelper
         return $processed;
     }
 
+    /**
+     * Copies a video frame to a public temporary directory and returns its accessible URL.
+     *
+     * @param string $framePath Path to the extracted video frame file.
+     * @return string Public URL for accessing the frame image.
+     */
     protected function getFrameUrl($framePath)
     {
         // Create a URL-accessible path for the frame
@@ -179,6 +248,14 @@ class VideoThumbnailSelector extends AbstractHelper
         return $this->getView()->assetUrl('temp/' . $publicPath);
     }
 
+    /**
+     * Renders the video thumbnail selector partial view with the provided media, frames, and options.
+     *
+     * @param mixed $media The media object for which thumbnails are being selected.
+     * @param array $frames Array of processed frame data to display as thumbnail options.
+     * @param array $options Configuration options for rendering the selector.
+     * @return string Rendered HTML for the video thumbnail selector.
+     */
     protected function renderSelector($media, array $frames, array $options)
     {
         $view = $this->getView();
@@ -190,6 +267,12 @@ class VideoThumbnailSelector extends AbstractHelper
         ]);
     }
 
+    /**
+     * Returns an HTML div displaying an escaped error message for video thumbnail operations.
+     *
+     * @param string $message The error message to display.
+     * @return string HTML markup containing the escaped error message.
+     */
     protected function renderError($message)
     {
         return sprintf(
@@ -198,6 +281,9 @@ class VideoThumbnailSelector extends AbstractHelper
         );
     }
 
+    /**
+     * Removes all temporary files created during frame extraction and clears internal caches.
+     */
     public function cleanup()
     {
         // Clean up temporary files

@@ -10,6 +10,14 @@ use Laminas\Log\LoggerInterface; // Import LoggerInterface
 
 class VideoFrameExtractorFactory implements FactoryInterface
 {
+    /**
+     * Creates and configures a VideoFrameExtractor instance.
+     *
+     * Retrieves the FFmpeg executable path and temporary directory from application settings or configuration, ensures the temporary directory exists and is writable, and returns a new VideoFrameExtractor with these parameters and a logger. Throws a RuntimeException if the temporary directory cannot be created or is not writable.
+     *
+     * @return VideoFrameExtractor Configured instance ready for use.
+     * @throws RuntimeException If the temporary directory cannot be created or is not writable.
+     */
     public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
         /** @var SettingsInterface $settings */

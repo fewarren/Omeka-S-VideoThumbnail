@@ -18,7 +18,9 @@ class Debug
     private static $timeStart = null;
 
     /**
-     * Initialize the logger if it hasn't been yet
+     * Initializes the debug logger and log file if not already set up.
+     *
+     * Ensures the log directory exists, creates a new log file for the current date, and configures the logger instance. If initialization fails, logs the error to the PHP error log and disables further logging.
      */
     protected static function init()
     {
@@ -54,6 +56,13 @@ class Debug
         }
     }
 
+    /**
+     * Initializes the debug logging system with the provided configuration.
+     *
+     * Sets up logging directories, initializes the logger, and logs system information if debugging is enabled. Disables debugging and logs errors if initialization fails at any step.
+     *
+     * @param array $config Configuration settings for the debug system.
+     */
     public static function init($config)
     {
         self::$config = $config;
@@ -83,6 +92,13 @@ class Debug
         self::logSystemInfo();
     }
 
+    /**
+     * Ensures the configured log directory exists and is writable.
+     *
+     * Attempts to create the directory if it does not exist. Logs errors to the PHP error log if the directory is missing, cannot be created, or is not writable.
+     *
+     * @return bool True if the log directory exists and is writable, false otherwise.
+     */
     private static function ensureLogDirectory(): bool
     {
         $logDir = self::$config['log_dir'];
@@ -104,6 +120,11 @@ class Debug
         return true;
     }
 
+    /**
+     * Initializes the Laminas logger for debug output if enabled and properly configured.
+     *
+     * Disables debugging and logs an error if the log file is not configured, not writable, or logger initialization fails.
+     */
     private static function initLogger()
     {
         if (self::$logger !== null || !self::$config['enabled']) {
@@ -134,6 +155,9 @@ class Debug
         }
     }
 
+    /**
+     * Checks if the log file exceeds the configured maximum size and triggers log rotation if necessary.
+     */
     private static function rotateLogIfNeeded()
     {
         if (!self::$config['enabled']) {
@@ -146,6 +170,11 @@ class Debug
         }
     }
 
+    /**
+     * Rotates the log files by deleting the oldest log and renaming existing logs to maintain the configured maximum number of log files.
+     *
+     * Removes the oldest log file if the maximum file count is reached, then shifts existing log files by incrementing their suffixes.
+     */
     private static function rotateLog()
     {
         $logFile = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file'];
@@ -167,6 +196,13 @@ class Debug
         }
     }
 
+    /**
+     * Formats a log message with a standard prefix and optional method name.
+     *
+     * @param string $message The message to format.
+     * @param string|null $method Optional method name to include in the message.
+     * @return string The formatted log message.
+     */
     private static function formatMessage($message, $method = null)
     {
         $prefix = 'VideoThumbnail: ';
@@ -176,6 +212,12 @@ class Debug
         return $prefix . $message;
     }
 
+    /**
+     * Logs the entry into a method with process ID, memory usage, elapsed time, and optional parameters.
+     *
+     * @param string $method Name of the method being entered.
+     * @param array $params Optional parameters to include in the log entry.
+     */
     public static function logEntry($method, $params = [])
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -202,6 +244,12 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Logs an informational message to the debug log.
+     *
+     * @param string $message The message to log.
+     * @param string|null $method Optional method name to include in the log entry.
+     */
     public static function log($message, $method = null)
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -212,6 +260,12 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Logs a warning message to the debug log if debugging is enabled.
+     *
+     * @param string $message The warning message to log.
+     * @param string|null $method Optional method name to include in the log entry.
+     */
     public static function logWarning($message, $method = null)
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -222,6 +276,15 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Logs an error message with optional method context and exception details.
+     *
+     * If an exception is provided, its message and stack trace are included. The error is logged both to the configured logger and the PHP error log. Log rotation is triggered if needed.
+     *
+     * @param string $message The error message to log.
+     * @param string|null $method Optional method name for context.
+     * @param \Exception|null $exception Optional exception to include in the log.
+     */
     public static function logError($message, $method = null, \Exception $exception = null)
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -242,6 +305,13 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Logs the progress of a job with its ID, completion percentage, and optional status.
+     *
+     * @param int $jobId The unique identifier of the job.
+     * @param int $progress The job's progress as a percentage.
+     * @param string|null $status Optional status message describing the job's current state.
+     */
     public static function logJobProgress($jobId, $progress, $status = null)
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -259,6 +329,15 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Logs a job error message with optional retry count.
+     *
+     * Records job-related errors to the debug log and PHP error log, including the job ID, error details, and retry number if provided.
+     *
+     * @param int $jobId The identifier of the job where the error occurred.
+     * @param string $error Description of the error encountered.
+     * @param int|null $retry Optional retry attempt number.
+     */
     public static function logJobError($jobId, $error, $retry = null)
     {
         if (!self::$config['enabled'] || !self::$logger) {
@@ -277,6 +356,12 @@ class Debug
         self::rotateLogIfNeeded();
     }
 
+    /**
+     * Converts a byte value to a human-readable string with appropriate units.
+     *
+     * @param int|float $bytes The number of bytes to format.
+     * @return string The formatted string with units (B, KB, MB, or GB).
+     */
     private static function formatBytes($bytes)
     {
         $units = ['B', 'KB', 'MB', 'GB'];
@@ -288,18 +373,30 @@ class Debug
         return sprintf('%.2f%s', $bytes, $units[$index]);
     }
 
+    /**
+     * Returns the peak memory usage recorded during the debug session.
+     *
+     * @return int|null Peak memory usage in bytes, or null if not recorded.
+     */
     public static function getMemoryPeak()
     {
         return self::$memoryPeak;
     }
 
+    /**
+     * Returns the elapsed time in seconds since the debug system was initialized.
+     *
+     * @return float Elapsed time in seconds.
+     */
     public static function getElapsedTime()
     {
         return microtime(true) - self::$timeStart;
     }
 
     /**
-     * Logs system environment information to help with troubleshooting
+     * Logs detailed system environment information for troubleshooting purposes.
+     *
+     * Collects and logs PHP version, operating system, server software, memory and upload limits, FFmpeg availability, and the status of key directories to assist with debugging and support.
      */
     private static function logSystemInfo()
     {
@@ -358,11 +455,11 @@ class Debug
     }
 
     /**
-     * Specialized method for logging admin configuration form events
-     * 
-     * @param string $action The action being performed (load, validate, save, etc)
-     * @param array $data Associated data for the action
-     * @param string $method Calling method identifier
+     * Logs an administrative configuration form action with associated data.
+     *
+     * @param string $action The configuration action performed (e.g., load, validate, save).
+     * @param array $data Optional data related to the action.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logConfigAction($action, array $data = [], $method = null)
     {
@@ -381,10 +478,12 @@ class Debug
     }
     
     /**
-     * Log form validation issues
-     * 
-     * @param array $messages Form validation error messages
-     * @param string $method Calling method identifier  
+     * Logs form validation errors as warnings.
+     *
+     * Each validation error is recorded with its associated field and error messages for debugging purposes.
+     *
+     * @param array $messages Associative array of form fields and their validation error messages.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logFormValidation(array $messages, $method = null)
     {
@@ -407,11 +506,11 @@ class Debug
     }
     
     /**
-     * Dump form data for debugging purposes
-     * 
-     * @param array $formData Form data to dump
-     * @param string $stage Processing stage description 
-     * @param string $method Calling method identifier
+     * Logs a debug-level dump of form data at a specified processing stage.
+     *
+     * @param array $formData The form data to be logged.
+     * @param string $stage Optional description of the processing stage. Defaults to 'unknown'.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function dumpFormData(array $formData, $stage = 'unknown', $method = null)
     {
@@ -433,9 +532,11 @@ class Debug
     }
     
     /**
-     * Check if debug mode is enabled
-     * 
-     * @return bool True if debugging is enabled
+     * Determines whether debug mode is currently enabled.
+     *
+     * Checks and caches the debug mode setting from the Omeka service locator. Returns false if the setting cannot be retrieved.
+     *
+     * @return bool True if debug mode is enabled; otherwise, false.
      */
     public static function isEnabled()
     {
@@ -464,10 +565,10 @@ class Debug
     }
     
     /**
-     * Log exit from method for tracing execution flow
-     * 
-     * @param string $method Method name
-     * @param mixed $result Optional result data
+     * Logs the exit point of a method, including memory usage, elapsed time, and optional result data.
+     *
+     * @param string $method The name of the method exiting.
+     * @param mixed $result Optional result data to include in the log.
      */
     public static function logExit($method, $result = null)
     {
@@ -500,12 +601,12 @@ class Debug
     }
     
     /**
-     * Log settings changes
-     * 
-     * @param string $key Setting key
-     * @param mixed $oldValue Previous value
-     * @param mixed $newValue New value
-     * @param string $method Method identifier
+     * Logs a change to a configuration setting, including the key, previous value, and new value.
+     *
+     * @param string $key The setting key that was changed.
+     * @param mixed $oldValue The previous value of the setting.
+     * @param mixed $newValue The new value of the setting.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logSettingChange($key, $oldValue, $newValue, $method = null)
     {
@@ -534,12 +635,12 @@ class Debug
     }
     
     /**
-     * Log admin settings workflow state transitions
-     * 
-     * @param string $from Previous state
-     * @param string $to New state 
-     * @param array $context Additional context information
-     * @param string $method Method identifier
+     * Logs a workflow state transition in the admin settings, including previous and new states and optional context.
+     *
+     * @param string $from The previous workflow state.
+     * @param string $to The new workflow state.
+     * @param array $context Optional additional context information about the transition.
+     * @param string|null $method Optional method identifier for traceability.
      */
     public static function logWorkflowTransition($from, $to, array $context = [], $method = null)
     {
@@ -562,11 +663,13 @@ class Debug
     }
     
     /**
-     * Log detailed admin form processing steps
-     * 
-     * @param string $step Description of the processing step
-     * @param array $data Data relevant to this step
-     * @param string $method Method identifier
+     * Logs a detailed step in the admin form processing workflow.
+     *
+     * Records the specified processing step and any associated data for debugging and traceability.
+     *
+     * @param string $step Description of the current processing step.
+     * @param array $data Optional data relevant to this step.
+     * @param string|null $method Optional method identifier for context.
      */
     public static function logFormProcessingStep($step, array $data = [], $method = null)
     {
@@ -590,10 +693,10 @@ class Debug
     }
     
     /**
-     * Start timing an operation for performance monitoring
-     * 
-     * @param string $operationId Unique identifier for the operation
-     * @param string $description Description of the operation
+     * Begins tracking the start time and memory usage for a performance-monitored operation.
+     *
+     * @param string $operationId Unique identifier for the operation.
+     * @param string|null $description Optional description of the operation.
      */
     public static function startOperation($operationId, $description = null)
     {
@@ -621,10 +724,12 @@ class Debug
     }
     
     /**
-     * End timing an operation and log duration
-     * 
-     * @param string $operationId Identifier matching a previous startOperation call
-     * @param array $result Optional result data
+     * Ends a timed operation, logging its duration, memory usage delta, and optional result data.
+     *
+     * Logs a warning if no matching startOperation was found for the given identifier.
+     *
+     * @param string $operationId Identifier corresponding to a previous startOperation call.
+     * @param array|null $result Optional result data to include in the log.
      */
     public static function endOperation($operationId, array $result = null)
     {
@@ -663,11 +768,13 @@ class Debug
     }
     
     /**
-     * Log admin user action for audit trail
-     * 
-     * @param string $action Description of user action
-     * @param string $userId User ID if available
-     * @param array $details Additional details about the action
+     * Logs an administrative user action for audit and tracking purposes.
+     *
+     * Records the specified action, optionally including the user ID and additional details, to the debug log for administrative auditing.
+     *
+     * @param string $action Description of the admin action performed.
+     * @param string|null $userId Optional user identifier associated with the action.
+     * @param array $details Optional associative array of additional action details.
      */
     public static function logAdminAction($action, $userId = null, array $details = [])
     {
@@ -690,13 +797,13 @@ class Debug
     }
     
     /**
-     * Log API interactions related to admin settings
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param array $requestData Request data (if applicable)
-     * @param array $responseData Response data (if applicable)
-     * @param int $statusCode HTTP status code (if applicable)
+     * Logs details of an API interaction related to admin settings, including endpoint, HTTP method, status code, and request/response data.
+     *
+     * @param string $endpoint The API endpoint accessed.
+     * @param string $method The HTTP method used (e.g., GET, POST).
+     * @param array|null $requestData Optional request data sent to the API.
+     * @param array|null $responseData Optional response data received from the API.
+     * @param int|null $statusCode Optional HTTP status code returned by the API.
      */
     public static function logApiInteraction($endpoint, $method, array $requestData = null, array $responseData = null, $statusCode = null)
     {
@@ -726,12 +833,12 @@ class Debug
     }
     
     /**
-     * Log settings changes
-     * 
-     * @param string $key Setting key
-     * @param mixed $oldValue Previous value
-     * @param mixed $newValue New value
-     * @param string $method Method identifier
+     * Logs a change to a configuration setting, including the key, previous value, and new value.
+     *
+     * @param string $key The setting key that was changed.
+     * @param mixed $oldValue The previous value of the setting.
+     * @param mixed $newValue The new value of the setting.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logSettingChange($key, $oldValue, $newValue, $method = null)
     {
@@ -759,13 +866,13 @@ class Debug
         self::rotateLogIfNeeded();
     }
     
-    /**
-     * Log admin settings workflow state transitions
-     * 
-     * @param string $from Previous state
-     * @param string $to New state 
-     * @param array $context Additional context information
-     * @param string $method Method identifier
+    /****
+     * Logs a workflow state transition in the admin settings, including optional context data.
+     *
+     * @param string $from The previous workflow state.
+     * @param string $to The new workflow state.
+     * @param array $context Optional additional context information about the transition.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logWorkflowTransition($from, $to, array $context = [], $method = null)
     {
@@ -788,11 +895,13 @@ class Debug
     }
     
     /**
-     * Log detailed admin form processing steps
-     * 
-     * @param string $step Description of the processing step
-     * @param array $data Data relevant to this step
-     * @param string $method Method identifier
+     * Logs a detailed step in the admin form processing workflow.
+     *
+     * Records the specified processing step and any associated data for debugging and traceability.
+     *
+     * @param string $step Description of the current processing step.
+     * @param array $data Optional data relevant to this step.
+     * @param string|null $method Optional method identifier for context.
      */
     public static function logFormProcessingStep($step, array $data = [], $method = null)
     {
@@ -816,10 +925,10 @@ class Debug
     }
     
     /**
-     * Start timing an operation for performance monitoring
-     * 
-     * @param string $operationId Unique identifier for the operation
-     * @param string $description Description of the operation
+     * Begins tracking the start time and memory usage of a named operation for performance monitoring.
+     *
+     * @param string $operationId Unique identifier for the operation.
+     * @param string|null $description Optional description of the operation.
      */
     public static function startOperation($operationId, $description = null)
     {
@@ -847,10 +956,12 @@ class Debug
     }
     
     /**
-     * End timing an operation and log duration
-     * 
-     * @param string $operationId Identifier matching a previous startOperation call
-     * @param array $result Optional result data
+     * Ends a timed operation, logging its duration, memory usage delta, and optional result data.
+     *
+     * Logs a warning if no matching startOperation was found for the given operation ID.
+     *
+     * @param string $operationId Identifier for the operation to end.
+     * @param array|null $result Optional result data to include in the log.
      */
     public static function endOperation($operationId, array $result = null)
     {
@@ -889,11 +1000,13 @@ class Debug
     }
     
     /**
-     * Log admin user action for audit trail
-     * 
-     * @param string $action Description of user action
-     * @param string $userId User ID if available
-     * @param array $details Additional details about the action
+     * Logs an administrative user action for audit and tracking purposes.
+     *
+     * Records the specified action, optionally including the user ID and additional details, to the debug log for administrative auditing.
+     *
+     * @param string $action Description of the admin action performed.
+     * @param string|null $userId User identifier, if available.
+     * @param array $details Optional associative array with additional context about the action.
      */
     public static function logAdminAction($action, $userId = null, array $details = [])
     {
@@ -916,13 +1029,13 @@ class Debug
     }
     
     /**
-     * Log API interactions related to admin settings
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param array $requestData Request data (if applicable)
-     * @param array $responseData Response data (if applicable)
-     * @param int $statusCode HTTP status code (if applicable)
+     * Logs details of an API interaction related to admin settings, including endpoint, HTTP method, status code, and request/response data.
+     *
+     * @param string $endpoint The API endpoint accessed.
+     * @param string $method The HTTP method used (e.g., GET, POST).
+     * @param array|null $requestData Optional request data sent to the API.
+     * @param array|null $responseData Optional response data received from the API.
+     * @param int|null $statusCode Optional HTTP status code returned by the API.
      */
     public static function logApiInteraction($endpoint, $method, array $requestData = null, array $responseData = null, $statusCode = null)
     {
@@ -952,11 +1065,13 @@ class Debug
     }
     
     /**
-     * Log configuration form state for debugging
-     * 
-     * @param array $formData The form data being processed
-     * @param string $context Contextual information about where the form is in the workflow
-     * @param string $method Calling method identifier
+     * Logs the state of a configuration form for debugging, redacting sensitive fields.
+     *
+     * Records the provided form data and workflow context, with sensitive information such as API keys redacted, to assist in debugging configuration processes.
+     *
+     * @param array $formData The form data to log, with sensitive fields redacted.
+     * @param string $context Description of the form's position or purpose in the workflow.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logConfigFormState(array $formData, $context, $method = null)
     {
@@ -981,9 +1096,11 @@ class Debug
     }
     
     /**
-     * Log the complete environment for configuration troubleshooting
-     * 
-     * @param string $message Optional message to include
+     * Logs detailed environment and configuration directory information for troubleshooting.
+     *
+     * Includes server details, configuration and log directory status, and module INI file metadata. An optional message can provide additional context.
+     *
+     * @param string $message Optional context message to include in the log.
      */
     public static function logConfigEnvironment($message = null)
     {
@@ -1048,11 +1165,11 @@ class Debug
     }
     
     /**
-     * Track a step in the configuration workflow
-     * 
-     * @param string $step The current step in the process
-     * @param array $data Optional data related to this step
-     * @param string $method Calling method identifier
+     * Logs a step in the configuration workflow with optional contextual data.
+     *
+     * @param string $step The current step in the configuration process.
+     * @param array $data Optional additional data relevant to the step.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function trackConfigWorkflow($step, array $data = [], $method = null)
     {
@@ -1071,12 +1188,14 @@ class Debug
     }
     
     /**
-     * Log database operations related to configuration
-     * 
-     * @param string $operation The operation being performed
-     * @param string $table The table being operated on
-     * @param array $data Related data for context
-     * @param string $method Calling method identifier
+     * Logs a configuration-related database operation with sensitive data redacted.
+     *
+     * Records the type of operation, target table, and contextual data, redacting sensitive fields such as passwords, API keys, secrets, and tokens.
+     *
+     * @param string $operation The database operation performed (e.g., insert, update, delete).
+     * @param string $table The name of the table affected.
+     * @param array $data Contextual data for the operation; sensitive fields are redacted.
+     * @param string|null $method Optional identifier for the calling method.
      */
     public static function logConfigDbOperation($operation, $table, array $data = [], $method = null)
     {

@@ -13,7 +13,10 @@ use VideoThumbnail\Stdlib\Debug;
 class MediaIngestListener extends AbstractListenerAggregate
 {
     /**
-     * {@inheritDoc}
+     * Attaches the media ingest event handler to the event manager for the 'api.create.post' event.
+     *
+     * @param EventManagerInterface $events The event manager to attach to.
+     * @param int $priority The priority for the event listener.
      */
     public function attach(EventManagerInterface $events, $priority = 1)
     {
@@ -26,9 +29,11 @@ class MediaIngestListener extends AbstractListenerAggregate
     }
 
     /**
-     * Handle a media ingest event.
+     * Handles the media ingest event after media creation, processing only video media types.
      *
-     * @param Event $event
+     * If the event does not contain a valid MediaRepresentation or the media is not a video, the method returns without further action.
+     *
+     * @param Event $event The event triggered after media creation.
      */
     public function handleIngest(Event $event)
     {

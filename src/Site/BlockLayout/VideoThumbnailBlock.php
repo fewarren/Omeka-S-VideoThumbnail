@@ -16,9 +16,9 @@ use VideoThumbnail\Stdlib\Debug; // Added for debug integration
 class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInterface // Add implements clause
 {
     /**
-     * Get the display label for this block layout.
+     * Returns the display label for the video thumbnail block layout.
      *
-     * @return string
+     * @return string The label shown in the "Add new block" dropdown.
      */
     public function getLabel()
     {
@@ -27,13 +27,15 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
     }
 
     /**
-     * Get the configuration form for this block layout.
+     * Generates the configuration form HTML for the video thumbnail block layout.
      *
-     * @param PhpRenderer $view
+     * Returns a form allowing users to select a media item and specify the frame percentage for the video thumbnail. If a media ID is provided, attempts to load and display the media title; otherwise, displays "Unknown media".
+     *
+     * @param \Laminas\View\Renderer\PhpRenderer $view
      * @param \Omeka\Api\Representation\SiteRepresentation $site
-     * @param \Omeka\Api\Representation\SitePageRepresentation $page
-     * @param \Omeka\Api\Representation\SitePageBlockRepresentation $block
-     * @return string Returns HTML form string or empty string if no form.
+     * @param \Omeka\Api\Representation\SitePageRepresentation|null $page
+     * @param \Omeka\Api\Representation\SitePageBlockRepresentation|null $block
+     * @return string The rendered HTML form for block configuration, or an empty string if no form is needed.
      */
     public function form(
         \Laminas\View\Renderer\PhpRenderer $view,
@@ -81,11 +83,13 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
     }
 
     /**
-     * Render the block on the public site page.
+     * Renders the video thumbnail block for display on a public site page.
+     *
+     * Retrieves the associated media entity and generates the HTML output for the video thumbnail block. If the media cannot be loaded or is not specified, returns an empty string or an error message.
      *
      * @param PhpRenderer $view
      * @param SitePageBlockRepresentation $block
-     * @return string HTML output for the block.
+     * @return string HTML output for the video thumbnail block, or an error message if rendering fails.
      */
     public function render(PhpRenderer $view, SitePageBlockRepresentation $block)
     {

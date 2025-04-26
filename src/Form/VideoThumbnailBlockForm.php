@@ -13,7 +13,9 @@ use Laminas\Form\Element;
 class VideoThumbnailBlockForm extends Form
 {
     /**
-     * Initialize the form elements.
+     * Adds form elements for selecting and displaying a video media item.
+     *
+     * Initializes the form with a hidden input for the media ID, a read-only text field to display the selected media, and a button to trigger media selection.
      */
     public function init()
     {
@@ -58,10 +60,12 @@ class VideoThumbnailBlockForm extends Form
     }
 
     /**
-     * Set data for the form, potentially updating the display label.
+     * Sets form data and updates the media display label based on provided values.
      *
-     * @param array|\ArrayAccess|\Traversable $data
-     * @return Form
+     * If a display label is given, it is used directly; otherwise, the label is set to indicate the media ID or cleared if no media is selected.
+     *
+     * @param array|\ArrayAccess|\Traversable $data Form data to set.
+     * @return Form The form instance.
      */
     public function setData($data)
     {

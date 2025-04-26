@@ -9,6 +9,13 @@ use Laminas\Log\LoggerInterface; // Import LoggerInterface
 
 class IngesterFactory implements FactoryInterface
 {
+    /**
+     * Creates and returns a configured VideoThumbnail ingester instance.
+     *
+     * Retrieves all required dependencies from the service container, including file handling services, settings, entity manager, logger, and a video frame extractor, and injects them into the VideoThumbnail ingester.
+     *
+     * @return VideoThumbnail The fully constructed VideoThumbnail ingester.
+     */
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
         $tempFileFactory = $services->get('Omeka\File\TempFileFactory');

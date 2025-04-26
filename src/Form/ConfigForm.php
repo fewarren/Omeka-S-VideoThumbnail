@@ -21,6 +21,11 @@ class ConfigForm extends Form
         'video/x-flv' => 'FLV'
     ];
 
+    /**
+     * Initializes the configuration form for video thumbnail generation settings.
+     *
+     * Adds form elements for specifying FFmpeg path, frame extraction parameters, supported video formats, memory limits, debug and logging options, and optional metadata timestamp configuration. Configures input filters and validators to ensure valid and complete user input.
+     */
     public function init()
     {
         $this->add([
@@ -258,6 +263,14 @@ class ConfigForm extends Form
         ]);
     }
 
+    /**
+     * Validates that the provided path points to a working FFmpeg executable.
+     *
+     * Checks if the path is non-empty, exists, is executable, and successfully runs the `-version` command to confirm FFmpeg presence.
+     *
+     * @param string $value The full path to the FFmpeg executable.
+     * @return bool True if the path is valid and FFmpeg is detected; false otherwise.
+     */
     public function validateFfmpegPath($value)
     {
         Debug::log('Validating FFmpeg path: ' . $value, __METHOD__);

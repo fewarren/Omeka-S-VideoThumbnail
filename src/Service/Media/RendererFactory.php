@@ -7,6 +7,11 @@ use VideoThumbnail\Media\Renderer\VideoThumbnail;
 
 class RendererFactory implements FactoryInterface
 {
+    /**
+     * Creates and returns a new VideoThumbnail renderer instance.
+     *
+     * @return VideoThumbnail A new VideoThumbnail renderer.
+     */
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
         return new VideoThumbnail();

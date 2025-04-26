@@ -11,13 +11,15 @@ use VideoThumbnail\Stdlib\Debug;
 class FileManagerDelegatorFactory implements DelegatorFactoryInterface
 {
     /**
-     * A delegator factory for the Omeka File Manager service.
+     * Delegates creation of the Omeka FileManager service, injecting a ThumbnailSynchronizer if available.
      *
-     * @param ContainerInterface $container
-     * @param string $name Requested service name (Omeka\File\Manager)
-     * @param callable $callback Callback that produces the original service
-     * @param null|array $options Service creation options (optional)
-     * @return FileManager
+     * Attempts to retrieve and inject a ThumbnailSynchronizer service into the FileManager instance if the synchronizer is registered and compatible. If the synchronizer cannot be found or set, returns the original FileManager unmodified.
+     *
+     * @param ContainerInterface $container Service container.
+     * @param string $name Requested service name.
+     * @param callable $callback Callback that produces the original FileManager service.
+     * @param array|null $options Optional service creation options.
+     * @return FileManager The FileManager instance, potentially with a ThumbnailSynchronizer injected.
      */
     public function __invoke(ContainerInterface $container, $name, callable $callback, array $options = null)
     {

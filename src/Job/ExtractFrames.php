@@ -14,6 +14,11 @@ class ExtractFrames extends AbstractJob
     protected $totalFrames;
     protected $processedFrames = 0;
 
+    /**
+     * Executes the job to extract video frames from a single media entity.
+     *
+     * Retrieves the target media, verifies its type and file availability, and uses the video frame extractor service to extract frames. Saves extracted frame metadata to the media entity and reports progress throughout the process. Throws a runtime exception if the media is not found or the file is unavailable.
+     */
     public function perform()
     {
         Debug::logEntry(__METHOD__, ['job_id' => $this->job->getId()]);
@@ -96,6 +101,15 @@ class ExtractFrames extends AbstractJob
         Debug::logExit(__METHOD__);
     }
 
+    /**
+     * Copies a video frame image to a temporary file and stores it as a thumbnail for the given media entity.
+     *
+     * Attempts to copy the specified frame image to a temporary location, generate and store thumbnails, and update the media entity's thumbnail status and metadata. Returns the temporary file object on success, or null if any step fails.
+     *
+     * @param Media $media The media entity to associate with the thumbnail.
+     * @param string $framePath The file path to the extracted video frame image.
+     * @return object|null The temporary file object if successful, or null on failure.
+     */
     protected function storeThumbnail($media, $framePath)
     {
         Debug::logEntry(__METHOD__, ['media_id' => $media->getId()]);
@@ -131,6 +145,11 @@ class ExtractFrames extends AbstractJob
         }
     }
 
+    /**
+     * Initializes job properties and required services for frame extraction.
+     *
+     * Retrieves the media ID argument and obtains the video frame extractor and entity manager services.
+     */
     protected function initializeJob()
     {
         Debug::logEntry(__METHOD__); // Add entry log
@@ -142,6 +161,11 @@ class ExtractFrames extends AbstractJob
         Debug::logExit(__METHOD__); // Add exit log
     }
 
+    /**
+     * Retrieves the media entity corresponding to the stored media ID.
+     *
+     * @return Media|null The media entity if found, or null if not found.
+     */
     protected function loadMedia()
     {
         Debug::logEntry(__METHOD__, ['media_id' => $this->mediaId]); // Add entry log
@@ -150,6 +174,14 @@ class ExtractFrames extends AbstractJob
         return $media;
     }
 
+    /**
+     * Saves extracted video frame metadata to the media entity.
+     *
+     * Updates the media's data field with an array of frame information, including path, timestamp, and index, and persists the changes.
+     *
+     * @param Media $media The media entity to update.
+     * @param array $frames Array of extracted frame metadata.
+     */
     protected function saveFrameData(Media $media, array $frames)
     {
         Debug::logEntry(__METHOD__, ['media_id' => $media->getId(), 'frame_count' => count($frames)]); // Add entry log
@@ -172,6 +204,13 @@ class ExtractFrames extends AbstractJob
         Debug::logExit(__METHOD__); // Add exit log
     }
 
+    /**
+     * Callback invoked after each frame is extracted to update progress.
+     *
+     * Increments the processed frames counter and reports the current extraction progress.
+     *
+     * @param int $frameIndex Index of the frame that was just extracted.
+     */
     public function onFrameExtracted($frameIndex)
     {
         Debug::logEntry(__METHOD__, ['frame_index' => $frameIndex]); // Add entry log
@@ -185,6 +224,14 @@ class ExtractFrames extends AbstractJob
         Debug::logExit(__METHOD__); // Add exit log
     }
 
+    /**
+     * Updates the job's progress and status message if there is a significant change.
+     *
+     * Only persists changes if the progress percentage has changed by at least 1% or the status message differs from the current value.
+     *
+     * @param float $percent The current progress percentage.
+     * @param string $message The status message to display.
+     */
     protected function reportProgress($percent, $message)
     {
         $job = $this->job;

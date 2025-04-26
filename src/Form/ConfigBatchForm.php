@@ -9,6 +9,11 @@ use Laminas\InputFilter\InputFilterProviderInterface;
 
 class ConfigBatchForm extends Form implements InputFilterProviderInterface
 {
+    /**
+     * Initializes the batch video thumbnail configuration form with fields for frame position, supported formats, debug mode, and thumbnail regeneration.
+     *
+     * Adds form elements to configure the default frame position for thumbnail extraction, select supported video formats, enable or disable debug logging, trigger regeneration of all video thumbnails, and submit the settings.
+     */
     public function init()
     {
         $supportedFormats = [
@@ -97,9 +102,11 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
     }
 
     /**
-     * Define input filters and validation
+     * Returns input filter and validation rules for the form fields.
      *
-     * @return array
+     * Specifies that the 'default_frame_position' field is required, converts input to integer, and validates that its value is between 0 and 100 inclusive.
+     *
+     * @return array Input filter and validation configuration.
      */
     public function getInputFilterSpecification()
     {

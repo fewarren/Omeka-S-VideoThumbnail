@@ -6,6 +6,14 @@ use VideoThumbnail\Stdlib\Debug;
 
 class ThumbnailSynchronizerFactory
 {
+    /**
+     * Creates and returns a new ThumbnailSynchronizer instance using dependencies from the service container.
+     *
+     * Retrieves the entity manager, file store, and configuration from the container and injects them into the ThumbnailSynchronizer.
+     *
+     * @return ThumbnailSynchronizer
+     * @throws \Exception If dependencies cannot be retrieved or instantiation fails.
+     */
     public function __invoke(ContainerInterface $services)
     {
         try {
