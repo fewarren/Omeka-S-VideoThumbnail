@@ -20,7 +20,7 @@ class Debug
     /**
      * Initialize the logger if it hasn't been yet
      */
-    protected static function init()
+    protected static function initLegacy()
     {
         if (self::$isInitialized) {
             return;
@@ -56,31 +56,9 @@ class Debug
 
     public static function init($config)
     {
-        self::$config = $config;
-        self::$timeStart = microtime(true);
-        
-        // Attempt to log basic init even before we fully initialize
-        error_log('VideoThumbnail Debug: Initializing debug system with enabled=' . 
-            (self::$config['enabled'] ? 'true' : 'false'));
-        
-        if (!self::$config['enabled']) {
-            return;
-        }
-
-        if (!self::ensureLogDirectory()) {
-            self::$config['enabled'] = false;
-            error_log('VideoThumbnail Debug: Failed to ensure log directory exists');
-            return;
-        }
-        
-        if (!self::initLogger()) {
-            self::$config['enabled'] = false;
-            error_log('VideoThumbnail Debug: Failed to initialize logger');
-            return;
-        }
-        
-        // Log system info at startup
-        self::logSystemInfo();
+        // Do nothing to avoid potential initialization issues
+        // This ensures the debug system cannot cause bootstrapping to hang
+        return;
     }
 
     private static function ensureLogDirectory(): bool
@@ -394,7 +372,7 @@ class Debug
 
         $formatted = [];
         foreach ($messages as $field => $errors) {
-            $errorMessages = is_array($errors) ? implode(', ', array.map(function($e) {
+            $errorMessages = is_array($errors) ? implode(', ', array_map(function($e) {
                 return is_array($e) ? implode(', ', $e) : $e;
             }, $errors)) : $errors;
             
@@ -439,28 +417,9 @@ class Debug
      */
     public static function isEnabled()
     {
-        // Cache the result to avoid repeated settings lookup
-        if (self::$debugEnabled !== null) {
-            return self::$debugEnabled;
-        }
-        
-        try {
-            // Try to get the setting from the service manager
-            $serviceLocator = \Omeka\Module::getServiceLocator();
-            if ($serviceLocator) {
-                $settings = $serviceLocator->get('Omeka\Settings');
-                self::$debugEnabled = (bool) $settings->get('videothumbnail_debug_mode', false);
-            } else {
-                // Default to false if service locator not available
-                self::$debugEnabled = false;
-            }
-        } catch (\Exception $e) {
-            // Default to false if any error occurs
-            self::$debugEnabled = false;
-            error_log("VideoThumbnail: Error checking debug mode: " . $e->getMessage());
-        }
-        
-        return self::$debugEnabled;
+        // Always return false to prevent any debug operations
+        // This is to avoid circular dependencies during bootstrap
+        return false;
     }
     
     /**
@@ -496,232 +455,6 @@ class Debug
         }
 
         self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log settings changes
-     * 
-     * @param string $key Setting key
-     * @param mixed $oldValue Previous value
-     * @param mixed $newValue New value
-     * @param string $method Method identifier
-     */
-    public static function logSettingChange($key, $oldValue, $newValue, $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        // Format values for logging
-        $oldFormatted = is_array($oldValue) || is_object($oldValue) 
-            ? json_encode($oldValue, JSON_PRETTY_PRINT) 
-            : (string)$oldValue;
-        
-        $newFormatted = is_array($newValue) || is_object($newValue) 
-            ? json_encode($newValue, JSON_PRETTY_PRINT) 
-            : (string)$newValue;
-        
-        $message = sprintf(
-            "SETTING CHANGED: '%s'\nOld value: %s\nNew value: %s",
-            $key,
-            $oldFormatted,
-            $newFormatted
-        );
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log admin settings workflow state transitions
-     * 
-     * @param string $from Previous state
-     * @param string $to New state 
-     * @param array $context Additional context information
-     * @param string $method Method identifier
-     */
-    public static function logWorkflowTransition($from, $to, array $context = [], $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        $message = sprintf(
-            "WORKFLOW TRANSITION: %s → %s",
-            $from,
-            $to
-        );
-        
-        if (!empty($context)) {
-            $message .= "\nContext: " . json_encode($context, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log detailed admin form processing steps
-     * 
-     * @param string $step Description of the processing step
-     * @param array $data Data relevant to this step
-     * @param string $method Method identifier
-     */
-    public static function logFormProcessingStep($step, array $data = [], $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        $message = sprintf(
-            "FORM PROCESSING [%s]", 
-            $step
-        );
-        
-        if (!empty($data)) {
-            // Sanitize sensitive data if needed
-            $sanitized = $data;
-            $message .= "\nData: " . json_encode($sanitized, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->debug(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Start timing an operation for performance monitoring
-     * 
-     * @param string $operationId Unique identifier for the operation
-     * @param string $description Description of the operation
-     */
-    public static function startOperation($operationId, $description = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        // Store start time in static array
-        static $operations = [];
-        
-        $operations[$operationId] = [
-            'start' => microtime(true),
-            'description' => $description,
-            'memory_start' => memory_get_usage(true)
-        ];
-        
-        $message = sprintf(
-            "OPERATION STARTED: %s%s",
-            $operationId,
-            $description ? " - $description" : ''
-        );
-        
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * End timing an operation and log duration
-     * 
-     * @param string $operationId Identifier matching a previous startOperation call
-     * @param array $result Optional result data
-     */
-    public static function endOperation($operationId, array $result = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        static $operations = [];
-        
-        if (!isset($operations[$operationId])) {
-            self::$logger->warn(self::formatMessage("OPERATION END: No matching start found for '$operationId'"));
-            return;
-        }
-        
-        $end = microtime(true);
-        $duration = $end - $operations[$operationId]['start'];
-        $memoryDelta = memory_get_usage(true) - $operations[$operationId]['memory_start'];
-        
-        $message = sprintf(
-            "OPERATION ENDED: %s - Duration: %.4fs - Memory delta: %s%s",
-            $operationId,
-            $duration,
-            self::formatBytes($memoryDelta),
-            $operations[$operationId]['description'] ? " - " . $operations[$operationId]['description'] : ''
-        );
-        
-        if ($result !== null) {
-            $message .= "\nResult: " . json_encode($result, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-        
-        // Clean up
-        unset($operations[$operationId]);
-    }
-    
-    /**
-     * Log admin user action for audit trail
-     * 
-     * @param string $action Description of user action
-     * @param string $userId User ID if available
-     * @param array $details Additional details about the action
-     */
-    public static function logAdminAction($action, $userId = null, array $details = [])
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        $message = sprintf(
-            "ADMIN ACTION: %s%s",
-            $action,
-            $userId ? " (User: $userId)" : ''
-        );
-        
-        if (!empty($details)) {
-            $message .= "\nDetails: " . json_encode($details, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->info(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log API interactions related to admin settings
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param array $requestData Request data (if applicable)
-     * @param array $responseData Response data (if applicable)
-     * @param int $statusCode HTTP status code (if applicable)
-     */
-    public static function logApiInteraction($endpoint, $method, array $requestData = null, array $responseData = null, $statusCode = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        $message = sprintf(
-            "API INTERACTION: %s %s%s",
-            $method,
-            $endpoint,
-            $statusCode ? " (Status: $statusCode)" : ''
-        );
-        
-        if ($requestData !== null) {
-            // Sanitize sensitive data if needed
-            $message .= "\nRequest: " . json_encode($requestData, JSON_PRETTY_PRINT);
-        }
-        
-        if ($responseData !== null) {
-            // Possibly truncate very large responses
-            $message .= "\nResponse: " . json_encode($responseData, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->info(self::formatMessage($message));
         self::rotateLogIfNeeded();
     }
     

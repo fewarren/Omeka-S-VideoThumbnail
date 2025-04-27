@@ -30,10 +30,16 @@ return [
     ],
     'controllers' => [
         'factories' => [
+            // Make sure controller is registered with EXACT same name as used in routes
             'VideoThumbnail\Controller\Admin\VideoThumbnailController' => 'VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory',
         ],
         'aliases' => [
+            // Add both versions of the controller name for compatibility
             'VideoThumbnail\Controller\Admin\VideoThumbnail' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            // Additional aliases to help Laminas MVC resolve the controller
+            'VideoThumbnail\Controller\AdminVideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            'VideoThumbnail\Controller\Admin\VideoThumbnail-Controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            'VideoThumbnail-Controller-Admin-VideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
         ],
     ],
     'controller_plugins' => [
@@ -151,7 +157,8 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            'VideoThumbnail\Service\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
+            // Register our core service with the correct namespace (Stdlib, not Service)
+            'VideoThumbnail\Stdlib\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
         ],
         'delegators' => [
@@ -165,7 +172,7 @@ return [
     ],
     'videothumbnail' => [
         'debug' => [
-            'enabled' => true,  // Changed default to true
+            'enabled' => false,  // Ensure debugging is disabled by default
             'log_dir' => OMEKA_PATH . '/logs',
             'log_file' => 'videothumbnail.log',
             'max_size' => 10485760, // 10MB

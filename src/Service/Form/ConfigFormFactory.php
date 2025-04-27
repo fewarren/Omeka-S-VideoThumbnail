@@ -5,21 +5,31 @@ use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use VideoThumbnail\Form\ConfigForm;
 use VideoThumbnail\Form\ConfigBatchForm;
-use VideoThumbnail\Stdlib\Debug;
 
 class ConfigFormFactory implements FactoryInterface
 {
     public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
     {
-        Debug::log('Creating form instance: ' . $requestedName, __METHOD__);
         try {
             // Create the appropriate form based on the requested name
-            $form = new $requestedName();
-            Debug::log('Successfully created form instance', __METHOD__);
+            if ($requestedName === ConfigBatchForm::class || $requestedName === 'VideoThumbnail\Form\ConfigBatchForm') {
+                return new ConfigBatchForm(null, $options ?? []);
+            }
+            
+            // Default to regular ConfigForm
+            $form = new ConfigForm(null, $options ?? []);
+            
+            // Initialize form with settings data
+            $form->init();
+            
+            // No Debug calls to prevent circular dependencies
             return $form;
         } catch (\Exception $e) {
-            Debug::logError('Failed to create form instance: ' . $e->getMessage(), __METHOD__, $e);
-            throw $e;
+            // Log error but don't rely on Debug class
+            error_log('VideoThumbnail ConfigFormFactory: Error creating form: ' . $e->getMessage());
+            
+            // Return basic form to avoid breaking things
+            return new ConfigForm();
         }
     }
 }

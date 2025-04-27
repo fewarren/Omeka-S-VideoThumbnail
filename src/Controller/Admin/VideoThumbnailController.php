@@ -15,13 +15,14 @@ class VideoThumbnailController extends AbstractActionController
     protected $settings;
     protected $serviceLocator;
 
-    public function __construct($entityManager, $fileManager = null, $serviceLocator = null)
+    public function __construct($entityManager = null, $fileManager = null, $serviceLocator = null)
     {
         $this->entityManager = $entityManager;
         $this->fileManager = $fileManager;
         $this->serviceLocator = $serviceLocator;
         
-        Debug::log('VideoThumbnailController initialized', __METHOD__);
+        // Use basic error_log instead of Debug to avoid circular dependencies
+        error_log('VideoThumbnail: Controller initialized');
     }
 
     public function setSettings($settings)
