@@ -106,7 +106,8 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
             Debug::logWarning('No media ID provided for video thumbnail block', __METHOD__, [
                 'blockId' => $block->id()
             ]);
-            return ''; // Return empty if no media selected
+            // Return a visible message instead of an empty string
+            return '<div class="video-thumbnail-block error-message">' . $view->translate('No video media selected for this block.') . '</div>';
         }
 
         try {
