@@ -5,7 +5,6 @@ use Laminas\Form\Form;
 use Laminas\Form\Element\Text;
 use Laminas\Form\Element\Number;
 use Laminas\Form\Element\Checkbox;
-use VideoThumbnail\Stdlib\Debug;
 
 class ConfigForm extends Form
 {
@@ -260,21 +259,16 @@ class ConfigForm extends Form
 
     public function validateFfmpegPath($value)
     {
-        Debug::log('Validating FFmpeg path: ' . $value, __METHOD__);
-        
         if (empty($value)) {
-            Debug::logError('FFmpeg path is empty', __METHOD__);
             return false;
         }
 
         // Check if path exists and is executable
         if (!file_exists($value)) {
-            Debug::logError('FFmpeg path does not exist: ' . $value, __METHOD__);
             return false;
         }
         
         if (!is_executable($value)) {
-            Debug::logError('FFmpeg path is not executable: ' . $value, __METHOD__);
             return false;
         }
 
@@ -283,12 +277,9 @@ class ConfigForm extends Form
             $output = [];
             $returnVar = 0;
             $command = escapeshellcmd($value) . ' -version 2>&1';
-            
-            Debug::log('Executing FFmpeg test command: ' . $command, __METHOD__);
             exec($command, $output, $returnVar);
 
             if ($returnVar !== 0) {
-                Debug::logError('FFmpeg command failed with return code ' . $returnVar, __METHOD__);
                 return false;
             }
 
@@ -296,15 +287,9 @@ class ConfigForm extends Form
             $versionString = implode("\n", $output);
             $result = strpos($versionString, 'ffmpeg version') !== false;
             
-            if (!$result) {
-                Debug::logError('FFmpeg version string not found in output: ' . substr($versionString, 0, 200), __METHOD__);
-            } else {
-                Debug::log('FFmpeg validation successful. Version info: ' . substr($versionString, 0, 100), __METHOD__);
-            }
-            
             return $result;
         } catch (\Exception $e) {
-            Debug::logError('Exception while testing FFmpeg: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('Exception while testing FFmpeg: ' . $e->getMessage());
             return false;
         }
     }
