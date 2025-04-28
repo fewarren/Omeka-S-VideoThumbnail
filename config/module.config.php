@@ -167,9 +167,14 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            // Register our core service with the correct namespace
+            // Core services first
             'VideoThumbnail\Stdlib\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
-            VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer::class => VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory::class,
+            
+            // Then dependent services
+            'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
+            'VideoThumbnail\Media\Ingester\VideoThumbnail' => 'VideoThumbnail\Service\Media\IngesterFactory',
+            'VideoThumbnail\Media\Renderer\VideoThumbnail' => 'VideoThumbnail\Service\Media\RendererFactory',
+            'VideoThumbnail\Controller\Admin\VideoThumbnailController' => 'VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory',
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [
@@ -178,6 +183,11 @@ return [
             'Omeka\File\Store\Local' => [
                 \VideoThumbnail\Service\FileManagerDelegatorFactory::class,
             ],
+        ],
+        'shared' => [
+            // Mark stateless services as not shared to save memory
+            'VideoThumbnail\Media\Renderer\VideoThumbnail' => false,
+            'VideoThumbnail\View\Helper\VideoThumbnailSelector' => false,
         ],
     ],
     'videothumbnail' => [
@@ -194,9 +204,9 @@ return [
             'status_file' => OMEKA_PATH . '/logs/video_thumbnail_jobs.json'
         ],
         'memory_management' => [
-            'min_free_memory' => '64M',
+            'min_free_memory' => '128M', // Increased from 64M
             'gc_probability' => 100,
-            'memory_reset_threshold' => '384M'
+            'memory_reset_threshold' => '768M' // Increased from 384M
         ],
         'supported_formats' => [
             'video/mp4' => ['mp4'],

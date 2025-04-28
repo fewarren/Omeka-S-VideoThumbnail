@@ -202,25 +202,11 @@ class Module extends AbstractModule
             $application = $event->getApplication();
             $serviceManager = $application->getServiceManager();
 
-            // Initialize debug mode (optional, based on settings)
-            $this->initializeDebugMode($serviceManager);
-            Debug::log('VideoThumbnail: Bootstrapping module', __METHOD__);
-
-            // Register CSS and JS assets
-            $this->attachListenersForAssets($event);
-            Debug::log('VideoThumbnail: Asset listeners attached', __METHOD__);
-
-            // Add ACL rules
-            $this->addAclRules($serviceManager);
-            Debug::log('VideoThumbnail: ACL rules added', __METHOD__);
-
-            // Controller registration is now handled by module.config.php and ControllerManager
-
-            // Get module configuration
+            // Get module configuration first
             $config = $serviceManager->get('Config');
             $moduleConfig = $config['videothumbnail'] ?? [];
             
-            // Set memory limit for module operations
+            // Set memory limit for module operations if configured
             if (isset($moduleConfig['job_dispatch']['memory_limit'])) {
                 ini_set('memory_limit', $moduleConfig['job_dispatch']['memory_limit']);
             }
@@ -229,45 +215,49 @@ class Module extends AbstractModule
             if (isset($moduleConfig['memory_management']['gc_probability'])) {
                 ini_set('zend.gc_probability', $moduleConfig['memory_management']['gc_probability']);
             }
-            
-            // Initialize debug system if enabled
-            if (isset($moduleConfig['debug']) && $moduleConfig['debug']['enabled']) {
-                Debug::init($moduleConfig['debug']);
-            }
+
+            // Initialize debug system without using Debug class during bootstrap
+            $this->initializeDebugMode($serviceManager, $moduleConfig);
+
+            // Register CSS and JS assets
+            $this->attachListenersForAssets($event);
+
+            // Add ACL rules
+            $this->addAclRules($serviceManager);
 
         } catch (\Exception $e) {
             // Log critical bootstrap errors
             error_log('VideoThumbnail: Critical Bootstrap error: ' . $e->getMessage());
-            error_log($e->getTraceAsString()); // Log trace for debugging
+            error_log($e->getTraceAsString());
         }
     }
 
     /**
-     * Initialize the Debug utility based on settings.
+     * Initialize debug mode safely without using Debug class during bootstrap
      */
-    protected function initializeDebugMode($serviceManager): void
+    protected function initializeDebugMode($serviceManager, $moduleConfig): void
     {
         try {
-            $settings = $serviceManager->get('Omeka\Settings');
-            $debugEnabled = (bool)$settings->get('videothumbnail_debug_mode', false); // Default to false
+            // Only initialize if debug is explicitly enabled in config
+            if (!empty($moduleConfig['debug']['enabled'])) {
+                // Basic setup without service dependencies
+                $logDir = $moduleConfig['debug']['log_dir'] ?? OMEKA_PATH . '/logs';
+                
+                // Ensure log directory exists
+                if (!is_dir($logDir)) {
+                    @mkdir($logDir, 0755, true);
+                }
+                
+                if (!is_writable($logDir)) {
+                    error_log('VideoThumbnail: Debug log directory not writable: ' . $logDir);
+                    return;
+                }
 
-            if ($debugEnabled) {
-                $config = [
-                    'enabled' => true,
-                    'log_dir' => OMEKA_PATH . DIRECTORY_SEPARATOR . 'logs',
-                    'log_file' => 'videothumbnail.log',
-                    'max_size' => 10485760, // 10MB
-                    'max_files' => 5
-                ];
-                Debug::init($config);
-                Debug::log('VideoThumbnail: Debug mode initialized and enabled.', __METHOD__);
-            } else {
-                 // Ensure Debug is disabled if setting is false
-                 Debug::init(['enabled' => false]);
+                // Initialize debug configuration
+                \VideoThumbnail\Stdlib\Debug::init($moduleConfig['debug']);
             }
         } catch (\Exception $e) {
-            // Fail silently - don't let debug initialization crash the site
-             error_log('VideoThumbnail: Error initializing debug mode: ' . $e->getMessage());
+            error_log('VideoThumbnail: Failed to initialize debug mode: ' . $e->getMessage());
         }
     }
 

@@ -12,7 +12,7 @@ class Debug
     protected static $logDir = null;
     protected static $logFile = null;
     protected static $methodDepth = [];
-    protected static $debugEnabled = null;
+    protected static $debugEnabled = false;
     private static $config = [
         'enabled' => false,
         'log_dir' => null,
@@ -24,70 +24,89 @@ class Debug
     private static $timeStart = null;
     private static $memoryResetCount = 0;
     private static $lastMemoryReset = 0;
-
-    /**
-     * Initialize the logger if it hasn't been yet
-     */
-    protected static function initLegacy()
-    {
-        if (self::$isInitialized) {
-            return;
-        }
-        
-        try {
-            // Set log directory and file
-            $baseDir = defined('OMEKA_PATH') ? OMEKA_PATH : dirname(dirname(dirname(__FILE__)));
-            self::$logDir = $baseDir . '/logs';
-            
-            // Create log directory if it doesn't exist
-            if (!file_exists(self::$logDir)) {
-                mkdir(self::$logDir, 0755, true);
-            }
-            
-            self::$logFile = self::$logDir . '/videothumbnail-' . date('Y-m-d') . '.log';
-            
-            // Create and configure logger
-            self::$logger = new Logger();
-            $writer = new Stream(self::$logFile);
-            self::$logger->addWriter($writer);
-            
-            self::$isInitialized = true;
-            
-            // Log initialization success
-            self::log("Debug logger initialized. Log file: " . self::$logFile, __METHOD__);
-        } catch (\Exception $e) {
-            // If we can't initialize the logger, write to PHP error log
-            error_log("VideoThumbnail Debug logger initialization failed: " . $e->getMessage());
-            self::$isInitialized = false;
-        }
-    }
+    private static $hasServiceWarning = false;
 
     public static function init($config)
     {
+        // Early exit if config is empty
         if (empty($config)) {
+            self::$debugEnabled = false;
             return;
         }
 
-        // Merge with defaults to ensure all required keys exist
+        // Set initial configuration but don't access services
         self::$config = array_merge(self::$config, $config);
+        self::$debugEnabled = !empty(self::$config['enabled']);
         
-        // Set log directory if not already set
-        if (empty(self::$config['log_dir']) && defined('OMEKA_PATH')) {
-            self::$config['log_dir'] = OMEKA_PATH . '/logs';
+        // Set log directory
+        if (!empty(self::$config['log_dir'])) {
+            self::$logDir = self::$config['log_dir'];
+        } elseif (defined('OMEKA_PATH')) {
+            self::$logDir = OMEKA_PATH . '/logs';
         }
 
-        // Initialize memory management
-        self::initializeMemoryManagement();
-
-        // Initialize logger if enabled
-        if (self::$config['enabled']) {
-            self::ensureLogDirectory();
-            self::initLogger();
+        // Initialize basic logging without service dependencies
+        if (self::$debugEnabled && !self::$isInitialized) {
+            self::initializeBasicLogging();
         }
+    }
 
-        // Set start time for performance tracking
-        if (self::$timeStart === null) {
+    private static function initializeBasicLogging()
+    {
+        try {
+            if (!is_dir(self::$logDir)) {
+                @mkdir(self::$logDir, 0755, true);
+            }
+
+            if (!is_writable(self::$logDir)) {
+                error_log('VideoThumbnail Debug: Log directory not writable: ' . self::$logDir);
+                self::$debugEnabled = false;
+                return;
+            }
+
+            self::$logFile = self::$logDir . DIRECTORY_SEPARATOR . self::$config['log_file'];
+            
+            $writer = new Stream(self::$logFile);
+            self::$logger = new Logger();
+            self::$logger->addWriter($writer);
+            
+            self::$isInitialized = true;
             self::$timeStart = microtime(true);
+            self::$memoryPeak = memory_get_usage(true);
+
+            // Enable garbage collection
+            gc_enable();
+            
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug initialization failed: ' . $e->getMessage());
+            self::$debugEnabled = false;
+        }
+    }
+
+    public static function log($message, $method = null)
+    {
+        // Skip if debugging is disabled
+        if (!self::$debugEnabled) {
+            return;
+        }
+
+        try {
+            // Initialize if not already done
+            if (!self::$isInitialized) {
+                self::initializeBasicLogging();
+            }
+
+            // Early return if initialization failed
+            if (!self::$logger) {
+                return;
+            }
+
+            self::checkMemoryUsage();
+            self::$logger->info(self::formatMessage($message, $method));
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            // Last resort error logging
+            error_log('VideoThumbnail Debug logging failed: ' . $e->getMessage());
         }
     }
 
@@ -206,19 +225,6 @@ class Debug
         }
 
         self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-
-    public static function log($message, $method = null)
-    {
-        // Check memory before logging
-        self::checkMemoryUsage();
-
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        self::$logger->info(self::formatMessage($message, $method));
         self::rotateLogIfNeeded();
     }
 

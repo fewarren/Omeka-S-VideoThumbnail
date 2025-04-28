@@ -2,23 +2,28 @@
 namespace VideoThumbnail\Service\Thumbnail;
 
 use Interop\Container\ContainerInterface;
-use VideoThumbnail\Stdlib\Debug;
+use Laminas\ServiceManager\Exception\ServiceNotFoundException;
 
 class ThumbnailSynchronizerFactory
 {
     public function __invoke(ContainerInterface $services)
     {
         try {
-            Debug::log('Creating ThumbnailSynchronizer', __METHOD__);
-            
+            // Get required services without using Debug class
+            $fileManager = $services->get('Omeka\File\Store');
+            $entityManager = $services->get('Omeka\EntityManager');
+            $logger = $services->get('Omeka\Logger');
+            $settings = $services->get('Omeka\Settings');
+
             return new ThumbnailSynchronizer(
-                $services->get('Omeka\File\Store'), // fileManager
-                $services->get('Omeka\EntityManager'), // entityManager 
-                $services->get('Omeka\Logger'), // logger
-                $services->get('Omeka\Settings') // settings
+                $fileManager,
+                $entityManager,
+                $logger,
+                $settings
             );
         } catch (\Exception $e) {
-            Debug::logError('Failed to create ThumbnailSynchronizer: ' . $e->getMessage(), __METHOD__);
+            // Use error_log instead of Debug class
+            error_log('VideoThumbnail: Failed to create ThumbnailSynchronizer: ' . $e->getMessage());
             throw $e;
         }
     }
