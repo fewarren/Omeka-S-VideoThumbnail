@@ -189,9 +189,14 @@ return [
             'max_files' => 5
         ],
         'job_dispatch' => [
-            'memory_limit' => '512M',
+            'memory_limit' => '1024M', // Increased from 512M
             'timeout' => 3600,
             'status_file' => OMEKA_PATH . '/logs/video_thumbnail_jobs.json'
+        ],
+        'memory_management' => [
+            'min_free_memory' => '64M',
+            'gc_probability' => 100,
+            'memory_reset_threshold' => '384M'
         ],
         'supported_formats' => [
             'video/mp4' => ['mp4'],

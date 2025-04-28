@@ -216,6 +216,25 @@ class Module extends AbstractModule
 
             // Controller registration is now handled by module.config.php and ControllerManager
 
+            // Get module configuration
+            $config = $serviceManager->get('Config');
+            $moduleConfig = $config['videothumbnail'] ?? [];
+            
+            // Set memory limit for module operations
+            if (isset($moduleConfig['job_dispatch']['memory_limit'])) {
+                ini_set('memory_limit', $moduleConfig['job_dispatch']['memory_limit']);
+            }
+            
+            // Configure garbage collection
+            if (isset($moduleConfig['memory_management']['gc_probability'])) {
+                ini_set('zend.gc_probability', $moduleConfig['memory_management']['gc_probability']);
+            }
+            
+            // Initialize debug system if enabled
+            if (isset($moduleConfig['debug']) && $moduleConfig['debug']['enabled']) {
+                Debug::init($moduleConfig['debug']);
+            }
+
         } catch (\Exception $e) {
             // Log critical bootstrap errors
             error_log('VideoThumbnail: Critical Bootstrap error: ' . $e->getMessage());

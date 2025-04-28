@@ -22,6 +22,8 @@ class Debug
     ];
     private static $memoryPeak = 0;
     private static $timeStart = null;
+    private static $memoryResetCount = 0;
+    private static $lastMemoryReset = 0;
 
     /**
      * Initialize the logger if it hasn't been yet
@@ -73,6 +75,9 @@ class Debug
         if (empty(self::$config['log_dir']) && defined('OMEKA_PATH')) {
             self::$config['log_dir'] = OMEKA_PATH . '/logs';
         }
+
+        // Initialize memory management
+        self::initializeMemoryManagement();
 
         // Initialize logger if enabled
         if (self::$config['enabled']) {
@@ -206,6 +211,9 @@ class Debug
 
     public static function log($message, $method = null)
     {
+        // Check memory before logging
+        self::checkMemoryUsage();
+
         if (!self::$config['enabled'] || !self::$logger) {
             return;
         }
@@ -860,5 +868,80 @@ class Debug
         
         self::$logger->info(self::formatMessage($message, $method));
         self::rotateLogIfNeeded();
+    }
+
+    private static function initializeMemoryManagement()
+    {
+        // Enable garbage collection
+        gc_enable();
+
+        // Set aggressive garbage collection
+        if (!ini_get('zend.enable_gc')) {
+            ini_set('zend.enable_gc', 1);
+        }
+
+        // Set initial memory peak
+        self::$memoryPeak = memory_get_peak_usage(true);
+        self::$lastMemoryReset = time();
+    }
+
+    private static function checkMemoryUsage()
+    {
+        $currentMemory = memory_get_usage(true);
+        $memoryLimit = self::getMemoryLimit();
+        $threshold = $memoryLimit * 0.9; // 90% of memory limit
+
+        // If using more than 90% of memory limit
+        if ($currentMemory > $threshold) {
+            self::performMemoryCleanup();
+        }
+    }
+
+    private static function performMemoryCleanup()
+    {
+        // Only perform cleanup once every 5 seconds maximum
+        if (time() - self::$lastMemoryReset < 5) {
+            return;
+        }
+
+        // Force garbage collection
+        gc_collect_cycles();
+
+        // Clear internal caches if they exist
+        if (function_exists('opcache_reset')) {
+            opcache_reset();
+        }
+
+        self::$memoryResetCount++;
+        self::$lastMemoryReset = time();
+        
+        self::log(sprintf(
+            "Memory cleanup performed (%d). Before: %s, After: %s", 
+            self::$memoryResetCount,
+            self::formatBytes(self::$memoryPeak),
+            self::formatBytes(memory_get_usage(true))
+        ), __METHOD__);
+    }
+
+    private static function getMemoryLimit()
+    {
+        $memoryLimit = ini_get('memory_limit');
+        if ($memoryLimit === '-1') {
+            return PHP_INT_MAX;
+        }
+        
+        $unit = strtolower(substr($memoryLimit, -1));
+        $number = (int)substr($memoryLimit, 0, -1);
+        
+        switch ($unit) {
+            case 'g':
+                $number *= 1024;
+            case 'm':
+                $number *= 1024;
+            case 'k':
+                $number *= 1024;
+        }
+        
+        return $number;
     }
 }
