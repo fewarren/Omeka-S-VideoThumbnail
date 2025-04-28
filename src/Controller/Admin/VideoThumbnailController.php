@@ -6,7 +6,8 @@ use Laminas\View\Model\ViewModel;
 use Laminas\View\Model\JsonModel;
 use Omeka\Stdlib\Message;
 use VideoThumbnail\Form\ConfigBatchForm;
-use VideoThumbnail\Stdlib\Debug;
+// Don't use Debug in controller initialization
+// use VideoThumbnail\Stdlib\Debug;
 
 class VideoThumbnailController extends AbstractActionController
 {
@@ -21,23 +22,20 @@ class VideoThumbnailController extends AbstractActionController
         $this->fileManager = $fileManager;
         $this->serviceLocator = $serviceLocator;
         
-        // Use basic error_log instead of Debug to avoid circular dependencies
+        // Simple error_log instead of Debug
         error_log('VideoThumbnail: Controller initialized');
     }
 
     public function setSettings($settings)
     {
         $this->settings = $settings;
-        Debug::log('Settings service injected into controller', __METHOD__);
+        // Remove Debug call
         return $this;
     }
 
     public function indexAction()
     {
-        Debug::logEntry(__METHOD__);
-        Debug::log('VideoThumbnailController::indexAction accessed', __METHOD__);
-        Debug::traceCallStack(5, 'Admin settings page accessed');
-        
+        // Remove all Debug calls from initialization
         try {
             $form = new ConfigBatchForm();
             $form->init();
@@ -54,28 +52,22 @@ class VideoThumbnailController extends AbstractActionController
                 'video/x-flv'         // FLV files
             ];
             
-            // Load all settings with debugging
-            Debug::log('Loading settings from database', __METHOD__);
-            
-            // Get supported formats setting with detailed debugging
+            // Get supported formats setting
             $storedFormats = null;
             try {
                 $storedFormats = $this->settings->get('videothumbnail_supported_formats');
-                Debug::log('Retrieved supported formats: ' . 
-                    ($storedFormats ? json_encode($storedFormats) : 'null'), __METHOD__);
             } catch (\Exception $e) {
-                Debug::logError('Failed to get videothumbnail_supported_formats setting: ' . $e->getMessage(), __METHOD__, $e);
+                error_log('VideoThumbnail: Failed to get videothumbnail_supported_formats: ' . $e->getMessage());
             }
             
-            // Apply default if needed with detailed logging
+            // Apply default if needed
             $supportedFormats = $storedFormats;
             if (!is_array($supportedFormats) || empty($supportedFormats)) {
-                Debug::log('Using default formats instead of stored value', __METHOD__);
                 $supportedFormats = $defaultSupportedFormats;
             }
             
         } catch (\Exception $e) {
-            Debug::logError('Error initializing form: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Error initializing form: ' . $e->getMessage());
             
             // Fallback to create basic form
             $form = new ConfigBatchForm();
@@ -83,36 +75,31 @@ class VideoThumbnailController extends AbstractActionController
             $supportedFormats = ['video/mp4', 'video/quicktime'];
         }
 
-        // Set debug mode value and other settings with error handling
+        // Set settings with error handling
         try {
-            Debug::log('Getting additional settings from database', __METHOD__);
-            
-            // Get debug mode setting with detailed debugging
+            // Get debug mode setting
             $debugMode = false;
             try {
-                $debugMode = (bool)$this->settings->get('videothumbnail_debug_mode', true); // Default to true
-                Debug::log('Retrieved debug mode: ' . ($debugMode ? 'true' : 'false'), __METHOD__);
+                $debugMode = (bool)$this->settings->get('videothumbnail_debug_mode', false);
             } catch (\Exception $e) {
-                Debug::logError('Failed to get videothumbnail_debug_mode setting: ' . $e->getMessage(), __METHOD__, $e);
-                $debugMode = true; // Default if error
+                error_log('VideoThumbnail: Failed to get videothumbnail_debug_mode: ' . $e->getMessage());
+                $debugMode = false; // Default to false for stability
             }
             
-            // Get default frame setting with detailed debugging
+            // Get default frame setting
             $defaultFrame = 10;
             try {
                 $defaultFrame = (int)$this->settings->get('videothumbnail_default_frame', 10);
-                Debug::log('Retrieved default frame: ' . $defaultFrame, __METHOD__);
             } catch (\Exception $e) {
-                Debug::logError('Failed to get videothumbnail_default_frame setting: ' . $e->getMessage(), __METHOD__, $e);
+                error_log('VideoThumbnail: Failed to get videothumbnail_default_frame: ' . $e->getMessage());
             }
             
-            // Get timestamp property setting with detailed debugging
+            // Get timestamp property setting
             $timestampProperty = null;
             try {
                 $timestampProperty = $this->settings->get('videothumbnail_timestamp_property');
-                Debug::log('Retrieved timestamp property: ' . ($timestampProperty ?? 'null'), __METHOD__);
             } catch (\Exception $e) {
-                Debug::logError('Failed to get videothumbnail_timestamp_property setting: ' . $e->getMessage(), __METHOD__, $e);
+                error_log('VideoThumbnail: Failed to get videothumbnail_timestamp_property: ' . $e->getMessage());
             }
             
             // Prepare form data
@@ -127,65 +114,44 @@ class VideoThumbnailController extends AbstractActionController
                 $formData['timestamp_property'] = $timestampProperty;
             }
             
-            Debug::dumpFormData($formData, 'pre-populate', __METHOD__);
             $form->setData($formData);
         } catch (\Exception $e) {
-            Debug::logError('Error setting form data: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Error setting form data: ' . $e->getMessage());
             
             // Use defaults if settings access fails
             $form->setData([
                 'default_frame_position' => 10,
                 'supported_formats' => $supportedFormats,
-                'debug_mode' => true,
+                'debug_mode' => false, // Default to false for stability
             ]);
         }
 
         $request = $this->getRequest();
         if ($request->isPost()) {
-            Debug::log('Processing POST request in admin settings', __METHOD__);
-            
             $postData = $request->getPost()->toArray();
-            Debug::dumpFormData($postData, 'post-submission', __METHOD__);
             
             $form->setData($postData);
             if ($form->isValid()) {
-                Debug::log('Form validation succeeded', __METHOD__);
                 $formData = $form->getData();
-                Debug::dumpFormData($formData, 'post-validation', __METHOD__);
                 
                 try {
-                    // Get old values for debugging
-                    $oldDefaultFrame = $this->settings->get('videothumbnail_default_frame', 10);
-                    $oldSupportedFormats = $this->settings->get('videothumbnail_supported_formats', []);
-                    $oldDebugMode = $this->settings->get('videothumbnail_debug_mode', false);
-                    $oldTimestampProperty = $this->settings->get('videothumbnail_timestamp_property', null);
-                    
-                    // Save settings with logging of changes
+                    // Save settings without detailed debugging
                     $this->settings->set('videothumbnail_default_frame', $formData['default_frame_position']);
-                    Debug::logSettingChange('videothumbnail_default_frame', $oldDefaultFrame, $formData['default_frame_position'], __METHOD__);
-                    
                     $this->settings->set('videothumbnail_supported_formats', $formData['supported_formats']);
-                    Debug::logSettingChange('videothumbnail_supported_formats', $oldSupportedFormats, $formData['supported_formats'], __METHOD__);
-                    
                     $this->settings->set('videothumbnail_debug_mode', !empty($formData['debug_mode']));
-                    Debug::logSettingChange('videothumbnail_debug_mode', $oldDebugMode, !empty($formData['debug_mode']), __METHOD__);
                     
                     // Only update timestamp property if it exists in form data
                     if (isset($formData['timestamp_property'])) {
                         $this->settings->set('videothumbnail_timestamp_property', $formData['timestamp_property']);
-                        Debug::logSettingChange('videothumbnail_timestamp_property', $oldTimestampProperty, $formData['timestamp_property'], __METHOD__);
                     }
                     
-                    Debug::logConfigAction('save_complete', ['formData' => $formData], __METHOD__);
                     $this->messenger()->addSuccess('Video thumbnail settings updated.'); // Success message
                 } catch (\Exception $e) {
-                    Debug::logError('Failed to save settings: ' . $e->getMessage(), __METHOD__, $e);
+                    error_log('VideoThumbnail: Failed to save settings: ' . $e->getMessage());
                     $this->messenger()->addError('Failed to save video thumbnail settings: ' . $e->getMessage()); // Error message
                 }
             } else {
-                Debug::log('Form validation failed', __METHOD__);
                 $messages = $form->getMessages();
-                Debug::logFormValidation($messages, __METHOD__);
                 $this->messenger()->addError('There was an error during form validation. Please check the form and try again.'); // Form validation error
             }
         }
@@ -193,7 +159,7 @@ class VideoThumbnailController extends AbstractActionController
         try {
             $totalVideos = $this->getTotalVideos();
         } catch (\Exception $e) {
-            \VideoThumbnail\Stdlib\Debug::logError('Error getting total videos: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Error getting total videos: ' . $e->getMessage());
             $totalVideos = 0;
         }
         
@@ -202,8 +168,6 @@ class VideoThumbnailController extends AbstractActionController
         $view->setVariable('totalVideos', $totalVideos);
         $view->setVariable('supportedFormats', implode(', ', $supportedFormats));
         
-        \VideoThumbnail\Stdlib\Debug::log('Rendering index view', __METHOD__);
-        
         $view->setTemplate('video-thumbnail/admin/video-thumbnail/index');
         
         return $view;
@@ -211,12 +175,10 @@ class VideoThumbnailController extends AbstractActionController
 
     protected function getTotalVideos()
     {
-        \VideoThumbnail\Stdlib\Debug::logEntry(__METHOD__);
-        
         try {
             // Check if entity manager is available
             if (!$this->entityManager) {
-                \VideoThumbnail\Stdlib\Debug::logError('Entity manager is not available', __METHOD__);
+                error_log('VideoThumbnail: Entity manager is not available');
                 return 0;
             }
             
@@ -250,36 +212,34 @@ class VideoThumbnailController extends AbstractActionController
 
             $result = (int) $queryBuilder->getQuery()->getSingleScalarResult();
             
-            if ($this->settings) {
-                Debug::logExit(__METHOD__, $result);
-            }
             return $result;
             
         } catch (\Exception $e) {
             error_log('VideoThumbnail: Error in getTotalVideos: ' . $e->getMessage());
-            if ($this->settings) {
-                Debug::logError('Error in getTotalVideos: ' . $e->getMessage(), __METHOD__);
-            }
             return 0;
         }
     }
 
     public function saveFrameAction()
     {
-        Debug::logEntry(__METHOD__, ['request' => 'Starting frame save']);
+        // Conditional debug logging that's safe
+        $debugMode = false;
+        try {
+            if ($this->settings) {
+                $debugMode = (bool)$this->settings->get('videothumbnail_debug_mode', false);
+            }
+        } catch (\Exception $e) {
+            // Ignore settings errors
+        }
         
         if (!$this->getRequest()->isPost()) {
-            Debug::logWarning('Request is not POST method', __METHOD__);
             return $this->redirect()->toRoute('admin');
         }
 
         $mediaId = $this->params()->fromPost('media_id');
         $position = $this->params()->fromPost('position');
         
-        Debug::log("Processing frame save - Media ID: {$mediaId}, Position: {$position}", __METHOD__);
-        
         if (!$mediaId || !is_numeric($position)) {
-            Debug::logError("Invalid parameters - Media ID: {$mediaId}, Position: {$position}", __METHOD__);
             return new JsonModel([
                 'success' => false,
                 'message' => 'Invalid parameters',
@@ -288,10 +248,8 @@ class VideoThumbnailController extends AbstractActionController
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
-            Debug::log("Retrieved media: " . $media->filename(), __METHOD__);
             
             if (!$media) {
-                Debug::logError("Media not found: {$mediaId}", __METHOD__);
                 return new JsonModel([
                     'success' => false,
                     'message' => 'Media not found',
@@ -301,11 +259,10 @@ class VideoThumbnailController extends AbstractActionController
             // Extract and save the frame
             $result = $this->extractAndSaveFrame($media, $position);
             
-            Debug::logExit(__METHOD__, ['success' => $result['success']]);
             return new JsonModel($result);
             
         } catch (\Exception $e) {
-            Debug::logError('Frame save error: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Frame save error: ' . $e->getMessage());
             return new JsonModel([
                 'success' => false,
                 'message' => 'Error saving frame',
@@ -316,50 +273,40 @@ class VideoThumbnailController extends AbstractActionController
 
     protected function extractAndSaveFrame($media, $position)
     {
-        Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'position' => $position]);
-        
         try {
             $fileStore = $this->serviceLocator->get('Omeka\File\Store');
             $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
             
             $storagePath = sprintf('original/%s', $media->filename());
             $filePath = $fileStore->getLocalPath($storagePath);
-            Debug::log("Video file path: {$filePath}", __METHOD__);
             
             // Get video duration
             $duration = $extractor->getVideoDuration($filePath);
-            Debug::log("Video duration: {$duration} seconds", __METHOD__);
             
             if ($duration <= 0) {
-                Debug::logWarning("Invalid duration, using fallback value", __METHOD__);
                 $duration = 5.0;
             }
             
             // Calculate frame time
             $timeInSeconds = ($duration * $position) / 100;
             $timeInSeconds = max(0.1, min($timeInSeconds, $duration - 0.1));
-            Debug::log("Calculated frame time: {$timeInSeconds}s", __METHOD__);
             
             // Extract the frame
             $framePath = $extractor->extractFrame($filePath, $timeInSeconds);
             if (!$framePath) {
-                Debug::logError("Frame extraction failed", __METHOD__);
                 return [
                     'success' => false,
                     'message' => 'Failed to extract frame'
                 ];
             }
             
-            Debug::log("Frame extracted to: {$framePath}", __METHOD__);
-            
             // Store the frame
             $result = $this->storeThumbnail($media, $framePath, $position, $timeInSeconds);
             
-            Debug::logExit(__METHOD__, ['success' => $result['success']]);
             return $result;
             
         } catch (\Exception $e) {
-            Debug::logError('Frame extraction error: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Frame extraction error: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Error processing frame: ' . $e->getMessage()
@@ -369,26 +316,20 @@ class VideoThumbnailController extends AbstractActionController
 
     protected function storeThumbnail($media, $framePath, $position, $timeInSeconds)
     {
-        Debug::logEntry(__METHOD__, ['media_id' => $media->id(), 'frame_path' => $framePath]);
-        
         try {
             $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
             $tempFile = $tempFileFactory->build();
             
             if (!copy($framePath, $tempFile->getTempPath())) {
-                Debug::logError("Failed to copy frame to temp location", __METHOD__);
                 return [
                     'success' => false,
                     'message' => 'Failed to process frame'
                 ];
             }
             
-            Debug::log("Frame copied to temp location: " . $tempFile->getTempPath(), __METHOD__);
-            
             // Get the media entity
             $mediaEntity = $this->entityManager->find('Omeka\Entity\Media', $media->id());
             if (!$mediaEntity) {
-                Debug::logError("Media entity not found", __METHOD__);
                 return [
                     'success' => false,
                     'message' => 'Media entity not found'
@@ -398,7 +339,6 @@ class VideoThumbnailController extends AbstractActionController
             // Store thumbnails
             $tempFile->setStorageId($mediaEntity->getStorageId());
             $hasThumbnails = $tempFile->storeThumbnails();
-            Debug::log("Thumbnails stored: " . ($hasThumbnails ? 'true' : 'false'), __METHOD__);
             
             // Update media data
             $mediaEntity->setHasThumbnails($hasThumbnails);
@@ -415,14 +355,13 @@ class VideoThumbnailController extends AbstractActionController
             $tempFile->delete();
             @unlink($framePath);
             
-            Debug::logExit(__METHOD__, ['success' => true]);
             return [
                 'success' => true,
                 'message' => 'Thumbnail frame updated successfully'
             ];
             
         } catch (\Exception $e) {
-            Debug::logError('Error storing thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Error storing thumbnail: ' . $e->getMessage());
             return [
                 'success' => false,
                 'message' => 'Error storing thumbnail: ' . $e->getMessage()
@@ -524,12 +463,9 @@ class VideoThumbnailController extends AbstractActionController
 
     public function selectFrameAction()
     {
-        Debug::log('VideoThumbnailController::selectFrameAction accessed', __METHOD__); // Add this line
-        Debug::logEntry(__METHOD__);
         $id = $this->params('id');
         
         if (!$id) {
-            Debug::logError('No media ID provided', __METHOD__);
             return $this->redirect()->toRoute('admin');
         }
         
@@ -537,7 +473,6 @@ class VideoThumbnailController extends AbstractActionController
             $media = $this->api()->read('media', $id)->getContent();
             
             if (!$media || strpos($media->mediaType(), 'video/') !== 0) {
-                Debug::logError('Invalid media type or media not found', __METHOD__);
                 $this->messenger()->addError('Invalid media type or media not found');
                 return $this->redirect()->toRoute('admin');
             }
@@ -558,7 +493,6 @@ class VideoThumbnailController extends AbstractActionController
             // Get video duration
             $duration = $extractor->getVideoDuration($filePath);
             if ($duration <= 0) {
-                Debug::log('Could not determine video duration, using minimum fallback value', __METHOD__);
                 $duration = 1.0; // Use a minimal duration for very short videos
             }
             
@@ -602,10 +536,9 @@ class VideoThumbnailController extends AbstractActionController
             $view->setVariable('frameCount', $frameCount);
             $view->setVariable('duration', $duration);
             $view->setVariable('frames', $frames);
-            Debug::logExit(__METHOD__, 'Success');
             return $view;
         } catch (\Exception $e) {
-            Debug::logError('Error loading media: ' . $e->getMessage(), __METHOD__);
+            error_log('VideoThumbnail: Error loading media: ' . $e->getMessage());
             $this->messenger()->addError('Error loading media: ' . $e->getMessage());
             return $this->redirect()->toRoute('admin');
         }
@@ -613,18 +546,13 @@ class VideoThumbnailController extends AbstractActionController
 
     public function generateFramesAction()
     {
-        Debug::logEntry(__METHOD__, ['request' => 'Starting frame generation']);
-        
         if (!$this->getRequest()->isPost()) {
-            Debug::logWarning('Request is not POST method', __METHOD__);
             return $this->redirect()->toRoute('admin');
         }
         
         $mediaId = $this->params()->fromPost('media_id');
-        Debug::log("Processing frame generation for media ID: {$mediaId}", __METHOD__);
         
         if (!$mediaId) {
-            Debug::logError('No media ID provided', __METHOD__);
             return new JsonModel([
                 'success' => false,
                 'message' => 'No media ID provided',
@@ -633,10 +561,8 @@ class VideoThumbnailController extends AbstractActionController
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
-            Debug::log("Retrieved media: " . $media->filename(), __METHOD__);
             
             if (!$media || strpos($media->mediaType(), 'video/') !== 0) {
-                Debug::logWarning("Invalid media type: " . ($media ? $media->mediaType() : 'null'), __METHOD__);
                 return new JsonModel([
                     'success' => false,
                     'message' => 'This media is not a supported video format.',
@@ -646,34 +572,26 @@ class VideoThumbnailController extends AbstractActionController
             // Get services and settings
             $ffmpegPath = $this->settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
             $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
-            Debug::log("Using FFmpeg path: {$ffmpegPath}, Frame count: {$frameCount}", __METHOD__);
             
             $fileStore = $this->serviceLocator->get('Omeka\File\Store');
             $storagePath = sprintf('original/%s', $media->filename());
             $filePath = $fileStore->getLocalPath($storagePath);
-            Debug::log("Video file path: {$filePath}", __METHOD__);
             
             // Get video duration with enhanced logging
             $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
             $duration = $extractor->getVideoDuration($filePath);
-            Debug::log("Video duration detected: {$duration} seconds", __METHOD__);
             
             if ($duration <= 0) {
-                Debug::logWarning("Invalid duration detected, using fallback", __METHOD__);
                 $duration = 5.0;
             }
             
             // Extract frames with progress logging
-            Debug::log("Starting frame extraction process", __METHOD__);
             $frames = $extractor->extractFrames($filePath, $frameCount);
-            Debug::log("Extracted " . count($frames) . " frames", __METHOD__);
             
             $framePaths = [];
             foreach ($frames as $index => $framePath) {
                 $tempFilename = 'temp-' . basename($framePath);
                 $tempFilePath = OMEKA_PATH . '/files/temp/' . $tempFilename;
-                
-                Debug::log("Processing frame {$index}: {$framePath} -> {$tempFilePath}", __METHOD__);
                 
                 if (copy($framePath, $tempFilePath)) {
                     $frameUrl = $this->url()->fromRoute('asset', ['asset' => $tempFilename]);
@@ -687,20 +605,16 @@ class VideoThumbnailController extends AbstractActionController
                         'time' => $timeInSeconds,
                         'original_path' => $framePath,
                     ];
-                    Debug::log("Frame {$index} processed successfully", __METHOD__);
-                } else {
-                    Debug::logError("Failed to copy frame {$index} to temp location", __METHOD__);
                 }
             }
             
-            Debug::logExit(__METHOD__, ['frames_processed' => count($framePaths)]);
             return new JsonModel([
                 'success' => true,
                 'frames' => $framePaths,
             ]);
             
         } catch (\Exception $e) {
-            Debug::logError('Frame generation error: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Frame generation error: ' . $e->getMessage());
             return new JsonModel([
                 'success' => false,
                 'message' => 'Error generating frames. Check logs for details.',

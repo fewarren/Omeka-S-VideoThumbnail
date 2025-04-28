@@ -14,11 +14,15 @@ use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Entity\Media;
 use Omeka\Api\Representation\MediaRepresentation;
 use Laminas\Permissions\Acl\Resource\GenericResource;
-use VideoThumbnail\Stdlib\Debug; // Add this use statement
+// Don't use Debug in the main class declaration to avoid early initialization
+// use VideoThumbnail\Stdlib\Debug;
 
 class Module extends AbstractModule
 {
     const NAMESPACE = __NAMESPACE__;
+    
+    // Control debug mode at the module level
+    private $debugEnabled = false;
 
     public function getConfig(): array
     {
@@ -201,6 +205,9 @@ class Module extends AbstractModule
             // Get the service manager
             $application = $event->getApplication();
             $serviceManager = $application->getServiceManager();
+            
+            // Force garbage collection to be enabled
+            gc_enable();
 
             // Get module configuration first
             $config = $serviceManager->get('Config');
@@ -216,8 +223,30 @@ class Module extends AbstractModule
                 ini_set('zend.gc_probability', $moduleConfig['memory_management']['gc_probability']);
             }
 
-            // Initialize debug system without using Debug class during bootstrap
-            $this->initializeDebugMode($serviceManager, $moduleConfig);
+            // Get the settings
+            $settings = $serviceManager->get('Omeka\Settings');
+            
+            // Check if debug mode is enabled in settings
+            $this->debugEnabled = (bool)$settings->get('videothumbnail_debug_mode', false);
+            
+            // Only initialize debug system if explicitly enabled
+            if ($this->debugEnabled) {
+                // Initialize debug with minimal configuration first
+                $debugConfig = [
+                    'enabled' => true,
+                    'log_dir' => defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : null,
+                    'log_file' => 'videothumbnail.log',
+                    'max_size' => 10485760, // 10MB
+                    'max_files' => 5
+                ];
+                
+                // Try to initialize debug system
+                try {
+                    \VideoThumbnail\Stdlib\Debug::init($debugConfig);
+                } catch (\Exception $e) {
+                    error_log('VideoThumbnail: Failed to initialize debug system: ' . $e->getMessage());
+                }
+            }
 
             // Register CSS and JS assets
             $this->attachListenersForAssets($event);
@@ -305,7 +334,6 @@ class Module extends AbstractModule
                      $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page') &&
                     in_array($routeMatch->getParam('action'), ['add', 'edit'])) {
                     
-                    \VideoThumbnail\Stdlib\Debug::log('Loading block admin JS for page edit', __METHOD__);
                     $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
                 }
             }
@@ -316,7 +344,6 @@ class Module extends AbstractModule
             'VideoThumbnail\Controller\Admin\VideoThumbnailController',
             'view.layout',
             function ($event) use ($viewHelperManager) {
-                \VideoThumbnail\Stdlib\Debug::log('Controller-specific asset loading triggered', __METHOD__);
                 $view = $event->getTarget();
                 $assetUrl = $viewHelperManager->get('assetUrl');
                 $headLink = $viewHelperManager->get('headLink');
@@ -488,7 +515,8 @@ class Module extends AbstractModule
         //     'view.details', // Check if this event is still correct/needed
         //     [$this, 'handleViewDetails']
         // );
-        Debug::log('VideoThumbnail: Core event listeners attached', __METHOD__);
+        // Use basic error_log instead of Debug to avoid possible issues
+        error_log('VideoThumbnail: Core event listeners attached');
     }
 
     /**
@@ -506,7 +534,14 @@ class Module extends AbstractModule
             return;
         }
 
-        \VideoThumbnail\Stdlib\Debug::log('Media ingestion detected for media ID: ' . $media->id(), __METHOD__);
+        if ($this->debugEnabled) {
+            // Only try to use Debug if explicitly enabled
+            try {
+                \VideoThumbnail\Stdlib\Debug::log('Media ingestion detected for media ID: ' . $media->id(), __METHOD__);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail: Debug log failed: ' . $e->getMessage());
+            }
+        }
     }
 
     public function handleViewEditFormAfter($event): void
@@ -582,7 +617,15 @@ class Module extends AbstractModule
                 unlink($tempFile->getTempPath());
             }
         } catch (\Exception $e) {
-            \VideoThumbnail\Stdlib\Debug::logError('Error updating thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+            error_log('VideoThumbnail: Error updating thumbnail: ' . $e->getMessage());
+            
+            if ($this->debugEnabled) {
+                try {
+                    \VideoThumbnail\Stdlib\Debug::logError('Error updating thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+                } catch (\Exception $debugException) {
+                    // Ignore debug errors
+                }
+            }
         }
     }
     

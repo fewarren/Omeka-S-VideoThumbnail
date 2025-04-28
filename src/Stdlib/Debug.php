@@ -3,1029 +3,653 @@ namespace VideoThumbnail\Stdlib;
 
 use Laminas\Log\Logger;
 use Laminas\Log\Writer\Stream;
-use Laminas\Log\Filter\Priority;
 
 class Debug
 {
-    protected static $isInitialized = false;
-    protected static $logger = null;
-    protected static $logDir = null;
-    protected static $logFile = null;
-    protected static $methodDepth = [];
-    protected static $debugEnabled = false;
-    private static $config = [
+    /**
+     * Configuration settings
+     */
+    protected static $config = [
         'enabled' => false,
         'log_dir' => null,
         'log_file' => 'videothumbnail.log',
-        'max_size' => 10485760,
+        'max_size' => 10485760, // 10MB
         'max_files' => 5
     ];
-    private static $memoryPeak = 0;
-    private static $timeStart = null;
-    private static $memoryResetCount = 0;
-    private static $lastMemoryReset = 0;
-    private static $hasServiceWarning = false;
 
-    public static function init($config)
+    /**
+     * Logger instance
+     */
+    protected static $logger = null;
+
+    /**
+     * Initialization status
+     */
+    protected static $isInitialized = false;
+
+    /**
+     * Debug enabled flag
+     */
+    protected static $debugEnabled = false;
+
+    /**
+     * Log file path
+     */
+    protected static $logFile = null;
+
+    /**
+     * Log directory
+     */
+    protected static $logDir = null;
+
+    /**
+     * Start time
+     */
+    protected static $timeStart = null;
+
+    /**
+     * Peak memory usage
+     */
+    protected static $memoryPeak = 0;
+
+    /**
+     * Memory reset counter
+     */
+    protected static $memoryResetCount = 0;
+
+    /**
+     * Initialize debug system
+     */
+    public static function init($config = null)
     {
-        // Early exit if config is empty or not an array
-        if (empty($config) || !is_array($config)) {
-            self::$debugEnabled = false;
+        // Prevent multiple initialization
+        if (self::$isInitialized) {
             return;
         }
 
-        // Merge config safely
-        self::$config = array_merge(self::$config, $config);
-        self::$debugEnabled = !empty(self::$config['enabled']);
-
-        // Determine log directory safely
-        if (!empty(self::$config['log_dir']) && is_string(self::$config['log_dir'])) {
-            self::$logDir = rtrim(self::$config['log_dir'], DIRECTORY_SEPARATOR);
-        } elseif (defined('OMEKA_PATH')) {
-            self::$logDir = rtrim(OMEKA_PATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'logs';
-        } else {
-            // Fallback if OMEKA_PATH is not defined and log_dir is not set
-            error_log('VideoThumbnail Debug: Cannot determine log directory. OMEKA_PATH not defined and log_dir not configured.');
-            self::$logDir = null; // Explicitly set to null
-            self::$debugEnabled = false; // Disable debugging if log dir is unknown
-            return; // Stop initialization if log dir cannot be determined
-        }
-        // Update self::$config['log_dir'] to reflect the determined path for consistency
-        self::$config['log_dir'] = self::$logDir;
-
-        // Initialize basic logging without service dependencies
-        if (self::$debugEnabled && !self::$isInitialized) {
-            self::initializeBasicLogging();
-            // If initialization failed, debugEnabled might be false now
-            if (self::$debugEnabled && self::$isInitialized) { // Check isInitialized too
-                 self::logSystemInfo(); // Log system info after successful init
-            }
-        }
-    }
-
-    private static function initializeBasicLogging()
-    {
         try {
-            // Ensure logDir is usable
-            if (self::$logDir === null || !is_string(self::$logDir)) {
-                error_log('VideoThumbnail Debug: Log directory path is invalid or not set.');
+            // Early exit if config is null
+            if ($config === null) {
                 self::$debugEnabled = false;
                 return;
             }
-            
+
+            // Merge config safely
+            if (is_array($config)) {
+                self::$config = array_merge(self::$config, $config);
+            }
+
+            // Enable debugging if configured
+            self::$debugEnabled = !empty(self::$config['enabled']);
+
+            // If debugging is disabled, exit early
+            if (!self::$debugEnabled) {
+                return;
+            }
+
+            // Determine log directory safely
+            if (!empty(self::$config['log_dir']) && is_string(self::$config['log_dir'])) {
+                self::$logDir = rtrim(self::$config['log_dir'], DIRECTORY_SEPARATOR);
+            } elseif (defined('OMEKA_PATH')) {
+                self::$logDir = rtrim(OMEKA_PATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'logs';
+            } else {
+                error_log('VideoThumbnail Debug: Cannot determine log directory');
+                self::$debugEnabled = false;
+                return;
+            }
+
+            // Ensure log directory exists
             if (!is_dir(self::$logDir)) {
                 if (!@mkdir(self::$logDir, 0755, true)) {
-                     error_log('VideoThumbnail Debug: Failed to create log directory: ' . self::$logDir);
-                     self::$debugEnabled = false;
-                     return;
+                    error_log('VideoThumbnail Debug: Failed to create log directory');
+                    self::$debugEnabled = false;
+                    return;
                 }
             }
 
+            // Check if log directory is writable
             if (!is_writable(self::$logDir)) {
-                error_log('VideoThumbnail Debug: Log directory not writable: ' . self::$logDir);
+                error_log('VideoThumbnail Debug: Log directory not writable');
                 self::$debugEnabled = false;
                 return;
             }
 
-            // Ensure log_file is set and is a string
-            if (!isset(self::$config['log_file']) || !is_string(self::$config['log_file']) || self::$config['log_file'] === '') {
-                 error_log('VideoThumbnail Debug: Invalid log_file configuration.');
-                 self::$debugEnabled = false;
-                 return;
+            // Construct log file path
+            if (!empty(self::$config['log_file']) && is_string(self::$config['log_file'])) {
+                self::$logFile = self::$logDir . DIRECTORY_SEPARATOR . self::$config['log_file'];
+            } else {
+                self::$logFile = self::$logDir . DIRECTORY_SEPARATOR . 'videothumbnail.log';
             }
 
-            // Construct log file path safely
-            self::$logFile = rtrim(self::$logDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . self::$config['log_file'];
+            // Initialize logger
+            try {
+                $writer = new Stream(self::$logFile);
+                self::$logger = new Logger();
+                self::$logger->addWriter($writer);
+                self::$isInitialized = true;
+                self::$timeStart = microtime(true);
+                self::$memoryPeak = memory_get_usage(true);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail Debug: Failed to initialize logger: ' . $e->getMessage());
+                self::$debugEnabled = false;
+            }
 
-            // Check writability of the target directory for the log file
-            $logFileDir = dirname(self::$logFile);
-             if (!is_writable($logFileDir)) {
-                 error_log('VideoThumbnail Debug: Log file directory not writable: ' . $logFileDir);
-                 self::$debugEnabled = false;
-                 return;
-             }
-
-            $writer = new Stream(self::$logFile);
-            self::$logger = new Logger();
-            self::$logger->addWriter($writer);
-
-            self::$isInitialized = true;
-            self::$timeStart = microtime(true);
-            self::$memoryPeak = memory_get_usage(true);
-
-            // Enable garbage collection
+            // Force garbage collection
             gc_enable();
 
         } catch (\Exception $e) {
-            error_log('VideoThumbnail Debug initialization failed: ' . $e->getMessage());
+            error_log('VideoThumbnail Debug: Initialization failed: ' . $e->getMessage());
             self::$debugEnabled = false;
-            self::$logger = null; // Ensure logger is null on failure
-            self::$isInitialized = false; // Ensure not marked as initialized
-        }
-    }
-
-    public static function log($message, $method = null)
-    {
-        // Skip if debugging is disabled or not initialized
-        if (!self::$debugEnabled || !self::$isInitialized || !self::$logger) {
-            return;
-        }
-
-        try {
-            // Initialize if not already done
-            if (!self::$isInitialized) {
-                self::initializeBasicLogging();
-            }
-
-            // Early return if initialization failed
-            if (!self::$logger) {
-                return;
-            }
-
-            self::checkMemoryUsage();
-            self::$logger->info(self::formatMessage($message, $method));
-            self::rotateLogIfNeeded();
-        } catch (\Exception $e) {
-            // Last resort error logging
-            error_log('VideoThumbnail Debug logging failed: ' . $e->getMessage());
-        }
-    }
-
-    private static function ensureLogDirectory(): bool
-    {
-        if (empty(self::$config['log_dir'])) {
-            error_log('VideoThumbnail Debug Error: Log directory path is empty.');
-            return false;
-        }
-
-        if (!is_dir(self::$config['log_dir'])) {
-            if (!@mkdir(self::$config['log_dir'], 0755, true)) {
-                $error = error_get_last();
-                error_log('VideoThumbnail Debug Error: Failed to create log directory: ' . self::$config['log_dir'] . '. Error: ' . ($error['message'] ?? 'Unknown error'));
-                return false;
-            }
-        } elseif (!is_writable(self::$config['log_dir'])) {
-            error_log('VideoThumbnail Debug Error: Log directory is not writable: ' . self::$config['log_dir']);
-            return false;
-        }
-        return true;
-    }
-
-    private static function initLogger()
-    {
-        if (self::$logger !== null || !self::$config['enabled']) {
-            // If already initialized or disabled (possibly by ensureLogDirectory), return.
-            return; 
-        }
-        if (!isset(self::$config['log_file']) || !self::$config['log_file']) {
-             error_log('VideoThumbnail Debug Error: log_file not configured.'); // Log error
-            self::$config['enabled'] = false;
-            return;
-        }
-        $logPath = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file']; // Use DIRECTORY_SEPARATOR
-        if ((file_exists($logPath) && !is_writable($logPath)) ||
-            (!file_exists($logPath) && !is_writable(dirname($logPath)))) {
-            error_log('VideoThumbnail Debug Error: Log file/directory not writable: ' . $logPath); // Log error
-            self::$config['enabled'] = false;
-            return;
-        }
-        
-        try { // Wrap in try-catch for safety
-            $writer = new Stream($logPath);
-            self::$logger = new Logger();
-            self::$logger->addWriter($writer);
-        } catch (\Exception $e) {
-            error_log('VideoThumbnail Debug Error: Failed to initialize logger: ' . $e->getMessage()); // Log error
-            self::$config['enabled'] = false;
-            self::$logger = null; // Ensure logger is null if failed
-        }
-    }
-
-    private static function rotateLogIfNeeded()
-    {
-        // Check if enabled, initialized, and config is valid
-        if (!self::$config['enabled'] || !self::$isInitialized || !is_array(self::$config) || 
-            !isset(self::$config['log_dir']) || !isset(self::$config['log_file']) || 
-            !isset(self::$config['max_size']) || !isset(self::$config['max_files'])) {
-            return;
-        }
-
-        $logFile = self::$logFile; // Use the initialized path
-        if (!$logFile || !file_exists($logFile)) {
-             return; // Don't rotate if base log file doesn't exist
-        }
-        
-        // Check size safely
-        try {
-             if (filesize($logFile) > (int)self::$config['max_size']) {
-                 self::rotateLog();
-             }
-        } catch (\Exception $e) {
-             error_log('VideoThumbnail Debug: Error checking log file size: ' . $e->getMessage());
-        }
-    }
-
-    private static function rotateLog()
-    {
-        // Ensure config is usable and logger is initialized
-        if (!self::$isInitialized || !is_array(self::$config) ||
-            !isset(self::$config['max_files']) || !is_int(self::$config['max_files']) || self::$config['max_files'] < 0) {
-            error_log('VideoThumbnail Debug Error: Invalid configuration or state for log rotation.');
-            return;
-        }
-
-        // Use self::$logFile which is initialized more reliably
-        $logFileBase = self::$logFile;
-        if (!$logFileBase || !is_string($logFileBase) || $logFileBase === '') {
-             error_log('VideoThumbnail Debug Error: Log file base path not initialized for rotation.');
-             return;
-        }
-
-        $maxFiles = (int)self::$config['max_files'];
-
-        // Remove oldest log file
-        $oldLog = $logFileBase . '.' . $maxFiles;
-        if (@file_exists($oldLog)) {
-            @unlink($oldLog);
-        }
-
-        // Shift existing log files
-        for ($i = $maxFiles - 1; $i >= 0; $i--) {
-            $oldFile = $logFileBase . ($i > 0 ? '.' . $i : '');
-            $newFile = $logFileBase . '.' . ($i + 1);
-            // Check if oldFile is a valid string before using file_exists
-            if (is_string($oldFile) && $oldFile !== '' && @file_exists($oldFile)) { // Enhanced check for line 185
-                @rename($oldFile, $newFile);
-            }
-        }
-    }
-
-    private static function formatMessage($message, $method = null)
-    {
-        $prefix = 'VideoThumbnail: ';
-        if ($method) {
-            $message = "[$method] $message";
-        }
-        return $prefix . $message;
-    }
-
-    public static function logEntry($method, $params = [])
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        $memory = memory_get_usage(true);
-        self::$memoryPeak = max(self::$memoryPeak, $memory);
-
-        $message = sprintf(
-            "[PID:%d] [MEM:%s/%s] [TIME:%.3fs] %s",
-            getmypid(),
-            self::formatBytes($memory),
-            self::formatBytes(self::$memoryPeak),
-            microtime(true) - self::$timeStart,
-            $method
-        );
-
-        if (!empty($params)) {
-            $message .= "\nParameters: " . json_encode($params, JSON_PRETTY_PRINT);
-        }
-
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-
-    public static function logWarning($message, $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        self::$logger->warn(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-
-    public static function logError($message, $method = null, \Exception $exception = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        if ($method) {
-            $message = "[$method] $message";
-        }
-
-        if ($exception) {
-            $message .= "\nException: " . $exception->getMessage();
-            $message .= "\nStack trace:\n" . $exception->getTraceAsString();
-        }
-
-        self::$logger->err(self::formatMessage($message, $method));
-        error_log(self::formatMessage($message, $method)); // Also log to error_log for critical errors
-        self::rotateLogIfNeeded();
-    }
-
-    public static function logJobProgress($jobId, $progress, $status = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        $message = sprintf(
-            "[Job #%d] Progress: %d%% %s",
-            $jobId,
-            $progress,
-            $status ? "Status: $status" : ''
-        );
-
-        self::$logger->info(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-    }
-
-    public static function logJobError($jobId, $error, $retry = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        $message = sprintf(
-            "[Job #%d] Error: %s%s",
-            $jobId,
-            $error,
-            $retry !== null ? " (Retry #$retry)" : ''
-        );
-
-        self::$logger->err(self::formatMessage($message));
-        error_log(self::formatMessage($message)); // Also log to error_log for critical job errors
-        self::rotateLogIfNeeded();
-    }
-
-    private static function formatBytes($bytes)
-    {
-        $units = ['B', 'KB', 'MB', 'GB'];
-        $index = 0;
-        while ($bytes >= 1024 && $index < count($units) - 1) {
-            $bytes /= 1024;
-            $index++;
-        }
-        return sprintf('%.2f%s', $bytes, $units[$index]);
-    }
-
-    public static function getMemoryPeak()
-    {
-        return self::$memoryPeak;
-    }
-
-    public static function getElapsedTime()
-    {
-        return microtime(true) - self::$timeStart;
-    }
-
-    /**
-     * Logs system environment information to help with troubleshooting
-     */
-    private static function logSystemInfo()
-    {
-        // Ensure logger is available
-        if (!self::$config['enabled'] || !self::$isInitialized || !self::$logger) {
-            return;
-        }
-
-        try {
-            $info = [
-                'PHP Version' => phpversion(),
-                'OS' => PHP_OS,
-                'Server Software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-                'Memory Limit' => ini_get('memory_limit'),
-                'Max Execution Time' => ini_get('max_execution_time') . 's',
-                'Upload Max Filesize' => ini_get('upload_max_filesize'),
-                'Post Max Size' => ini_get('post_max_size'),
-            ];
-
-            // Check for FFmpeg
-            $ffmpegVersion = 'Not detected';
-            if (function_exists('exec')) {
-                $output = [];
-                $returnVar = -1;
-                @exec('ffmpeg -version 2>&1', $output, $returnVar);
-                if ($returnVar === 0 && !empty($output)) {
-                    // Just get the first line of FFmpeg version
-                    $ffmpegVersion = $output[0];
-                }
-            }
-            $info['FFmpeg'] = $ffmpegVersion;
-
-            // Check key directories safely
-            $logDirInfo = 'Not configured or invalid';
-            if (isset(self::$config['log_dir']) && is_string(self::$config['log_dir'])) {
-                $logDirInfo = self::$config['log_dir'] . ' (exists: ' .
-                    (@file_exists(self::$config['log_dir']) ? 'Yes' : 'No') . ', writable: ' .
-                    (@is_writable(self::$config['log_dir']) ? 'Yes' : 'No') . ')';
-            }
-            $info['Log Directory'] = $logDirInfo;
-
-            $tempDirInfo = 'OMEKA_PATH not defined';
-            if (defined('OMEKA_PATH')) {
-                $tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
-                $tempDirInfo = $tempDir . ' (exists: ' .
-                    (@file_exists($tempDir) ? 'Yes' : 'No') . ', writable: ' .
-                    (@is_writable($tempDir) ? 'Yes' : 'No') . ')';
-            }
-            $info['Temp Directory'] = $tempDirInfo;
-            
-            $message = "System Information:\n";
-            foreach ($info as $key => $value) {
-                $message .= sprintf("- %s: %s\n", $key, $value);
-            }
-
-            self::$logger->info(self::formatMessage($message, 'SystemInfo'));
-        } catch (\Exception $e) {
-            self::$logger->err(self::formatMessage(
-                'Failed to collect system information: ' . $e->getMessage(),
-                'SystemInfo'
-            ));
         }
     }
 
     /**
-     * Specialized method for logging admin configuration form events
-     * 
-     * @param string $action The action being performed (load, validate, save, etc)
-     * @param array $data Associated data for the action
-     * @param string $method Calling method identifier
-     */
-    public static function logConfigAction($action, array $data = [], $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        $message = sprintf(
-            "ADMIN CONFIG: %s\nData: %s",
-            $action,
-            !empty($data) ? json_encode($data, JSON_PRETTY_PRINT) : 'No data'
-        );
-
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log form validation issues
-     * 
-     * @param array $messages Form validation error messages
-     * @param string $method Calling method identifier  
-     */
-    public static function logFormValidation(array $messages, $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-
-        $formatted = [];
-        foreach ($messages as $field => $errors) {
-            $errorMessages = is_array($errors) ? implode(', ', array_map(function($e) {
-                return is_array($e) ? implode(', ', $e) : $e;
-            }, $errors)) : $errors;
-            
-            $formatted[] = "$field: $errorMessages";
-        }
-
-        $message = "FORM VALIDATION ERRORS:\n" . implode("\n", $formatted);
-        self::$logger->warn(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Dump form data for debugging purposes
-     * 
-     * @param array $formData Form data to dump
-     * @param string $stage Processing stage description 
-     * @param string $method Calling method identifier
-     */
-    public static function dumpFormData(array $formData, $stage = 'unknown', $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        // Sanitize any sensitive data if needed
-        $sanitized = $formData;
-        
-        $message = sprintf(
-            "FORM DATA DUMP [Stage: %s]\n%s",
-            $stage,
-            json_encode($sanitized, JSON_PRETTY_PRINT)
-        );
-        
-        self::$logger->debug(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Check if debug mode is enabled
-     * 
-     * @return bool True if debugging is enabled
+     * Check if debugging is enabled
      */
     public static function isEnabled()
     {
-        // Keep this returning false during bootstrap phases if needed,
-        // but ensure it reflects actual state once initialized.
-        // For now, let's base it on the internal state:
-        return self::$debugEnabled && self::$isInitialized;
+        return self::$debugEnabled && self::$isInitialized && self::$logger !== null;
     }
-    
+
     /**
-     * Log exit from method for tracing execution flow
-     * 
-     * @param string $method Method name
-     * @param mixed $result Optional result data
+     * Log a message
+     */
+    public static function log($message, $method = null)
+    {
+        if (!self::isEnabled()) {
+            return;
+        }
+
+        try {
+            $formatted = self::formatMessage($message, $method);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug log error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log an entry point (method start)
+     */
+    public static function logEntry($method, $params = null)
+    {
+        if (!self::isEnabled()) {
+            return;
+        }
+
+        try {
+            $message = "ENTRY: $method";
+            if ($params !== null) {
+                if (is_array($params)) {
+                    $message .= ' - Params: ' . json_encode($params);
+                } else {
+                    $message .= ' - Params: ' . $params;
+                }
+            }
+            self::log($message, $method);
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logEntry error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log an exit point (method end)
      */
     public static function logExit($method, $result = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        $memory = memory_get_usage(true);
-        self::$memoryPeak = max(self::$memoryPeak, $memory);
 
-        $message = sprintf(
-            "[PID:%d] [MEM:%s/%s] [TIME:%.3fs] EXIT: %s",
-            getmypid(),
-            self::formatBytes($memory),
-            self::formatBytes(self::$memoryPeak),
-            microtime(true) - self::$timeStart,
-            $method
-        );
-
-        if ($result !== null) {
-            if (is_array($result) || is_object($result)) {
-                $message .= "\nResult: " . json_encode($result, JSON_PRETTY_PRINT);
-            } else {
-                $message .= "\nResult: " . $result;
+        try {
+            $message = "EXIT: $method";
+            if ($result !== null) {
+                if (is_array($result) || is_object($result)) {
+                    $message .= ' - Result: ' . json_encode($result);
+                } else {
+                    $message .= ' - Result: ' . $result;
+                }
             }
+            self::log($message, $method);
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logExit error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log a warning message
+     */
+    public static function logWarning($message, $method = null)
+    {
+        if (!self::isEnabled()) {
+            return;
         }
 
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
+        try {
+            $formatted = self::formatMessage("WARNING: $message", $method);
+            self::$logger->warn($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logWarning error: ' . $e->getMessage());
+        }
     }
-    
+
     /**
-     * Log settings changes
-     * 
-     * @param string $key Setting key
-     * @param mixed $oldValue Previous value
-     * @param mixed $newValue New value
-     * @param string $method Method identifier
+     * Log an error message
      */
-    public static function logSettingChange($key, $oldValue, $newValue, $method = null)
+    public static function logError($message, $method = null, $exception = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
+            // Always log errors to PHP error log if debug is disabled
+            error_log('VideoThumbnail Error: ' . $message);
             return;
         }
-        
-        // Format values for logging
-        $oldFormatted = is_array($oldValue) || is_object($oldValue) 
-            ? json_encode($oldValue, JSON_PRETTY_PRINT) 
-            : (string)$oldValue;
-        
-        $newFormatted = is_array($newValue) || is_object($newValue) 
-            ? json_encode($newValue, JSON_PRETTY_PRINT) 
-            : (string)$newValue;
-        
-        $message = sprintf(
-            "SETTING CHANGED: '%s'\nOld value: %s\nNew value: %s",
-            $key,
-            $oldFormatted,
-            $newFormatted
-        );
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
+
+        try {
+            $formatted = self::formatMessage("ERROR: $message", $method);
+            
+            if ($exception instanceof \Exception) {
+                $formatted .= "\nException: " . get_class($exception) . 
+                             "\nMessage: " . $exception->getMessage() .
+                             "\nTrace: " . $exception->getTraceAsString();
+            }
+            
+            self::$logger->err($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logError error: ' . $e->getMessage());
+        }
     }
-    
+
     /**
-     * Log admin settings workflow state transitions
-     * 
-     * @param string $from Previous state
-     * @param string $to New state 
-     * @param array $context Additional context information
-     * @param string $method Method identifier
+     * Log form validation errors
      */
-    public static function logWorkflowTransition($from, $to, array $context = [], $method = null)
+    public static function logFormValidation($messages, $method = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        $message = sprintf(
-            "WORKFLOW TRANSITION: %s → %s",
-            $from,
-            $to
-        );
-        
-        if (!empty($context)) {
-            $message .= "\nContext: " . json_encode($context, JSON_PRETTY_PRINT);
+
+        try {
+            $formatted = self::formatMessage("FORM VALIDATION: " . json_encode($messages), $method);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logFormValidation error: ' . $e->getMessage());
         }
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
     }
-    
+
     /**
-     * Log detailed admin form processing steps
-     * 
-     * @param string $step Description of the processing step
-     * @param array $data Data relevant to this step
-     * @param string $method Method identifier
+     * Log form data
      */
-    public static function logFormProcessingStep($step, array $data = [], $method = null)
+    public static function dumpFormData($data, $phase = null, $method = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        $message = sprintf(
-            "FORM PROCESSING [%s]", 
-            $step
-        );
-        
-        if (!empty($data)) {
-            // Sanitize sensitive data if needed
-            $sanitized = $data;
-            $message .= "\nData: " . json_encode($sanitized, JSON_PRETTY_PRINT);
+
+        try {
+            $message = "FORM DATA";
+            if ($phase !== null) {
+                $message .= " ($phase)";
+            }
+            $message .= ": " . json_encode($data);
+            
+            $formatted = self::formatMessage($message, $method);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug dumpFormData error: ' . $e->getMessage());
         }
-        
-        self::$logger->debug(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
     }
-    
+
     /**
-     * Start timing an operation for performance monitoring
-     * 
-     * @param string $operationId Unique identifier for the operation
-     * @param string $description Description of the operation
+     * Log setting changes
      */
-    public static function startOperation($operationId, $description = null)
+    public static function logSettingChange($setting, $oldValue, $newValue, $method = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        // Store start time in static array
-        static $operations = [];
-        
-        $operations[$operationId] = [
-            'start' => microtime(true),
-            'description' => $description,
-            'memory_start' => memory_get_usage(true)
-        ];
-        
-        $message = sprintf(
-            "OPERATION STARTED: %s%s",
-            $operationId,
-            $description ? " - $description" : ''
-        );
-        
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
+
+        try {
+            $message = "SETTING CHANGE: $setting";
+            
+            // Handle special cases for output formatting
+            if (is_array($oldValue)) {
+                $oldValueStr = json_encode($oldValue);
+            } elseif ($oldValue === null) {
+                $oldValueStr = 'null';
+            } elseif (is_bool($oldValue)) {
+                $oldValueStr = $oldValue ? 'true' : 'false';
+            } else {
+                $oldValueStr = (string) $oldValue;
+            }
+            
+            if (is_array($newValue)) {
+                $newValueStr = json_encode($newValue);
+            } elseif ($newValue === null) {
+                $newValueStr = 'null';
+            } elseif (is_bool($newValue)) {
+                $newValueStr = $newValue ? 'true' : 'false';
+            } else {
+                $newValueStr = (string) $newValue;
+            }
+            
+            $message .= " from '$oldValueStr' to '$newValueStr'";
+            
+            $formatted = self::formatMessage($message, $method);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logSettingChange error: ' . $e->getMessage());
+        }
     }
-    
+
     /**
-     * End timing an operation and log duration
-     * 
-     * @param string $operationId Identifier matching a previous startOperation call
-     * @param array $result Optional result data
+     * Log configuration actions
      */
-    public static function endOperation($operationId, array $result = null)
+    public static function logConfigAction($action, $data, $method = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        static $operations = [];
-        
-        if (!isset($operations[$operationId])) {
-            self::$logger->warn(self::formatMessage("OPERATION END: No matching start found for '$operationId'"));
+
+        try {
+            $message = "CONFIG ACTION: $action";
+            
+            if (!empty($data)) {
+                $message .= " - " . json_encode($data);
+            }
+            
+            $formatted = self::formatMessage($message, $method);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug logConfigAction error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Log a call stack trace
+     */
+    public static function traceCallStack($limit = 10, $reason = null)
+    {
+        if (!self::isEnabled()) {
             return;
         }
-        
-        $end = microtime(true);
-        $duration = $end - $operations[$operationId]['start'];
-        $memoryDelta = memory_get_usage(true) - $operations[$operationId]['memory_start'];
-        
-        $message = sprintf(
-            "OPERATION ENDED: %s - Duration: %.4fs - Memory delta: %s%s",
-            $operationId,
-            $duration,
-            self::formatBytes($memoryDelta),
-            $operations[$operationId]['description'] ? " - " . $operations[$operationId]['description'] : ''
-        );
-        
-        if ($result !== null) {
-            $message .= "\nResult: " . json_encode($result, JSON_PRETTY_PRINT);
+
+        try {
+            $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $limit + 1);
+            array_shift($trace); // Remove this method from stack
+            
+            $callStack = '';
+            if ($reason !== null) {
+                $callStack = "TRACE ($reason):\n";
+            } else {
+                $callStack = "TRACE:\n";
+            }
+            
+            foreach ($trace as $i => $call) {
+                $class = isset($call['class']) ? $call['class'] : '';
+                $type = isset($call['type']) ? $call['type'] : '';
+                $function = isset($call['function']) ? $call['function'] : '';
+                $file = isset($call['file']) ? $call['file'] : 'unknown';
+                $line = isset($call['line']) ? $call['line'] : 0;
+                
+                $callStack .= sprintf("#%d %s%s%s() called at [%s:%d]\n", 
+                    $i, $class, $type, $function, $file, $line);
+            }
+            
+            $formatted = self::formatMessage($callStack);
+            self::$logger->info($formatted);
+            self::rotateLogIfNeeded();
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug traceCallStack error: ' . $e->getMessage());
         }
-        
-        self::$logger->debug(self::formatMessage($message));
-        self::rotateLogIfNeeded();
-        
-        // Clean up
-        unset($operations[$operationId]);
     }
-    
+
     /**
-     * Log admin user action for audit trail
-     * 
-     * @param string $action Description of user action
-     * @param string $userId User ID if available
-     * @param array $details Additional details about the action
+     * Format a log message
      */
-    public static function logAdminAction($action, $userId = null, array $details = [])
+    protected static function formatMessage($message, $method = null)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
+        $formattedMessage = '';
+        
+        // Add timestamp
+        $formattedMessage .= '[' . date('Y-m-d H:i:s') . '] ';
+        
+        // Add memory usage
+        $memoryUsage = memory_get_usage(true);
+        $formattedMessage .= self::formatBytes($memoryUsage) . ' ';
+        
+        // Add method if provided
+        if ($method !== null) {
+            $formattedMessage .= "[$method] ";
         }
         
-        $message = sprintf(
-            "ADMIN ACTION: %s%s",
-            $action,
-            $userId ? " (User: $userId)" : ''
-        );
+        // Add the actual message
+        $formattedMessage .= $message;
         
-        if (!empty($details)) {
-            $message .= "\nDetails: " . json_encode($details, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->info(self::formatMessage($message));
-        self::rotateLogIfNeeded();
+        return $formattedMessage;
     }
-    
+
     /**
-     * Log API interactions related to admin settings
-     * 
-     * @param string $endpoint API endpoint
-     * @param string $method HTTP method (GET, POST, etc.)
-     * @param array $requestData Request data (if applicable)
-     * @param array $responseData Response data (if applicable)
-     * @param int $statusCode HTTP status code (if applicable)
+     * Format bytes to human-readable format
      */
-    public static function logApiInteraction($endpoint, $method, array $requestData = null, array $responseData = null, $statusCode = null)
+    protected static function formatBytes($bytes, $precision = 2)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
+        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
         
-        $message = sprintf(
-            "API INTERACTION: %s %s%s",
-            $method,
-            $endpoint,
-            $statusCode ? " (Status: $statusCode)" : ''
-        );
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
         
-        if ($requestData !== null) {
-            // Sanitize sensitive data if needed
-            $message .= "\nRequest: " . json_encode($requestData, JSON_PRETTY_PRINT);
-        }
+        $bytes /= pow(1024, $pow);
         
-        if ($responseData !== null) {
-            // Possibly truncate very large responses
-            $message .= "\nResponse: " . json_encode($responseData, JSON_PRETTY_PRINT);
-        }
-        
-        self::$logger->info(self::formatMessage($message));
-        self::rotateLogIfNeeded();
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
-    
+
     /**
-     * Log configuration form state for debugging
-     * 
-     * @param array $formData The form data being processed
-     * @param string $context Contextual information about where the form is in the workflow
-     * @param string $method Calling method identifier
+     * Check if log file needs rotation
      */
-    public static function logConfigFormState(array $formData, $context, $method = null)
+    private static function rotateLogIfNeeded()
     {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        // Remove any sensitive data before logging
-        $safeFormData = $formData;
-        if (isset($safeFormData['api_key'])) {
-            $safeFormData['api_key'] = '[REDACTED]';
-        }
-        
-        $message = sprintf(
-            "CONFIG FORM STATE [%s]:\n%s", 
-            $context,
-            json_encode($safeFormData, JSON_PRETTY_PRINT)
-        );
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log the complete environment for configuration troubleshooting
-     * 
-     * @param string $message Optional message to include
-     */
-    public static function logConfigEnvironment($message = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
+        if (!self::$debugEnabled || !self::$isInitialized) {
             return;
         }
         
         try {
-            // Basic server information
-            $envInfo = [
-                'timestamp' => date('Y-m-d H:i:s'),
-                'server' => [
-                    'php_version' => phpversion(),
-                    'memory_limit' => ini_get('memory_limit'),
-                    'max_execution_time' => ini_get('max_execution_time') . 's',
-                    'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'
-                ]
-            ];
-            
-            // Check config directory permissions
-            $baseDir = dirname(dirname(dirname(__FILE__)));
-            $configDir = $baseDir . '/config';
-            $envInfo['directories'] = [
-                'config_dir' => [
-                    'path' => $configDir,
-                    'exists' => file_exists($configDir) ? 'Yes' : 'No',
-                    'writable' => is_writable($configDir) ? 'Yes' : 'No'
-                ],
-                'log_dir' => [
-                    'path' => self::$config['log_dir'],
-                    'exists' => file_exists(self::$config['log_dir']) ? 'Yes' : 'No',
-                    'writable' => is_writable(self::$config['log_dir']) ? 'Yes' : 'No'
-                ]
-            ];
-            
-            // Check for module INI file
-            $iniFile = $configDir . '/module.ini';
-            $envInfo['module_ini'] = [
-                'path' => $iniFile,
-                'exists' => file_exists($iniFile) ? 'Yes' : 'No',
-                'writable' => file_exists($iniFile) && is_writable($iniFile) ? 'Yes' : 'No'
-            ];
-            
-            if (file_exists($iniFile)) {
-                $envInfo['module_ini']['size'] = filesize($iniFile) . ' bytes';
-                $envInfo['module_ini']['modified'] = date('Y-m-d H:i:s', filemtime($iniFile));
+            // Ensure we have a valid log file path
+            if (empty(self::$logFile) || !is_string(self::$logFile)) {
+                return;
             }
             
-            $logMessage = "CONFIGURATION ENVIRONMENT:\n";
-            if ($message) {
-                $logMessage .= "Context: $message\n";
+            // Check if file exists and is readable
+            if (!file_exists(self::$logFile)) {
+                return;
             }
-            $logMessage .= json_encode($envInfo, JSON_PRETTY_PRINT);
             
-            self::$logger->info(self::formatMessage($logMessage, 'ConfigEnvironment'));
+            // Check size threshold
+            $maxSize = isset(self::$config['max_size']) ? self::$config['max_size'] : 10485760;
+            
+            if (filesize(self::$logFile) > $maxSize) {
+                self::rotateLog();
+            }
         } catch (\Exception $e) {
-            self::$logger->err(self::formatMessage(
-                'Failed to log configuration environment: ' . $e->getMessage(),
-                'ConfigEnvironment'
+            error_log('VideoThumbnail Debug rotateLogIfNeeded error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Rotate log files
+     */
+    private static function rotateLog()
+    {
+        if (!self::$debugEnabled || !self::$isInitialized) {
+            return;
+        }
+        
+        try {
+            // Check if we have necessary configuration
+            if (empty(self::$config['max_files']) || !is_numeric(self::$config['max_files']) || 
+                empty(self::$logFile) || !is_string(self::$logFile)) {
+                return;
+            }
+            
+            $maxFiles = (int)self::$config['max_files'];
+            
+            // Remove oldest log file
+            $oldLog = self::$logFile . '.' . $maxFiles;
+            if (file_exists($oldLog)) {
+                @unlink($oldLog);
+            }
+            
+            // Shift log files - safeguarded version
+            for ($i = $maxFiles - 1; $i >= 0; $i--) {
+                $oldFile = ($i == 0) ? self::$logFile : (self::$logFile . '.' . $i);
+                $newFile = self::$logFile . '.' . ($i + 1);
+                
+                // Ensure oldFile is valid before checking if it exists
+                if (is_string($oldFile) && $oldFile !== '' && file_exists($oldFile)) {
+                    @rename($oldFile, $newFile);
+                }
+            }
+            
+            // Create a new empty log file
+            @touch(self::$logFile);
+            
+            // Reinitialize logger
+            try {
+                $writer = new Stream(self::$logFile);
+                self::$logger = new Logger();
+                self::$logger->addWriter($writer);
+                
+                // Log rotation success
+                self::$logger->info(self::formatMessage("Log rotated successfully"));
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail Debug: Failed to reinitialize logger after rotation: ' . $e->getMessage());
+            }
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug rotateLog error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Initialize memory management
+     */
+    public static function initializeMemoryManagement($config = null)
+    {
+        if (!self::$debugEnabled || !self::$isInitialized) {
+            return;
+        }
+        
+        try {
+            // Set initial memory peak
+            self::$memoryPeak = memory_get_usage(true);
+            self::$memoryResetCount = 0;
+            
+            // Force garbage collection
+            if (gc_enabled()) {
+                gc_collect_cycles();
+            }
+            
+            self::log(sprintf(
+                "Memory management initialized. Current usage: %s",
+                self::formatBytes(memory_get_usage(true))
+            ));
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug initializeMemoryManagement error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check memory usage and clean up if needed
+     */
+    public static function checkMemoryUsage($forceCleanup = false)
+    {
+        if (!self::$debugEnabled || !self::$isInitialized) {
+            return;
+        }
+        
+        try {
+            $currentUsage = memory_get_usage(true);
+            $peakUsage = memory_get_peak_usage(true);
+            $percentUsed = 0;
+            
+            // Calculate memory limit
+            $memoryLimit = ini_get('memory_limit');
+            $memoryLimitBytes = self::convertToBytes($memoryLimit);
+            
+            if ($memoryLimitBytes > 0) {
+                $percentUsed = ($currentUsage / $memoryLimitBytes) * 100;
+            }
+            
+            $threshold = isset(self::$config['memory_management']['memory_reset_threshold']) ? 
+                self::convertToBytes(self::$config['memory_management']['memory_reset_threshold']) : 
+                384 * 1024 * 1024; // Default 384MB
+            
+            // Check if we need to clean up
+            if ($forceCleanup || $currentUsage > $threshold || $percentUsed > 75) {
+                self::performMemoryCleanup();
+            }
+            
+            return [
+                'current' => $currentUsage,
+                'peak' => $peakUsage,
+                'percentUsed' => $percentUsed,
+            ];
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail Debug checkMemoryUsage error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Perform memory cleanup
+     */
+    private static function performMemoryCleanup()
+    {
+        self::$memoryResetCount++;
+        self::$memoryPeak = memory_get_peak_usage(true);
+        
+        // Force garbage collection
+        if (gc_enabled()) {
+            gc_collect_cycles();
+        }
+        
+        // Log only if initialized
+        if (self::$isInitialized && self::$logger) {
+            self::log(sprintf(
+                "Memory cleanup performed (%d). Before: %s, After: %s",
+                self::$memoryResetCount,
+                self::formatBytes(self::$memoryPeak),
+                self::formatBytes(memory_get_usage(true))
             ));
         }
     }
-    
+
     /**
-     * Track a step in the configuration workflow
-     * 
-     * @param string $step The current step in the process
-     * @param array $data Optional data related to this step
-     * @param string $method Calling method identifier
+     * Convert memory limit string to bytes
      */
-    public static function trackConfigWorkflow($step, array $data = [], $method = null)
+    private static function convertToBytes($value)
     {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
+        $value = trim($value);
+        $unit = strtolower(substr($value, -1));
+        $value = (int)$value;
         
-        $message = sprintf(
-            "CONFIG WORKFLOW [%s]%s",
-            $step,
-            !empty($data) ? "\nDetails: " . json_encode($data, JSON_PRETTY_PRINT) : ''
-        );
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-    
-    /**
-     * Log database operations related to configuration
-     * 
-     * @param string $operation The operation being performed
-     * @param string $table The table being operated on
-     * @param array $data Related data for context
-     * @param string $method Calling method identifier
-     */
-    public static function logConfigDbOperation($operation, $table, array $data = [], $method = null)
-    {
-        if (!self::$config['enabled'] || !self::$logger) {
-            return;
-        }
-        
-        // Create safe version of data that won't expose sensitive information
-        $safeData = [];
-        foreach ($data as $key => $value) {
-            if (in_array(strtolower($key), ['password', 'api_key', 'secret', 'token'])) {
-                $safeData[$key] = '[REDACTED]';
-            } else {
-                $safeData[$key] = $value;
-            }
-        }
-        
-        $message = sprintf(
-            "CONFIG DB OPERATION: %s on %s\nData: %s",
-            $operation,
-            $table,
-            !empty($safeData) ? json_encode($safeData, JSON_PRETTY_PRINT) : 'No data'
-        );
-        
-        self::$logger->info(self::formatMessage($message, $method));
-        self::rotateLogIfNeeded();
-    }
-
-    private static function initializeMemoryManagement()
-    {
-        // Enable garbage collection
-        gc_enable();
-
-        // Set aggressive garbage collection
-        if (!ini_get('zend.enable_gc')) {
-            ini_set('zend.enable_gc', 1);
-        }
-
-        // Set initial memory peak
-        self::$memoryPeak = memory_get_peak_usage(true);
-        self::$lastMemoryReset = time();
-    }
-
-    private static function checkMemoryUsage()
-    {
-        $currentMemory = memory_get_usage(true);
-        $memoryLimit = self::getMemoryLimit();
-        $threshold = $memoryLimit * 0.9; // 90% of memory limit
-
-        // If using more than 90% of memory limit
-        if ($currentMemory > $threshold) {
-            self::performMemoryCleanup();
-        }
-    }
-
-    private static function performMemoryCleanup()
-    {
-        // Only perform cleanup once every 5 seconds maximum
-        if (time() - self::$lastMemoryReset < 5) {
-            return;
-        }
-
-        // Force garbage collection
-        gc_collect_cycles();
-
-        // Clear internal caches if they exist
-        if (function_exists('opcache_reset')) {
-            opcache_reset();
-        }
-
-        self::$memoryResetCount++;
-        self::$lastMemoryReset = time();
-        
-        // Only log if initialized
-        if (self::$isInitialized && self::$logger) {
-             self::log(sprintf(
-                 "Memory cleanup performed (%d). Before: %s, After: %s",
-                 self::$memoryResetCount,
-                 self::formatBytes(self::$memoryPeak),
-                 self::formatBytes(memory_get_usage(true))
-             ), __METHOD__);
-        }
-    }
-
-    private static function getMemoryLimit()
-    {
-        $memoryLimit = ini_get('memory_limit');
-        if ($memoryLimit === '-1') {
-            return PHP_INT_MAX;
-        }
-        
-        $unit = strtolower(substr($memoryLimit, -1));
-        $number = (int)substr($memoryLimit, 0, -1);
-        
-        switch ($unit) {
+        switch($unit) {
             case 'g':
-                $number *= 1024;
+                $value *= 1024;
+                // Fall through
             case 'm':
-                $number *= 1024;
+                $value *= 1024;
+                // Fall through
             case 'k':
-                $number *= 1024;
+                $value *= 1024;
         }
         
-        return $number;
+        return $value;
     }
 }
