@@ -1,0 +1,92 @@
+<?php
+/**
+ * Video Thumbnail Block layout render
+ *
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \Omeka\Api\Representation\SitePageBlockRepresentation $block
+ */
+
+$escape = $this->plugin('escapeHtml');
+$attachments = $block->attachments();
+$caption = $block->dataValue('caption', '');
+$linkType = $block->dataValue('link_type', 'resource');
+$customUrl = $block->dataValue('custom_url', '');
+$hasValidMedia = false;
+$videoAttachment = null;
+$thumbnailUrl = null;
+
+// Only use the first valid attachment
+if ($attachments && count($attachments)) {
+    foreach ($attachments as $attachment) {
+        $media = $attachment->media();
+        if ($media) {
+            $videoAttachment = $attachment;
+            $hasValidMedia = true;
+            
+            // Get the media ID for logging
+            $mediaId = $media->id();
+            
+            // Get the thumbnail URL from the stored values
+            $thumbnailUrl = $block->dataValue('thumbnail_url_' . $mediaId);
+            
+            // If there's no stored URL, try to get it from the API
+            if (!$thumbnailUrl) {
+                try {
+                    // Get the VideoThumbnail ingester from the service manager if available
+                    $api = $this->api();
+                    $serviceLocator = $api->getServiceLocator();
+                    if ($serviceLocator->has('VideoThumbnail\Media\Ingester\VideoThumbnail')) {
+                        $videoThumbnailIngester = $serviceLocator->get('VideoThumbnail\Media\Ingester\VideoThumbnail');
+                        $thumbnailUrl = $videoThumbnailIngester->getVideoThumbnailUrl($media);
+                    }
+                } catch (\Exception $e) {
+                    error_log('VideoThumbnailBlock: Error getting thumbnail URL for media ID ' . $mediaId . ': ' . $e->getMessage());
+                }
+            }
+            
+            // Only break on the first valid media with a thumbnail
+            if ($thumbnailUrl) {
+                break;
+            }
+        }
+    }
+}
+?>
+
+<?php if ($hasValidMedia && $thumbnailUrl): ?>
+<div class="video-thumbnail-block">
+    <?php
+    // Determine the link href based on the link type
+    $href = null;
+    if ($linkType === 'resource' && $videoAttachment) {
+        $media = $videoAttachment->media();
+        if ($media) {
+            $href = $media->url();
+        }
+    } elseif ($linkType === 'custom' && !empty($customUrl)) {
+        $href = $customUrl;
+    }
+    ?>
+    
+    <?php if ($href): ?>
+    <a href="<?php echo $escape($href); ?>" target="_blank">
+        <img src="<?php echo $escape($thumbnailUrl); ?>" alt="<?php echo $escape($caption ?: 'Video thumbnail'); ?>" class="video-thumbnail">
+    </a>
+    <?php else: ?>
+    <img src="<?php echo $escape($thumbnailUrl); ?>" alt="<?php echo $escape($caption ?: 'Video thumbnail'); ?>" class="video-thumbnail">
+    <?php endif; ?>
+    
+    <?php if ($caption): ?>
+    <div class="video-thumbnail-caption">
+        <?php echo $escape($caption); ?>
+    </div>
+    <?php endif; ?>
+</div>
+<?php else: ?>
+<div class="video-thumbnail-block no-thumbnail">
+    <div class="error-message">
+        <?php echo $escape($this->translate('No video thumbnail available. Please check that a valid video file is selected and regenerate the thumbnail if needed.')); ?>
+    </div>
+</div>
+<?php endif; ?>

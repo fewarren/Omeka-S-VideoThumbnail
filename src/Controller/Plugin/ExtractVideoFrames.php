@@ -30,7 +30,13 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function extractFrame($videoPath, $position)
     {
-        return $this->videoFrameExtractor->extractFrame($videoPath, $position);
+        try {
+            $result = $this->videoFrameExtractor->extractFrame($videoPath, $position);
+            return $result;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Exception in extractFrame: ' . $e->getMessage());
+            return null;
+        }
     }
     
     /**
@@ -42,7 +48,13 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function extractFrames($videoPath, $count = 5)
     {
-        return $this->videoFrameExtractor->extractFrames($videoPath, $count);
+        try {
+            $frames = $this->videoFrameExtractor->extractFrames($videoPath, $count);
+            return $frames;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Exception in extractFrames: ' . $e->getMessage());
+            return [];
+        }
     }
     
     /**
@@ -53,6 +65,12 @@ class ExtractVideoFrames extends AbstractPlugin
      */
     public function getVideoDuration($videoPath)
     {
-        return $this->videoFrameExtractor->getVideoDuration($videoPath);
+        try {
+            $duration = $this->videoFrameExtractor->getVideoDuration($videoPath);
+            return $duration;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Exception in getVideoDuration: ' . $e->getMessage());
+            return 0;
+        }
     }
 }

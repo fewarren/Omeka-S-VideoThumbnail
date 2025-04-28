@@ -8,6 +8,14 @@ $formErrors = $this->plugin('formElementErrors');
 <h3><?= $this->translate('Video Thumbnail Configuration') ?></h3>
 
 <div class="configuration-section">
+    <?php if ($this->messenger()->hasMessages()): ?>
+        <div class="admin-feedback-messages" role="alert" aria-live="assertive">
+            <?php foreach ($this->messenger()->getMessages() as $message): ?>
+                <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
     <?= $this->form()->openTag($form) ?>
 
     <div class="field">
@@ -40,6 +48,17 @@ $formErrors = $this->plugin('formElementErrors');
         <div class="inputs">
             <?= $formElement($form->get('videothumbnail_default_frame')) ?>
             <?= $formErrors($form->get('videothumbnail_default_frame')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_timestamp_property')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_timestamp_property')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_timestamp_property')) ?>
+            <?= $formErrors($form->get('videothumbnail_timestamp_property')) ?>
         </div>
     </div>
 

@@ -10,6 +10,14 @@ $form->prepare();
 
 <h1><?= $this->translate('Video Thumbnail Configuration'); ?></h1>
 
+<?php if ($this->flashMessenger()->hasMessages()): ?>
+    <div class="admin-feedback-messages" role="alert" aria-live="assertive">
+        <?php foreach ($this->flashMessenger()->getMessages() as $message): ?>
+            <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
+
 <div class="configuration-section">
     <h2><?= $this->translate('Statistics'); ?></h2>
     <p><?= $this->translate('Total video files in the system'); ?>: <strong><?= $totalVideos ?></strong></p>

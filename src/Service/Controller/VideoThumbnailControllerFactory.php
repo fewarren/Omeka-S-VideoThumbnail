@@ -4,46 +4,66 @@ namespace VideoThumbnail\Service\Controller;
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use VideoThumbnail\Controller\Admin\VideoThumbnailController;
+use Laminas\ServiceManager\Exception\ServiceNotFoundException;
+use Laminas\ServiceManager\Exception\ServiceNotCreatedException;
 
 class VideoThumbnailControllerFactory implements FactoryInterface
 {
-    public function __invoke(ContainerInterface $services, $requestedName, array $options = null)
+    public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
-        $entityManager = $services->get('Omeka\EntityManager');
-        $settings = $services->get('Omeka\Settings');
-        
-        // Get file manager using a more robust approach - prioritize the primary manager service
-        $fileManager = null;
-        if ($services->has('Omeka\File\Manager')) {
-            $fileManager = $services->get('Omeka\File\Manager');
-        } else {
-            $fileManagerServices = [
-                'Omeka\File\Store\Manager',
-                'Omeka\File\TempFileFactory',
-            ];
+        try {
+            // Get required services
+            $services = $this->getRequiredServices($container);
             
-            foreach ($fileManagerServices as $service) {
-                if ($services->has($service)) {
-                    $fileManager = $services->get($service);
-                    break;
-                }
+            // Create controller with required dependencies
+            $controller = new VideoThumbnailController(
+                $services['entityManager'],
+                $services['fileManager'],
+                $container
+            );
+            
+            // Set settings service
+            $controller->setSettings($services['settings']);
+            
+            return $controller;
+            
+        } catch (ServiceNotFoundException $e) {
+            error_log('VideoThumbnailControllerFactory: Required service not found: ' . $e->getMessage());
+            throw $e;
+        } catch (ServiceNotCreatedException $e) {
+            error_log('VideoThumbnailControllerFactory: Service creation failed: ' . $e->getMessage());
+            throw $e;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnailControllerFactory: Unexpected error: ' . $e->getMessage());
+            throw new ServiceNotCreatedException($e->getMessage(), 0, $e);
+        }
+    }
+    
+    protected function getRequiredServices(ContainerInterface $container)
+    {
+        $services = [];
+        $required = [
+            'entityManager' => 'Omeka\EntityManager',
+            'fileManager' => 'Omeka\File\Store',
+            'settings' => 'Omeka\Settings'
+        ];
+        
+        foreach ($required as $key => $serviceName) {
+            if (!$container->has($serviceName)) {
+                throw new ServiceNotFoundException(
+                    sprintf('Required service %s not found', $serviceName)
+                );
+            }
+            
+            try {
+                $services[$key] = $container->get($serviceName);
+            } catch (\Exception $e) {
+                throw new ServiceNotCreatedException(
+                    sprintf('Failed to create service %s: %s', $serviceName, $e->getMessage())
+                );
             }
         }
         
-        if (!$fileManager) {
-            // Log error but don't throw exception to prevent fatal error
-            error_log('VideoThumbnail: Could not locate file manager service');
-            // Create controller anyway with null file manager
-            $fileManager = null;
-        }
-        
-        $controller = new VideoThumbnailController(
-            $entityManager,
-            $fileManager,
-            $services
-        );
-        $controller->setSettings($settings);
-        
-        return $controller;
+        return $services;
     }
 }

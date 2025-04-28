@@ -9,77 +9,180 @@ use Laminas\Mvc\Controller\AbstractController;
 use Laminas\Mvc\MvcEvent;
 use Laminas\ServiceManager\ServiceLocatorInterface;
 use Laminas\EventManager\SharedEventManagerInterface;
+use Laminas\EventManager\Event;
 use Laminas\View\Renderer\PhpRenderer;
 use Omeka\Entity\Media;
 use Omeka\Api\Representation\MediaRepresentation;
+use Laminas\Permissions\Acl\Resource\GenericResource;
+// Don't use Debug in the main class declaration to avoid early initialization
+// use VideoThumbnail\Stdlib\Debug;
 
 class Module extends AbstractModule
 {
+    const NAMESPACE = __NAMESPACE__;
+    
+    // Control debug mode at the module level
+    private $debugEnabled = false;
+
     public function getConfig(): array
     {
-        return include __DIR__ . '/config/module.config.php';
+        try {
+            $config = include __DIR__ . '/config/module.config.php';
+            return $config;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Critical error loading module configuration: ' . $e->getMessage());
+            return [];
+        }
     }
 
     public function getConfigForm(PhpRenderer $renderer): string
     {
-        $services = $this->getServiceLocator();
-        $config = $services->get('Config');
-        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        try {
+            $services = $this->getServiceLocator();
+            
+            // Get form from FormElementManager
+            try {
+                $form = $services->get('FormElementManager')->get(ConfigForm::class);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail: Failed to get ConfigForm: ' . $e->getMessage());
+                return '<p class="error">Error loading configuration form.</p>';
+            }
 
-        $settings = $services->get('Omeka\Settings');
-        $form->init();
-        $form->setData([
-            'videothumbnail_ffmpeg_path' => $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg'),
-            'videothumbnail_frames_count' => $settings->get('videothumbnail_frames_count', 5),
-            'videothumbnail_default_frame' => $settings->get('videothumbnail_default_frame', 10),
-            'videothumbnail_debug_mode' => $settings->get('videothumbnail_debug_mode', false),
-        ]);
+            // Get settings
+            $settings = $services->get('Omeka\Settings');
+            $form->init();
+            
+            // Get current settings values
+            $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
+            $framesCount = $settings->get('videothumbnail_frames_count', 5);
+            $defaultFrame = $settings->get('videothumbnail_default_frame', 10);
+            $debugMode = $settings->get('videothumbnail_debug_mode', false);
+            $memoryLimit = $settings->get('videothumbnail_memory_limit', 512);
+            $logLevel = $settings->get('videothumbnail_log_level', 'error');
+            $timestampProperty = $settings->get('video_thumbnail_timestamp_property', '');
+            
+            // Get supported formats from settings or fallback to defaults
+            $supportedFormats = $settings->get('videothumbnail_supported_formats', [
+                'video/mp4',
+                'video/webm',
+                'video/quicktime',
+                'video/x-msvideo',
+            ]);
+            
+            // Prepare form data
+            $formData = [
+                'videothumbnail_ffmpeg_path' => $ffmpegPath,
+                'videothumbnail_frames_count' => $framesCount,
+                'videothumbnail_default_frame' => $defaultFrame,
+                'videothumbnail_debug_mode' => $debugMode,
+                'videothumbnail_memory_limit' => $memoryLimit,
+                'videothumbnail_log_level' => $logLevel,
+                'videothumbnail_supported_formats' => $supportedFormats,
+                'video_thumbnail_timestamp_property' => $timestampProperty,
+            ];
+            
+            $form->setData($formData);
 
-        return $renderer->render('video-thumbnail/admin/config-form', [
-            'form' => $form,
-        ]);
+            // Render form
+            try {
+                return $renderer->render('video-thumbnail/admin/config-form', [
+                    'form' => $form,
+                ]);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail: Error rendering config form: ' . $e->getMessage());
+                return '<p class="error">Error rendering configuration form.</p>';
+            }
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Exception in getConfigForm: ' . $e->getMessage());
+            return '<p class="error">An error occurred while loading the configuration form.</p>';
+        }
     }
 
     public function handleConfigForm(AbstractController $controller): bool
     {
-        $services = $this->getServiceLocator();
-        $settings = $services->get('Omeka\Settings');
-        $form = $services->get('FormElementManager')->get(ConfigForm::class);
+        try {
+            $services = $this->getServiceLocator();
+            $settings = $services->get('Omeka\Settings');
+            
+            // Get form
+            try {
+                $form = $services->get('FormElementManager')->get(ConfigForm::class);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail: Failed to get ConfigForm: ' . $e->getMessage());
+                $controller->flashMessenger()->addError('Error initializing configuration form.');
+                return false;
+            }
 
-        $form->init();
-        $form->setData($controller->params()->fromPost());
-        if (!$form->isValid()) {
-            $controller->flashMessenger()->addErrors($form->getMessages());
+            $form->init();
+            $postData = $controller->params()->fromPost();
+            
+            $form->setData($postData);
+            
+            if (!$form->isValid()) {
+                $controller->flashMessenger()->addFormErrors($form);
+                return false;
+            }
+
+            $formData = $form->getData();
+
+            // Validate frame count and default frame
+            if ((int)$formData['videothumbnail_frames_count'] <= 0 || (int)$formData['videothumbnail_default_frame'] < 0) {
+                $controller->flashMessenger()->addError('Frame count and default frame must be non-negative integers.');
+                return false;
+            }
+
+            // Save form data to settings
+            $settings->set('videothumbnail_ffmpeg_path', $formData['videothumbnail_ffmpeg_path']);
+            $settings->set('videothumbnail_frames_count', (int)$formData['videothumbnail_frames_count']);
+            $settings->set('videothumbnail_default_frame', (int)$formData['videothumbnail_default_frame']);
+            $settings->set('videothumbnail_debug_mode', isset($formData['videothumbnail_debug_mode']) ? (bool)$formData['videothumbnail_debug_mode'] : false);
+            
+            if (isset($formData['videothumbnail_memory_limit'])) {
+                $settings->set('videothumbnail_memory_limit', (int)$formData['videothumbnail_memory_limit']);
+            }
+            
+            if (isset($formData['videothumbnail_log_level'])) {
+                $settings->set('videothumbnail_log_level', $formData['videothumbnail_log_level']);
+            }
+            
+            if (isset($formData['video_thumbnail_timestamp_property'])) {
+                $settings->set('video_thumbnail_timestamp_property', $formData['video_thumbnail_timestamp_property']);
+            }
+            
+            if (isset($formData['videothumbnail_supported_formats']) && is_array($formData['videothumbnail_supported_formats'])) {
+                $settings->set('videothumbnail_supported_formats', $formData['videothumbnail_supported_formats']);
+            }
+
+            // Validate FFmpeg path
+            $ffmpegPath = $formData['videothumbnail_ffmpeg_path'];
+            if (!file_exists($ffmpegPath) || !is_executable($ffmpegPath)) {
+                $controller->flashMessenger()->addError('FFmpeg path is not executable or not found.');
+                return false;
+            }
+
+            // Test FFmpeg execution
+            try {
+                $output = [];
+                $returnVar = 0;
+                $command = escapeshellcmd($ffmpegPath) . ' -version';
+                exec($command, $output, $returnVar);
+                
+                if ($returnVar !== 0) {
+                    $controller->flashMessenger()->addError('FFmpeg could not be executed at the specified path.');
+                    return false;
+                }
+            } catch (\Exception $e) {
+                $controller->flashMessenger()->addError('Error testing FFmpeg: ' . $e->getMessage());
+                return false;
+            }
+
+            $controller->flashMessenger()->addSuccess('Video Thumbnail settings updated successfully.');
+            return true;
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Exception in handleConfigForm: ' . $e->getMessage());
+            $controller->flashMessenger()->addError('An unexpected error occurred while saving settings.');
             return false;
         }
-
-        $formData = $form->getData();
-
-        if ((int)$formData['videothumbnail_frames_count'] <= 0 || (int)$formData['videothumbnail_default_frame'] < 0) {
-            $controller->flashMessenger()->addError('Frame count and default frame must be non-negative integers.');
-            return false;
-        }
-
-        $settings->set('videothumbnail_ffmpeg_path', $formData['videothumbnail_ffmpeg_path']);
-        $settings->set('videothumbnail_frames_count', $formData['videothumbnail_frames_count']);
-        $settings->set('videothumbnail_default_frame', $formData['videothumbnail_default_frame']);
-        $settings->set('videothumbnail_debug_mode', isset($formData['videothumbnail_debug_mode']) ? $formData['videothumbnail_debug_mode'] : false);
-
-        $ffmpegPath = $formData['videothumbnail_ffmpeg_path'];
-        if (!is_executable($ffmpegPath)) {
-            $controller->flashMessenger()->addError('FFmpeg path is not executable or not found.');
-            return false;
-        }
-
-        $output = [];
-        $returnVar = 0;
-        exec(escapeshellcmd($ffmpegPath) . ' -version', $output, $returnVar);
-        if ($returnVar !== 0) {
-            $controller->flashMessenger()->addError('FFmpeg could not be found at the specified path.');
-            return false;
-        }
-
-        return true;
     }
 
     public function getAutoloaderConfig(): array
@@ -95,30 +198,122 @@ class Module extends AbstractModule
 
     public function onBootstrap(MvcEvent $event): void
     {
-        parent::onBootstrap($event);
-        $application = $event->getApplication();
-        $serviceManager = $application->getServiceManager();
-        $viewHelperManager = $serviceManager->get('ViewHelperManager');
-        $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
-        
-        // Register CSS and JS assets
-        $this->attachListenersForAssets($event);
-        
-        // Add ACL rules
-        $this->addAclRules($serviceManager);
+        try {
+            // Call parent bootstrap first
+            parent::onBootstrap($event);
+
+            // Get the service manager
+            $application = $event->getApplication();
+            $serviceManager = $application->getServiceManager();
+            
+            // Force garbage collection to be enabled
+            gc_enable();
+
+            // Get module configuration first
+            $config = $serviceManager->get('Config');
+            $moduleConfig = $config['videothumbnail'] ?? [];
+            
+            // Set memory limit for module operations if configured
+            if (isset($moduleConfig['job_dispatch']['memory_limit'])) {
+                ini_set('memory_limit', $moduleConfig['job_dispatch']['memory_limit']);
+            }
+            
+            // Configure garbage collection
+            if (isset($moduleConfig['memory_management']['gc_probability'])) {
+                ini_set('zend.gc_probability', $moduleConfig['memory_management']['gc_probability']);
+            }
+
+            // Get the settings
+            $settings = $serviceManager->get('Omeka\Settings');
+            
+            // Check if debug mode is enabled in settings
+            $this->debugEnabled = (bool)$settings->get('videothumbnail_debug_mode', false);
+            
+            // Only initialize debug system if explicitly enabled
+            if ($this->debugEnabled) {
+                // Initialize debug with minimal configuration first
+                $debugConfig = [
+                    'enabled' => true,
+                    'log_dir' => defined('OMEKA_PATH') ? OMEKA_PATH . '/logs' : null,
+                    'log_file' => 'videothumbnail.log',
+                    'max_size' => 10485760, // 10MB
+                    'max_files' => 5
+                ];
+                
+                // Try to initialize debug system
+                try {
+                    \VideoThumbnail\Stdlib\Debug::init($debugConfig);
+                } catch (\Exception $e) {
+                    error_log('VideoThumbnail: Failed to initialize debug system: ' . $e->getMessage());
+                }
+            }
+
+            // Register CSS and JS assets
+            $this->attachListenersForAssets($event);
+
+            // Add ACL rules
+            $this->addAclRules($serviceManager);
+
+        } catch (\Exception $e) {
+            // Log critical bootstrap errors
+            error_log('VideoThumbnail: Critical Bootstrap error: ' . $e->getMessage());
+            error_log($e->getTraceAsString());
+        }
     }
-    
+
+    /**
+     * Initialize debug mode safely without using Debug class during bootstrap
+     */
+    protected function initializeDebugMode($serviceManager, $moduleConfig): void
+    {
+        try {
+            // Only initialize if debug is explicitly enabled in config
+            if (!empty($moduleConfig['debug']['enabled'])) {
+                // Basic setup without service dependencies
+                $logDir = $moduleConfig['debug']['log_dir'] ?? OMEKA_PATH . '/logs';
+                
+                // Ensure log directory exists
+                if (!is_dir($logDir)) {
+                    @mkdir($logDir, 0755, true);
+                }
+                
+                if (!is_writable($logDir)) {
+                    error_log('VideoThumbnail: Debug log directory not writable: ' . $logDir);
+                    return;
+                }
+
+                // Initialize debug configuration
+                \VideoThumbnail\Stdlib\Debug::init($moduleConfig['debug']);
+            }
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Failed to initialize debug mode: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get the module version from module.ini
+     */
+    protected function getModuleVersion(): string
+    {
+        $path = __DIR__ . '/config/module.ini';
+        if (!file_exists($path)) {
+            return 'unknown';
+        }
+        
+        $config = parse_ini_file($path);
+        return $config['version'] ?? 'unknown';
+    }
+
     /**
      * Register CSS and JS assets
      */
     protected function attachListenersForAssets(MvcEvent $event): void
     {
         $serviceManager = $event->getApplication()->getServiceManager();
-        $viewManager = $serviceManager->get('ViewManager');
         $viewHelperManager = $serviceManager->get('ViewHelperManager');
-        
-        // Register the asset only on admin routes
         $sharedEvents = $serviceManager->get('SharedEventManager');
+
+        // Register assets for all admin routes
         $sharedEvents->attach(
             'Omeka\Controller\Admin',
             'view.layout',
@@ -128,8 +323,34 @@ class Module extends AbstractModule
                 $headLink = $viewHelperManager->get('headLink');
                 $headScript = $viewHelperManager->get('headScript');
                 
+                // Always load these assets in admin
                 $headLink->appendStylesheet($assetUrl('css/video-thumbnail.css', 'VideoThumbnail'));
-                $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'));
+                $headScript->appendFile($assetUrl('js/video-thumbnail.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
+                
+                // Load block admin JS for page edit
+                $routeMatch = $event->getRouteMatch();
+                if ($routeMatch && 
+                    ($routeMatch->getParam('controller') === 'Omeka\Controller\Admin\Page' ||
+                     $routeMatch->getParam('__CONTROLLER__') === 'Omeka\Controller\Admin\Page') &&
+                    in_array($routeMatch->getParam('action'), ['add', 'edit'])) {
+                    
+                    $headScript->appendFile($assetUrl('js/video-thumbnail-block-admin.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
+                }
+            }
+        );
+
+        // Specifically for video thumbnail admin pages
+        $sharedEvents->attach(
+            'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            'view.layout',
+            function ($event) use ($viewHelperManager) {
+                $view = $event->getTarget();
+                $assetUrl = $viewHelperManager->get('assetUrl');
+                $headLink = $viewHelperManager->get('headLink');
+                $headScript = $viewHelperManager->get('headScript');
+                
+                $headLink->appendStylesheet($assetUrl('css/video-thumbnail-monitor.css', 'VideoThumbnail'));
+                $headScript->appendFile($assetUrl('js/video-thumbnail-monitor.js', 'VideoThumbnail'), 'text/javascript', ['defer' => false]);
             }
         );
     }
@@ -137,42 +358,190 @@ class Module extends AbstractModule
     public function install(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
-        $settings->set('videothumbnail_ffmpeg_path', '/usr/bin/ffmpeg');
-        $settings->set('videothumbnail_frames_count', 5);
-        $settings->set('videothumbnail_default_frame', 10);
-        $settings->set('videothumbnail_debug_mode', false);
-        $settings->set('videothumbnail_supported_formats', ['video/mp4', 'video/quicktime']);
+        
+        // Set default settings with debug mode DISABLED by default
+        $defaults = [
+            'videothumbnail_ffmpeg_path' => '', // Set blank default, require user config
+            'videothumbnail_default_frame' => 10,
+            'videothumbnail_frames_count' => 5,
+            'videothumbnail_memory_limit' => 512,
+            'videothumbnail_process_timeout' => 3600,
+            'videothumbnail_debug_mode' => false,  // Default to false
+            'videothumbnail_supported_formats' => [
+                'video/mp4',
+                'video/quicktime',
+                'video/x-msvideo',
+                'video/x-ms-wmv',
+                'video/x-matroska',
+                'video/webm',
+                'video/3gpp',
+                'video/3gpp2',
+                'video/x-flv'
+            ]
+        ];
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (!is_dir($tempDir)) {
-            mkdir($tempDir, 0755, true);
+        foreach ($defaults as $key => $value) {
+            $settings->set($key, $value);
+        }
+
+        // Try to auto-detect FFmpeg
+        $ffmpegPath = $this->detectFfmpegPath();
+        if ($ffmpegPath) {
+            $settings->set('videothumbnail_ffmpeg_path', $ffmpegPath);
+        }
+
+        $this->createRequiredDirectories();
+    }
+
+    protected function detectFfmpegPath()
+    {
+        $possiblePaths = [
+            '/usr/bin/ffmpeg',
+            '/usr/local/bin/ffmpeg',
+            '/opt/local/bin/ffmpeg',
+            '/opt/homebrew/bin/ffmpeg',
+
+            'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe',
+            'C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe'
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                return $path;
+            }
+        }
+
+        // Try to detect using which command on Unix-like systems
+        if (function_exists('exec')) {
+            $output = [];
+            $returnVar = null;
+            exec('which ffmpeg 2>/dev/null', $output, $returnVar);
+            if ($returnVar === 0 && !empty($output)) {
+                return trim($output[0]);
+            }
+        }
+
+        return '';
+    }
+
+    protected function createRequiredDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails',
+            OMEKA_PATH . '/logs'
+        ];
+
+        foreach ($directories as $dir) {
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
         }
     }
 
     public function uninstall(ServiceLocatorInterface $serviceLocator): void
     {
         $settings = $serviceLocator->get('Omeka\Settings');
+        
+        // Remove all module settings
         $settings->delete('videothumbnail_ffmpeg_path');
-        $settings->delete('videothumbnail_frames_count');
         $settings->delete('videothumbnail_default_frame');
+        $settings->delete('videothumbnail_frames_count');
+        $settings->delete('videothumbnail_memory_limit');
+        $settings->delete('videothumbnail_process_timeout');
         $settings->delete('videothumbnail_debug_mode');
+        $settings->delete('videothumbnail_log_level');
         $settings->delete('videothumbnail_supported_formats');
 
-        $tempDir = OMEKA_PATH . '/files/video-thumbnails';
-        if (is_dir($tempDir)) {
-            $this->recursiveRemoveDirectory($tempDir);
+        // Clean up temporary directories
+        $this->cleanupTempDirectories();
+    }
+
+    protected function cleanupTempDirectories()
+    {
+        $directories = [
+            OMEKA_PATH . '/files/temp/video-thumbnails'
+        ];
+
+        foreach ($directories as $dir) {
+            if (file_exists($dir)) {
+                $this->recursiveRemoveDirectory($dir);
+            }
         }
     }
 
+    protected function recursiveRemoveDirectory($directory): void
+    {
+        if (is_dir($directory)) {
+            $objects = scandir($directory);
+            foreach ($objects as $object) {
+                if ($object != "." && $object != "..") {
+                    $path = $directory . DIRECTORY_SEPARATOR . $object;
+                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
+                }
+            }
+            rmdir($directory);
+        }
+    }
+
+    /**
+     * Attach listeners for Omeka events.
+     * This method is called automatically by Omeka S.
+     */
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
-        $sharedEventManager->attach('Omeka\Controller\Admin\Media', 'view.edit.form.after', [$this, 'handleViewEditFormAfter']);
-        $sharedEventManager->attach('Omeka\Api\Adapter\MediaAdapter', 'api.update.post', [$this, 'handleMediaUpdatePost']);
-        
-        // Initialize debug system when attaching listeners
-        $serviceLocator = $this->getServiceLocator();
-        $settings = $serviceLocator->get('Omeka\Settings');
-        \VideoThumbnail\Stdlib\Debug::init($settings);
+        // Handle media events directly in the module class
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.create.post',
+            [$this, 'handleMediaIngestion']
+        );
+
+        $sharedEventManager->attach(
+            'Omeka\Api\Adapter\MediaAdapter',
+            'api.update.post',
+            [$this, 'handleMediaUpdatePost']
+        );
+
+        $sharedEventManager->attach(
+            'Omeka\Controller\Admin\Media',
+            'view.edit.form.after',
+            [$this, 'handleViewEditFormAfter']
+        );
+
+        // Listener for adding config form to module page (if needed, depends on Omeka version/theme)
+        // This might be redundant if using standard config handling
+        // $sharedEventManager->attach(
+        //     'Omeka\Controller\Admin\Module',
+        //     'view.details', // Check if this event is still correct/needed
+        //     [$this, 'handleViewDetails']
+        // );
+        // Use basic error_log instead of Debug to avoid possible issues
+        error_log('VideoThumbnail: Core event listeners attached');
+    }
+
+    /**
+     * Handle media ingestion events
+     */
+    public function handleMediaIngestion($event): void
+    {
+        $response = $event->getParam('response');
+        if (!$response) {
+            return;
+        }
+
+        $media = $response->getContent();
+        if (!$this->isVideoMedia($media)) {
+            return;
+        }
+
+        if ($this->debugEnabled) {
+            // Only try to use Debug if explicitly enabled
+            try {
+                \VideoThumbnail\Stdlib\Debug::log('Media ingestion detected for media ID: ' . $media->id(), __METHOD__);
+            } catch (\Exception $e) {
+                error_log('VideoThumbnail: Debug log failed: ' . $e->getMessage());
+            }
+        }
     }
 
     public function handleViewEditFormAfter($event): void
@@ -200,25 +569,6 @@ class Module extends AbstractModule
         if (isset($data['videothumbnail_frame'])) {
             $this->updateVideoThumbnail($media, $data['videothumbnail_frame']);
         }
-    }
-
-    public function addAdminWarning($event): void
-    {
-        $view = $event->getTarget();
-        $serviceLocator = $this->getServiceLocator();
-        $viewHelpers = $serviceLocator->get('ViewHelperManager');
-        $url = $viewHelpers->get('url');
-
-        $message = sprintf(
-            'You can %s to regenerate all video thumbnails.',
-            sprintf(
-                '<a href="%s">add a new job</a>',
-                $url('admin/id', ['controller' => 'job', 'action' => 'add', 'id' => 'VideoThumbnail\\Job\\ExtractFrames'])
-            )
-        );
-
-        $flashMessenger = $viewHelpers->get('flashMessenger');
-        $flashMessenger->addSuccess($message);
     }
 
     protected function isVideoMedia($media): bool
@@ -267,21 +617,15 @@ class Module extends AbstractModule
                 unlink($tempFile->getTempPath());
             }
         } catch (\Exception $e) {
-            error_log($e->getMessage());
-        }
-    }
-
-    protected function recursiveRemoveDirectory($directory): void
-    {
-        if (is_dir($directory)) {
-            $objects = scandir($directory);
-            foreach ($objects as $object) {
-                if ($object != "." && $object != "..") {
-                    $path = $directory . DIRECTORY_SEPARATOR . $object;
-                    is_dir($path) ? $this->recursiveRemoveDirectory($path) : unlink($path);
+            error_log('VideoThumbnail: Error updating thumbnail: ' . $e->getMessage());
+            
+            if ($this->debugEnabled) {
+                try {
+                    \VideoThumbnail\Stdlib\Debug::logError('Error updating thumbnail: ' . $e->getMessage(), __METHOD__, $e);
+                } catch (\Exception $debugException) {
+                    // Ignore debug errors
                 }
             }
-            rmdir($directory);
         }
     }
     
@@ -290,17 +634,29 @@ class Module extends AbstractModule
      */
     protected function addAclRules($serviceManager): void
     {
-        $acl = $serviceManager->get('Omeka\Acl');
-        $acl->allow(
-            null,
-            ['VideoThumbnail\Controller\Admin\VideoThumbnail']
-        );
-        
-        // Add ACL rule for navigation
-        $acl->allow(
-            null,
-            'Omeka\Api\Adapter\ModuleAdapter'
-        );
+        try {
+            /** @var \Laminas\Permissions\Acl\Acl $acl */
+            $acl = $serviceManager->get('Omeka\\Acl');
+
+            // Define resources
+            $controllerResource = 'VideoThumbnail\Controller\Admin\VideoThumbnailController';
+            
+            // Ensure controller resource exists
+            if (!$acl->hasResource($controllerResource)) {
+                $acl->addResource(new GenericResource($controllerResource));
+            }
+            
+            // Allow editor and above roles access (not null/anonymous)
+            $roles = ['editor', 'site_admin', 'global_admin'];
+            foreach ($roles as $role) {
+                if ($acl->hasRole($role)) {
+                    $acl->allow($role, $controllerResource);
+                }
+            }
+        } catch (\Exception $e) {
+            // Fail silently - don't break the site for ACL issues
+            error_log('VideoThumbnail: ACL setup error: ' . $e->getMessage());
+        }
     }
 }
 

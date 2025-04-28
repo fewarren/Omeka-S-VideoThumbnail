@@ -1,0 +1,85 @@
+<?php
+$mediaId = isset($mediaId) ? $mediaId : null;
+$mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
+?>
+<div class="field">
+    <div class="field-meta">
+        <label><?= $this->translate('Video Media') ?></label>
+        <div class="field-description"><?= $this->translate('Select a video media to display its thumbnail') ?></div>
+    </div>
+    <div class="inputs">
+        <input type="hidden" name="o:block[__blockIndex__][o:data][media_id]" value="<?= $mediaId ?>" class="media-id">
+        <span class="selected-media"><?= $mediaTitle ? $mediaTitle : $this->translate('No media selected') ?></span>
+        <button type="button" class="select-media button video-thumbnail-btn" data-debug="select-media-btn">🎬 <?= $this->translate('Select Video') ?></button>
+    </div>
+</div>
+
+<div class="field">
+    <div class="field-meta">
+        <label><?= $this->translate('Thumbnail Frame Position (%)') ?></label>
+        <div class="field-description"><?= $this->translate('Enter the percent length of the video to select the thumbnail frame (0-100)') ?></div>
+    </div>
+    <div class="inputs">
+        <input type="number" min="0" max="100" step="1" name="o:block[__blockIndex__][o:data][frame_percent]" value="<?= isset($framePercent) ? (int)$framePercent : 10 ?>" class="frame-percent" style="width: 60px;"> %
+    </div>
+</div>
+
+<div class="video-thumbnail-block enhanced-style">
+    <?php if ($thumbnailHtml): ?>
+        <div class="thumbnail">
+            <?= $thumbnailHtml ?>
+        </div>
+        <?php if (isset($media) && $media): ?>
+        <div class="caption">
+            <?= $media->displayTitle() ?>
+        </div>
+        <?php endif; ?>
+    <?php else: ?>
+        <div class="error" style="color: #b94a48; background: #f2dede; padding: 8px; border-radius: 4px; margin-top: 8px;">
+            <?= $this->translate('No thumbnail available for this video') ?>
+        </div>
+    <?php endif; ?>
+</div>
+
+<style>
+.video-thumbnail-block.enhanced-style {
+    border: 1px solid #d0d0d0;
+    background: #f9f9fb;
+    border-radius: 6px;
+    padding: 16px;
+    margin-top: 12px;
+    box-shadow: 0 2px 6px #eee;
+}
+.video-thumbnail-block .thumbnail {
+    text-align: center;
+    margin-bottom: 8px;
+}
+.video-thumbnail-block .caption {
+    font-size: 1.1em;
+    color: #333;
+    text-align: center;
+    margin-bottom: 4px;
+}
+.video-thumbnail-btn {
+    background: #4a90e2;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 1em;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: background 0.2s;
+}
+.video-thumbnail-btn:hover {
+    background: #357ab8;
+}
+.field-meta label {
+    font-weight: bold;
+}
+.field-description {
+    color: #888;
+    font-size: 0.95em;
+    margin-bottom: 4px;
+}
+</style>
