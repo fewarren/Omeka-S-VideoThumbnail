@@ -12,10 +12,10 @@ class ThumbnailSynchronizerFactory
             Debug::log('Creating ThumbnailSynchronizer', __METHOD__);
             
             return new ThumbnailSynchronizer(
-                $services->get('Omeka\File\Store'),
-                $services->get('Omeka\EntityManager'),
-                $services->get('Omeka\Logger'),
-                $services->get('Omeka\Settings')
+                $services->get('Omeka\File\Store'), // fileManager
+                $services->get('Omeka\EntityManager'), // entityManager 
+                $services->get('Omeka\Logger'), // logger
+                $services->get('Omeka\Settings') // settings
             );
         } catch (\Exception $e) {
             Debug::logError('Failed to create ThumbnailSynchronizer: ' . $e->getMessage(), __METHOD__);

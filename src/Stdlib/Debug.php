@@ -13,7 +13,13 @@ class Debug
     protected static $logFile = null;
     protected static $methodDepth = [];
     protected static $debugEnabled = null;
-    private static $config = null;
+    private static $config = [
+        'enabled' => false,
+        'log_dir' => null,
+        'log_file' => 'videothumbnail.log',
+        'max_size' => 10485760,
+        'max_files' => 5
+    ];
     private static $memoryPeak = 0;
     private static $timeStart = null;
 
@@ -28,8 +34,8 @@ class Debug
         
         try {
             // Set log directory and file
-            $baseDir = dirname(dirname(dirname(__FILE__)));
-            self::$logDir = $baseDir . '/log';
+            $baseDir = defined('OMEKA_PATH') ? OMEKA_PATH : dirname(dirname(dirname(__FILE__)));
+            self::$logDir = $baseDir . '/logs';
             
             // Create log directory if it doesn't exist
             if (!file_exists(self::$logDir)) {
@@ -56,27 +62,45 @@ class Debug
 
     public static function init($config)
     {
-        // Do nothing to avoid potential initialization issues
-        // This ensures the debug system cannot cause bootstrapping to hang
-        return;
+        if (empty($config)) {
+            return;
+        }
+
+        // Merge with defaults to ensure all required keys exist
+        self::$config = array_merge(self::$config, $config);
+        
+        // Set log directory if not already set
+        if (empty(self::$config['log_dir']) && defined('OMEKA_PATH')) {
+            self::$config['log_dir'] = OMEKA_PATH . '/logs';
+        }
+
+        // Initialize logger if enabled
+        if (self::$config['enabled']) {
+            self::ensureLogDirectory();
+            self::initLogger();
+        }
+
+        // Set start time for performance tracking
+        if (self::$timeStart === null) {
+            self::$timeStart = microtime(true);
+        }
     }
 
     private static function ensureLogDirectory(): bool
     {
-        $logDir = self::$config['log_dir'];
-        if (empty($logDir)) {
+        if (empty(self::$config['log_dir'])) {
             error_log('VideoThumbnail Debug Error: Log directory path is empty.');
             return false;
         }
 
-        if (!is_dir($logDir)) {
-            if (!@mkdir($logDir, 0755, true)) {
+        if (!is_dir(self::$config['log_dir'])) {
+            if (!@mkdir(self::$config['log_dir'], 0755, true)) {
                 $error = error_get_last();
-                error_log('VideoThumbnail Debug Error: Failed to create log directory: ' . $logDir . '. Error: ' . ($error['message'] ?? 'Unknown error'));
+                error_log('VideoThumbnail Debug Error: Failed to create log directory: ' . self::$config['log_dir'] . '. Error: ' . ($error['message'] ?? 'Unknown error'));
                 return false;
             }
-        } elseif (!is_writable($logDir)) {
-            error_log('VideoThumbnail Debug Error: Log directory is not writable: ' . $logDir);
+        } elseif (!is_writable(self::$config['log_dir'])) {
+            error_log('VideoThumbnail Debug Error: Log directory is not writable: ' . self::$config['log_dir']);
             return false;
         }
         return true;
