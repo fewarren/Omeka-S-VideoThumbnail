@@ -237,16 +237,20 @@ return [
     ],
     'acl' => [
         'rules' => [
-            'Omeka\Entity\User' => [
-                'VideoThumbnail\Controller\Admin\VideoThumbnailController' => [
-                    'allow' => true
-                ]
+            // Grant access to the admin controller for administrative roles
+            'editor' => [
+                'VideoThumbnail\Controller\Admin\VideoThumbnailController' => null, // null grants all privileges
             ],
-            'Omeka\Entity\Site' => [
-                'VideoThumbnail\Site\BlockLayout\VideoThumbnailBlock' => [
-                    'allow' => true
-                ]
-            ]
+            'site_admin' => [
+                'VideoThumbnail\Controller\Admin\VideoThumbnailController' => null,
+            ],
+            'global_admin' => [
+                'VideoThumbnail\Controller\Admin\VideoThumbnailController' => null,
+            ],
+            // Grant access to the site block for all roles (including anonymous)
+            null => [
+                'VideoThumbnail\Site\BlockLayout\VideoThumbnailBlock' => null,
+            ],
         ]
     ],
 ];

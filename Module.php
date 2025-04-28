@@ -193,90 +193,45 @@ class Module extends AbstractModule
     }
 
     public function onBootstrap(MvcEvent $event): void
-    {        
+    {
         try {
-            // Call parent bootstrap which handles basic initialization
+            // Call parent bootstrap first
             parent::onBootstrap($event);
-            
+
             // Get the service manager
             $application = $event->getApplication();
             $serviceManager = $application->getServiceManager();
-            
-            // Critical: Explicitly register our controller with the ControllerManager
-            $controllerManager = $serviceManager->get('ControllerManager');
-            if (!$controllerManager->has('VideoThumbnail\Controller\Admin\VideoThumbnailController')) {
-                // Create controller factory
-                $factory = new \VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory();
-                
-                // Register controller with the manager
-                $controller = $factory($serviceManager, 'VideoThumbnail\Controller\Admin\VideoThumbnailController');
-                $controllerManager->setService('VideoThumbnail\Controller\Admin\VideoThumbnailController', $controller);
-                
-                // Also register the alias
-                if (!$controllerManager->has('VideoThumbnail\Controller\Admin\VideoThumbnail')) {
-                    $controllerManager->setAlias(
-                        'VideoThumbnail\Controller\Admin\VideoThumbnail', 
-                        'VideoThumbnail\Controller\Admin\VideoThumbnailController'
-                    );
-                }
-            }
-            
-            // Register view helper
-            $viewHelperManager = $serviceManager->get('ViewHelperManager');
-            $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
-            
-            // Register minimal ACL rules - needed for controller access
+
+            // Initialize debug mode (optional, based on settings)
+            $this->initializeDebugMode($serviceManager);
+            Debug::log('VideoThumbnail: Bootstrapping module', __METHOD__);
+
+            // Register CSS and JS assets
+            $this->attachListenersForAssets($event);
+            Debug::log('VideoThumbnail: Asset listeners attached', __METHOD__);
+
+            // Add ACL rules
             $this->addAclRules($serviceManager);
-            
-            // That's all we need for admin to work
-            // Don't initialize anything else to avoid hanging
+            Debug::log('VideoThumbnail: ACL rules added', __METHOD__);
+
+            // Controller registration is now handled by module.config.php and ControllerManager
+
         } catch (\Exception $e) {
-            // Log only critical errors
-            error_log('VideoThumbnail: Bootstrap error: ' . $e->getMessage());
-        }
-    }
-    
-    /**
-     * This method is called only when actually needed via event listeners
-     * instead of during bootstrap, preventing hangs
-     */
-    public function initializeModule($serviceManager = null)
-    {
-        if (!$serviceManager) {
-            $serviceManager = $this->getServiceLocator();
-        }
-        
-        try {
-            // Only register view helpers - no debug initialization
-            $viewHelperManager = $serviceManager->get('ViewHelperManager');
-            $viewHelperManager->setAlias('videoThumbnailSelector', 'VideoThumbnail\View\Helper\VideoThumbnailSelector');
-            
-            // Ensure controller is registered
-            $controllerManager = $serviceManager->get('ControllerManager');
-            if (!$controllerManager->has('VideoThumbnail\Controller\Admin\VideoThumbnailController')) {
-                $factory = new \VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory();
-                $controller = $factory($serviceManager, 'VideoThumbnail\Controller\Admin\VideoThumbnailController');
-                $controllerManager->setService('VideoThumbnail\Controller\Admin\VideoThumbnailController', $controller);
-            }
-            
-            // Register essential event listeners only
-            if ($serviceManager->has('EventManager')) {
-                $this->registerMinimalListeners($serviceManager->get('EventManager'));
-            }
-        } catch (\Exception $e) {
-            // Log error but don't rethrow - must not break Omeka S
-            error_log('VideoThumbnail: Module initialization failure: ' . $e->getMessage());
+            // Log critical bootstrap errors
+            error_log('VideoThumbnail: Critical Bootstrap error: ' . $e->getMessage());
+            error_log($e->getTraceAsString()); // Log trace for debugging
         }
     }
 
-    protected function initializeMinimal($serviceManager)
+    /**
+     * Initialize the Debug utility based on settings.
+     */
+    protected function initializeDebugMode($serviceManager): void
     {
-        // Do not initialize debug by default - only enable when explicitly enabled in admin
         try {
-            $settings = $serviceManager->get('Omeka\\Settings');
-            $debugEnabled = (bool)$settings->get('videothumbnail_debug_mode', false);
-            
-            // Only initialize debugging if explicitly enabled
+            $settings = $serviceManager->get('Omeka\Settings');
+            $debugEnabled = (bool)$settings->get('videothumbnail_debug_mode', false); // Default to false
+
             if ($debugEnabled) {
                 $config = [
                     'enabled' => true,
@@ -285,28 +240,16 @@ class Module extends AbstractModule
                     'max_size' => 10485760, // 10MB
                     'max_files' => 5
                 ];
-                
-                // Initialize debug with minimum logging
-                \VideoThumbnail\Stdlib\Debug::init($config);
+                Debug::init($config);
+                Debug::log('VideoThumbnail: Debug mode initialized and enabled.', __METHOD__);
+            } else {
+                 // Ensure Debug is disabled if setting is false
+                 Debug::init(['enabled' => false]);
             }
         } catch (\Exception $e) {
             // Fail silently - don't let debug initialization crash the site
+             error_log('VideoThumbnail: Error initializing debug mode: ' . $e->getMessage());
         }
-    }
-    
-    /**
-     * Register only essential event listeners to prevent performance issues
-     */
-    protected function registerMinimalListeners($eventManager)
-    {
-        $sharedEventManager = $eventManager->getSharedManager();
-        
-        // Only attach the essential listeners for thumbnail generation
-        $sharedEventManager->attach(
-            'Omeka\Api\Adapter\MediaAdapter',
-            'api.update.post',
-            [$this, 'handleUpdateMedia']
-        );
     }
 
     /**
@@ -504,6 +447,10 @@ class Module extends AbstractModule
         }
     }
 
+    /**
+     * Attach listeners for Omeka events.
+     * This method is called automatically by Omeka S.
+     */
     public function attachListeners(SharedEventManagerInterface $sharedEventManager): void
     {
         // Handle media events directly in the module class
@@ -518,37 +465,23 @@ class Module extends AbstractModule
             'api.update.post',
             [$this, 'handleMediaUpdatePost']
         );
-        
+
         $sharedEventManager->attach(
             'Omeka\Controller\Admin\Media',
             'view.edit.form.after',
             [$this, 'handleViewEditFormAfter']
         );
-        
-        // IMPORTANT: Controller events for modules are now attached here
-        $sharedEventManager->attach(
-            'Omeka\Controller\Admin\Module',
-            'view.details',
-            [$this, 'handleViewDetails']
-        );
+
+        // Listener for adding config form to module page (if needed, depends on Omeka version/theme)
+        // This might be redundant if using standard config handling
+        // $sharedEventManager->attach(
+        //     'Omeka\Controller\Admin\Module',
+        //     'view.details', // Check if this event is still correct/needed
+        //     [$this, 'handleViewDetails']
+        // );
+        Debug::log('VideoThumbnail: Core event listeners attached', __METHOD__);
     }
-    
-    /**
-     * Handle view.details event for the module's config page in admin
-     */
-    public function handleViewDetails(Event $event): void
-    {
-        $view = $event->getTarget();
-        $module = $event->getParam('module');
-        
-        if ($module->getId() != __NAMESPACE__) {
-            return;
-        }
-        
-        $view->moduleName = 'Video Thumbnail';
-        $view->configForm = $this->getConfigForm($view->getHelperPluginManager()->get('Laminas\View\Renderer\PhpRenderer'));
-    }
-    
+
     /**
      * Handle media ingestion events
      */
@@ -592,25 +525,6 @@ class Module extends AbstractModule
         if (isset($data['videothumbnail_frame'])) {
             $this->updateVideoThumbnail($media, $data['videothumbnail_frame']);
         }
-    }
-
-    public function addAdminWarning($event): void
-    {
-        $view = $event->getTarget();
-        $serviceLocator = $this->getServiceLocator();
-        $viewHelpers = $serviceLocator->get('ViewHelperManager');
-        $url = $viewHelpers->get('url');
-
-        $message = sprintf(
-            'You can %s to regenerate all video thumbnails.',
-            sprintf(
-                '<a href="%s">add a new job</a>',
-                $url('admin/id', ['controller' => 'job', 'action' => 'add', 'id' => 'VideoThumbnail\\Job\\ExtractFrames'])
-            )
-        );
-
-        $flashMessenger = $viewHelpers->get('flashMessenger');
-        $flashMessenger->addSuccess($message);
     }
 
     protected function isVideoMedia($media): bool
