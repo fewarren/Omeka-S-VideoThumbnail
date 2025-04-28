@@ -10,9 +10,9 @@ $form->prepare();
 
 <h1><?= $this->translate('Video Thumbnail Configuration'); ?></h1>
 
-<?php if ($this->messenger()->hasMessages()): ?>
+<?php if ($this->flashMessenger()->hasMessages()): ?>
     <div class="admin-feedback-messages" role="alert" aria-live="assertive">
-        <?php foreach ($this->messenger()->getMessages() as $message): ?>
+        <?php foreach ($this->flashMessenger()->getMessages() as $message): ?>
             <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
         <?php endforeach; ?>
     </div>
