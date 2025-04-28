@@ -53,19 +53,19 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
             ],
         ]);
         
-        // Update debug mode toggle with default to true
+        // Fix: Update debug mode toggle with string values for checked/unchecked
         $this->add([
             'name' => 'debug_mode',
             'type' => Checkbox::class,
             'options' => [
                 'label' => 'Debug Mode', // @translate
                 'info' => 'Enable detailed debug logging. When enabled, all operations will be logged to videothumbnail.log', // @translate
-                'checked_value' => true,
-                'unchecked_value' => false
+                'checked_value' => '1',
+                'unchecked_value' => '0'
             ],
             'attributes' => [
                 'id' => 'debug_mode',
-                'value' => true  // Set default to true
+                'value' => '1'  // Set default to checked - using string '1' instead of boolean
             ],
         ]);
 
@@ -74,15 +74,17 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
                 'name' => 'regenerate_thumbnails',
                 'type' => Checkbox::class,
                 'options' => [
-               'label' => 'Regenerate All Video Thumbnails', // @translate
-               'info' => 'Check this box to regenerate thumbnails for all supported video files using the default frame position above. This will create a background job.', // @translate
-               ],
-              'attributes' => [
-              'id' => 'regenerate_thumbnails',
-              'data-confirm-message' => 'Are you sure you want to regenerate all video thumbnails? This could take a significant amount of time and resources.',
-              'class' => 'confirmable-checkbox',
-              ],
-          ]);
+                   'label' => 'Regenerate All Video Thumbnails', // @translate
+                   'info' => 'Check this box to regenerate thumbnails for all supported video files using the default frame position above. This will create a background job.', // @translate
+                   'checked_value' => '1',
+                   'unchecked_value' => '0'
+                ],
+                'attributes' => [
+                   'id' => 'regenerate_thumbnails',
+                   'data-confirm-message' => 'Are you sure you want to regenerate all video thumbnails? This could take a significant amount of time and resources.',
+                   'class' => 'confirmable-checkbox',
+                ],
+            ]);
           
         // Add submit button
         $this->add([
@@ -120,6 +122,18 @@ class ConfigBatchForm extends Form implements InputFilterProviderInterface
                         ],
                     ],
                 ],
+            ],
+            'debug_mode' => [
+                'required' => false,
+                'filters' => [
+                    ['name' => 'Boolean']
+                ]
+            ],
+            'regenerate_thumbnails' => [
+                'required' => false,
+                'filters' => [
+                    ['name' => 'Boolean']
+                ]
             ],
         ];
     }

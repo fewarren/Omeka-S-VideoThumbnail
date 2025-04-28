@@ -101,7 +101,7 @@ class ConfigForm extends Form
             ],
         ]);
 
-        // Add debug mode checkbox
+        // Add debug mode checkbox - consolidated definition
         $this->add([
             'name' => 'videothumbnail_debug_mode',
             'type' => Checkbox::class,
@@ -110,6 +110,7 @@ class ConfigForm extends Form
                 'info' => 'Log detailed debug information to videothumbnail.log in the Omeka S logs directory.', // @translate
                 'checked_value' => '1',
                 'unchecked_value' => '0',
+                'use_hidden_element' => true,
             ],
             'attributes' => [
                 'id' => 'videothumbnail_debug_mode',
@@ -147,31 +148,6 @@ class ConfigForm extends Form
                 'id' => 'video_thumbnail_timestamp_property',
             ],
         ]);
-
-        // Add the debug mode checkbox if it doesn't exist, or ensure it defaults to true
-        if (!$this->has('videothumbnail_debug_mode')) {
-            $this->add([
-                'name' => 'videothumbnail_debug_mode',
-                'type' => Checkbox::class,
-                'options' => [
-                    'label' => 'Enable Debug Mode', // @translate
-                    'info' => 'Log detailed debugging information to videothumbnail.log. Requires Omeka S logging to be enabled.', // @translate
-                    'use_hidden_element' => true,
-                    'checked_value' => '1',
-                    'unchecked_value' => '0',
-                ],
-                'attributes' => [
-                    'value' => '1', // Default to checked (true)
-                    'id' => 'videothumbnail_debug_mode',
-                ],
-            ]);
-        } else {
-            // Ensure existing element defaults to true
-            $element = $this->get('videothumbnail_debug_mode');
-            $element->setAttribute('value', '1');
-            $element->setOption('checked_value', '1');
-            $element->setOption('unchecked_value', '0');
-        }
 
         // Add submit button
         $this->add([
@@ -254,6 +230,15 @@ class ConfigForm extends Form
                     ]
                 ]
             ]
+        ]);
+        
+        // Add input filter for debug mode
+        $inputFilter->add([
+            'name' => 'videothumbnail_debug_mode',
+            'required' => false,
+            'filters' => [
+                ['name' => 'Boolean'],
+            ],
         ]);
     }
 
