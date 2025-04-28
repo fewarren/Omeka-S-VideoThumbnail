@@ -30,16 +30,16 @@ return [
     ],
     'controllers' => [
         'factories' => [
-            // Make sure controller is registered with EXACT same name as used in routes
+            // Ensure controller is registered with its FQCN
             'VideoThumbnail\Controller\Admin\VideoThumbnailController' => 'VideoThumbnail\Service\Controller\VideoThumbnailControllerFactory',
         ],
         'aliases' => [
-            // Add both versions of the controller name for compatibility
+            // Keep the alias used in the router defaults
             'VideoThumbnail\Controller\Admin\VideoThumbnail' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
-            // Additional aliases to help Laminas MVC resolve the controller
-            'VideoThumbnail\Controller\AdminVideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
-            'VideoThumbnail\Controller\Admin\VideoThumbnail-Controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
-            'VideoThumbnail-Controller-Admin-VideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            // Remove potentially confusing/redundant aliases
+            // 'VideoThumbnail\Controller\AdminVideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            // 'VideoThumbnail\Controller\Admin\VideoThumbnail-Controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+            // 'VideoThumbnail-Controller-Admin-VideoThumbnailController' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
         ],
     ],
     'controller_plugins' => [
