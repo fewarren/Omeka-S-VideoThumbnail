@@ -28,34 +28,57 @@ class Debug
 
     public static function init($config)
     {
-        // Early exit if config is empty
-        if (empty($config)) {
+        // Early exit if config is empty or not an array
+        if (empty($config) || !is_array($config)) {
             self::$debugEnabled = false;
             return;
         }
 
-        // Set initial configuration but don't access services
+        // Merge config safely
         self::$config = array_merge(self::$config, $config);
         self::$debugEnabled = !empty(self::$config['enabled']);
-        
-        // Set log directory
-        if (!empty(self::$config['log_dir'])) {
-            self::$logDir = self::$config['log_dir'];
+
+        // Determine log directory safely
+        if (!empty(self::$config['log_dir']) && is_string(self::$config['log_dir'])) {
+            self::$logDir = rtrim(self::$config['log_dir'], DIRECTORY_SEPARATOR);
         } elseif (defined('OMEKA_PATH')) {
-            self::$logDir = OMEKA_PATH . '/logs';
+            self::$logDir = rtrim(OMEKA_PATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'logs';
+        } else {
+            // Fallback if OMEKA_PATH is not defined and log_dir is not set
+            error_log('VideoThumbnail Debug: Cannot determine log directory. OMEKA_PATH not defined and log_dir not configured.');
+            self::$logDir = null; // Explicitly set to null
+            self::$debugEnabled = false; // Disable debugging if log dir is unknown
+            return; // Stop initialization if log dir cannot be determined
         }
+        // Update self::$config['log_dir'] to reflect the determined path for consistency
+        self::$config['log_dir'] = self::$logDir;
 
         // Initialize basic logging without service dependencies
         if (self::$debugEnabled && !self::$isInitialized) {
             self::initializeBasicLogging();
+            // If initialization failed, debugEnabled might be false now
+            if (self::$debugEnabled && self::$isInitialized) { // Check isInitialized too
+                 self::logSystemInfo(); // Log system info after successful init
+            }
         }
     }
 
     private static function initializeBasicLogging()
     {
         try {
+            // Ensure logDir is usable
+            if (self::$logDir === null || !is_string(self::$logDir)) {
+                error_log('VideoThumbnail Debug: Log directory path is invalid or not set.');
+                self::$debugEnabled = false;
+                return;
+            }
+            
             if (!is_dir(self::$logDir)) {
-                @mkdir(self::$logDir, 0755, true);
+                if (!@mkdir(self::$logDir, 0755, true)) {
+                     error_log('VideoThumbnail Debug: Failed to create log directory: ' . self::$logDir);
+                     self::$debugEnabled = false;
+                     return;
+                }
             }
 
             if (!is_writable(self::$logDir)) {
@@ -64,29 +87,47 @@ class Debug
                 return;
             }
 
-            self::$logFile = self::$logDir . DIRECTORY_SEPARATOR . self::$config['log_file'];
-            
+            // Ensure log_file is set and is a string
+            if (!isset(self::$config['log_file']) || !is_string(self::$config['log_file']) || self::$config['log_file'] === '') {
+                 error_log('VideoThumbnail Debug: Invalid log_file configuration.');
+                 self::$debugEnabled = false;
+                 return;
+            }
+
+            // Construct log file path safely
+            self::$logFile = rtrim(self::$logDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . self::$config['log_file'];
+
+            // Check writability of the target directory for the log file
+            $logFileDir = dirname(self::$logFile);
+             if (!is_writable($logFileDir)) {
+                 error_log('VideoThumbnail Debug: Log file directory not writable: ' . $logFileDir);
+                 self::$debugEnabled = false;
+                 return;
+             }
+
             $writer = new Stream(self::$logFile);
             self::$logger = new Logger();
             self::$logger->addWriter($writer);
-            
+
             self::$isInitialized = true;
             self::$timeStart = microtime(true);
             self::$memoryPeak = memory_get_usage(true);
 
             // Enable garbage collection
             gc_enable();
-            
+
         } catch (\Exception $e) {
             error_log('VideoThumbnail Debug initialization failed: ' . $e->getMessage());
             self::$debugEnabled = false;
+            self::$logger = null; // Ensure logger is null on failure
+            self::$isInitialized = false; // Ensure not marked as initialized
         }
     }
 
     public static function log($message, $method = null)
     {
-        // Skip if debugging is disabled
-        if (!self::$debugEnabled) {
+        // Skip if debugging is disabled or not initialized
+        if (!self::$debugEnabled || !self::$isInitialized || !self::$logger) {
             return;
         }
 
@@ -162,33 +203,59 @@ class Debug
 
     private static function rotateLogIfNeeded()
     {
-        if (!self::$config['enabled']) {
+        // Check if enabled, initialized, and config is valid
+        if (!self::$config['enabled'] || !self::$isInitialized || !is_array(self::$config) || 
+            !isset(self::$config['log_dir']) || !isset(self::$config['log_file']) || 
+            !isset(self::$config['max_size']) || !isset(self::$config['max_files'])) {
             return;
         }
 
-        $logFile = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file'];
-        if (file_exists($logFile) && filesize($logFile) > self::$config['max_size']) {
-            self::rotateLog();
+        $logFile = self::$logFile; // Use the initialized path
+        if (!$logFile || !file_exists($logFile)) {
+             return; // Don't rotate if base log file doesn't exist
+        }
+        
+        // Check size safely
+        try {
+             if (filesize($logFile) > (int)self::$config['max_size']) {
+                 self::rotateLog();
+             }
+        } catch (\Exception $e) {
+             error_log('VideoThumbnail Debug: Error checking log file size: ' . $e->getMessage());
         }
     }
 
     private static function rotateLog()
     {
-        $logFile = self::$config['log_dir'] . DIRECTORY_SEPARATOR . self::$config['log_file'];
-        $maxFiles = self::$config['max_files'];
+        // Ensure config is usable and logger is initialized
+        if (!self::$isInitialized || !is_array(self::$config) ||
+            !isset(self::$config['max_files']) || !is_int(self::$config['max_files']) || self::$config['max_files'] < 0) {
+            error_log('VideoThumbnail Debug Error: Invalid configuration or state for log rotation.');
+            return;
+        }
 
-        // Remove oldest log file if we've reached max_files
-        $oldLog = $logFile . '.' . $maxFiles;
-        if (file_exists($oldLog)) {
-            unlink($oldLog);
+        // Use self::$logFile which is initialized more reliably
+        $logFileBase = self::$logFile;
+        if (!$logFileBase || !is_string($logFileBase) || $logFileBase === '') {
+             error_log('VideoThumbnail Debug Error: Log file base path not initialized for rotation.');
+             return;
+        }
+
+        $maxFiles = (int)self::$config['max_files'];
+
+        // Remove oldest log file
+        $oldLog = $logFileBase . '.' . $maxFiles;
+        if (@file_exists($oldLog)) {
+            @unlink($oldLog);
         }
 
         // Shift existing log files
         for ($i = $maxFiles - 1; $i >= 0; $i--) {
-            $oldFile = $logFile . ($i > 0 ? '.' . $i : '');
-            $newFile = $logFile . '.' . ($i + 1);
-            if (file_exists($oldFile)) {
-                rename($oldFile, $newFile);
+            $oldFile = $logFileBase . ($i > 0 ? '.' . $i : '');
+            $newFile = $logFileBase . '.' . ($i + 1);
+            // Check if oldFile is a valid string before using file_exists
+            if (is_string($oldFile) && $oldFile !== '' && @file_exists($oldFile)) { // Enhanced check for line 185
+                @rename($oldFile, $newFile);
             }
         }
     }
@@ -319,7 +386,8 @@ class Debug
      */
     private static function logSystemInfo()
     {
-        if (!self::$config['enabled'] || !self::$logger) {
+        // Ensure logger is available
+        if (!self::$config['enabled'] || !self::$isInitialized || !self::$logger) {
             return;
         }
 
@@ -347,17 +415,23 @@ class Debug
             }
             $info['FFmpeg'] = $ffmpegVersion;
 
-            // Check key directories
-            $info['Log Directory'] = self::$config['log_dir'] . ' (exists: ' . 
-                (file_exists(self::$config['log_dir']) ? 'Yes' : 'No') . ', writable: ' . 
-                (is_writable(self::$config['log_dir']) ? 'Yes' : 'No') . ')';
-            
+            // Check key directories safely
+            $logDirInfo = 'Not configured or invalid';
+            if (isset(self::$config['log_dir']) && is_string(self::$config['log_dir'])) {
+                $logDirInfo = self::$config['log_dir'] . ' (exists: ' .
+                    (@file_exists(self::$config['log_dir']) ? 'Yes' : 'No') . ', writable: ' .
+                    (@is_writable(self::$config['log_dir']) ? 'Yes' : 'No') . ')';
+            }
+            $info['Log Directory'] = $logDirInfo;
+
+            $tempDirInfo = 'OMEKA_PATH not defined';
             if (defined('OMEKA_PATH')) {
                 $tempDir = OMEKA_PATH . '/files/temp/video-thumbnails';
-                $info['Temp Directory'] = $tempDir . ' (exists: ' . 
-                    (file_exists($tempDir) ? 'Yes' : 'No') . ', writable: ' . 
-                    (is_writable($tempDir) ? 'Yes' : 'No') . ')';
+                $tempDirInfo = $tempDir . ' (exists: ' .
+                    (@file_exists($tempDir) ? 'Yes' : 'No') . ', writable: ' .
+                    (@is_writable($tempDir) ? 'Yes' : 'No') . ')';
             }
+            $info['Temp Directory'] = $tempDirInfo;
             
             $message = "System Information:\n";
             foreach ($info as $key => $value) {
@@ -455,9 +529,10 @@ class Debug
      */
     public static function isEnabled()
     {
-        // Always return false to prevent any debug operations
-        // This is to avoid circular dependencies during bootstrap
-        return false;
+        // Keep this returning false during bootstrap phases if needed,
+        // but ensure it reflects actual state once initialized.
+        // For now, let's base it on the internal state:
+        return self::$debugEnabled && self::$isInitialized;
     }
     
     /**
@@ -921,12 +996,15 @@ class Debug
         self::$memoryResetCount++;
         self::$lastMemoryReset = time();
         
-        self::log(sprintf(
-            "Memory cleanup performed (%d). Before: %s, After: %s", 
-            self::$memoryResetCount,
-            self::formatBytes(self::$memoryPeak),
-            self::formatBytes(memory_get_usage(true))
-        ), __METHOD__);
+        // Only log if initialized
+        if (self::$isInitialized && self::$logger) {
+             self::log(sprintf(
+                 "Memory cleanup performed (%d). Before: %s, After: %s",
+                 self::$memoryResetCount,
+                 self::formatBytes(self::$memoryPeak),
+                 self::formatBytes(memory_get_usage(true))
+             ), __METHOD__);
+        }
     }
 
     private static function getMemoryLimit()
