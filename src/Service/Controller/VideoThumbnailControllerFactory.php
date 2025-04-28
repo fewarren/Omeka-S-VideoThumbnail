@@ -12,59 +12,36 @@ class VideoThumbnailControllerFactory implements FactoryInterface
 {
     public function __invoke(ContainerInterface $container, $requestedName, array $options = null)
     {
+        Debug::log('VideoThumbnailControllerFactory: Starting controller creation', __METHOD__);
+        
         try {
-            // Simplified service retrieval with fallbacks to prevent failures
-            $entityManager = null;
-            $fileManager = null;
-            $settings = null;
+            // Get required services
+            $services = $this->getRequiredServices($container);
             
-            // Get EntityManager with fallback
-            try {
-                if ($container->has('Omeka\EntityManager')) {
-                    $entityManager = $container->get('Omeka\EntityManager');
-                }
-            } catch (\Exception $e) {
-                error_log('VideoThumbnail: Could not get EntityManager: ' . $e->getMessage());
-            }
+            Debug::log('VideoThumbnailControllerFactory: Creating controller instance', __METHOD__);
             
-            // Get FileManager with fallback
-            try {
-                if ($container->has('Omeka\File\Store')) {
-                    $fileManager = $container->get('Omeka\File\Store');
-                }
-            } catch (\Exception $e) {
-                error_log('VideoThumbnail: Could not get File Store: ' . $e->getMessage());
-            }
-            
-            // Get Settings with fallback
-            try {
-                if ($container->has('Omeka\Settings')) {
-                    $settings = $container->get('Omeka\Settings');
-                }
-            } catch (\Exception $e) {
-                error_log('VideoThumbnail: Could not get Settings: ' . $e->getMessage());
-            }
-            
-            // Create and configure controller with what we have
+            // Create controller with required dependencies
             $controller = new VideoThumbnailController(
-                $entityManager,
-                $fileManager,
+                $services['entityManager'],
+                $services['fileManager'],
                 $container
             );
             
-            // Set settings if available
-            if ($settings) {
-                $controller->setSettings($settings);
-            }
+            // Set settings service
+            $controller->setSettings($services['settings']);
             
+            Debug::log('VideoThumbnailControllerFactory: Controller created successfully', __METHOD__);
             return $controller;
             
+        } catch (ServiceNotFoundException $e) {
+            Debug::logError('VideoThumbnailControllerFactory: Required service not found: ' . $e->getMessage(), __METHOD__);
+            throw $e; // Let Laminas handle the service not found error
+        } catch (ServiceNotCreatedException $e) {
+            Debug::logError('VideoThumbnailControllerFactory: Service creation failed: ' . $e->getMessage(), __METHOD__);
+            throw $e; // Let Laminas handle the service creation error
         } catch (\Exception $e) {
-            // Log the error but don't throw exceptions
-            error_log('VideoThumbnail: Error creating controller: ' . $e->getMessage());
-            
-            // Return a minimal controller instance to avoid breaking the system
-            return new VideoThumbnailController(null, null, null);
+            Debug::logError('VideoThumbnailControllerFactory: Unexpected error: ' . $e->getMessage(), __METHOD__);
+            throw new ServiceNotCreatedException($e->getMessage(), 0, $e);
         }
     }
     
@@ -81,7 +58,6 @@ class VideoThumbnailControllerFactory implements FactoryInterface
             Debug::log(sprintf('VideoThumbnailControllerFactory: Checking for service %s', $serviceName), __METHOD__);
             
             if (!$container->has($serviceName)) {
-                Debug::logWarning(sprintf('VideoThumbnailControllerFactory: Service %s not found', $serviceName), __METHOD__);
                 throw new ServiceNotFoundException(
                     sprintf('Required service %s not found', $serviceName)
                 );
@@ -90,10 +66,7 @@ class VideoThumbnailControllerFactory implements FactoryInterface
             try {
                 Debug::log(sprintf('VideoThumbnailControllerFactory: Getting service %s', $serviceName), __METHOD__);
                 $services[$key] = $container->get($serviceName);
-                Debug::log(sprintf('VideoThumbnailControllerFactory: Successfully got service %s', $serviceName), __METHOD__);
             } catch (\Exception $e) {
-                Debug::logError(sprintf('VideoThumbnailControllerFactory: Failed to create service %s: %s', 
-                    $serviceName, $e->getMessage()), __METHOD__);
                 throw new ServiceNotCreatedException(
                     sprintf('Failed to create service %s: %s', $serviceName, $e->getMessage())
                 );

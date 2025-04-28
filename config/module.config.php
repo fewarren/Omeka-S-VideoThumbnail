@@ -56,6 +56,8 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail[/:action]',
                             'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                '__CONTROLLER__' => 'VideoThumbnail',
                                 'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
                                 'action' => 'index',
                             ],
@@ -69,6 +71,8 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail/select-frame/:id',
                             'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                '__CONTROLLER__' => 'VideoThumbnail',
                                 'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
                                 'action' => 'select-frame',
                             ],
@@ -82,6 +86,8 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail/extract-frame',
                             'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                '__CONTROLLER__' => 'VideoThumbnail',
                                 'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
                                 'action' => 'extract-frame',
                             ],
@@ -92,10 +98,14 @@ return [
                         'options' => [
                             'route' => '/video-thumbnail/media/:id/:action',
                             'defaults' => [
+                                '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
+                                '__CONTROLLER__' => 'VideoThumbnail',
                                 'controller' => 'VideoThumbnail\Controller\Admin\VideoThumbnailController',
+                                'action' => 'index',
                             ],
                             'constraints' => [
                                 'id' => '\d+',
+                                'action' => '[a-zA-Z][a-zA-Z0-9_-]*',
                             ],
                         ],
                     ],
