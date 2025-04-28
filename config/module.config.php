@@ -167,9 +167,9 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            // Register our core service with the correct namespace (Stdlib, not Service)
+            // Register our core service with the correct namespace
             'VideoThumbnail\Stdlib\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
-            'VideoThumbnail\Thumbnail\ThumbnailSynchronizer' => 'VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory',
+            VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizer::class => VideoThumbnail\Service\Thumbnail\ThumbnailSynchronizerFactory::class,
         ],
         'delegators' => [
             'Omeka\File\Store\Manager' => [

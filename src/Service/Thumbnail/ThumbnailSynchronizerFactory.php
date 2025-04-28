@@ -9,15 +9,13 @@ class ThumbnailSynchronizerFactory
     public function __invoke(ContainerInterface $services)
     {
         try {
-            Debug::log(sprintf(
-                'Creating ThumbnailSynchronizer with services: %s',
-                implode(', ', array_keys($services->getKnownServiceNames()))
-            ), __METHOD__);
+            Debug::log('Creating ThumbnailSynchronizer', __METHOD__);
             
             return new ThumbnailSynchronizer(
-                $services->get('Omeka\EntityManager'),
                 $services->get('Omeka\File\Store'),
-                $services->get('Config')
+                $services->get('Omeka\EntityManager'),
+                $services->get('Omeka\Logger'),
+                $services->get('Omeka\Settings')
             );
         } catch (\Exception $e) {
             Debug::logError('Failed to create ThumbnailSynchronizer: ' . $e->getMessage(), __METHOD__);
