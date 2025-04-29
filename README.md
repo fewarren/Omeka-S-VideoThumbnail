@@ -71,10 +71,19 @@ sudo apt-get install ffmpeg
 - Memory Limit: Maximum memory allocation for processing
 
 ### Advanced Settings
-- Debug Mode: Enable detailed logging
+- Debug Mode: Enable detailed logging (disabled by default)
 - Log Level: Set logging detail level
 - Supported Formats: Enable/disable specific video formats
 - Process Timeout: Maximum processing time per video
+- GC Probability: Controls garbage collection frequency (default: 10)
+
+### Production Environment Settings
+For production environments, the module uses these conservative defaults:
+- Debug Mode: Disabled
+- Memory Limit: 512MB
+- GC Probability: 10
+
+These settings can be adjusted in config/module.ini or through the admin interface.
 
 ## Usage
 

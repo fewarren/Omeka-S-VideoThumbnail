@@ -66,6 +66,11 @@
 3. Optimize memory limit settings
 4. Use hardware acceleration if available
 5. Check server load
+6. Verify that debug mode is disabled in production
+7. Reduce gc_probability setting to 10 (default) or lower
+   ```ini
+   memory.gc_probability = 10
+   ```
 
 #### Memory Errors
 **Symptoms:**
@@ -78,6 +83,15 @@
 3. Enable debug mode for detailed logs
 4. Process fewer frames simultaneously
 5. Check for memory leaks in logs
+
+#### Production Environment Settings
+For optimal performance in production:
+```ini
+debug.enabled = false    # Disable debug mode
+memory.limit = "512M"    # Use conservative memory limit
+memory.gc_probability = 10  # Lower GC frequency
+```
+These are now the default settings in the module.
 
 ### Storage Issues
 
@@ -110,13 +124,19 @@
 ### Debug Mode
 
 #### Enabling Debug Mode
-1. Set 'videothumbnail_debug_mode' to true in settings
-2. Check logs in `OMEKA_PATH/logs/videothumbnail.log`
-3. Set appropriate log level:
-   - error: Only errors
+1. Set debug mode to true in module.ini:
+   ```ini
+   debug.enabled = true
+   ```
+2. Or use the configuration interface to enable it
+3. Check logs in `OMEKA_PATH/logs/videothumbnail.log`
+4. Set appropriate log level:
+   - error: Only errors (default for production)
    - warning: Errors and warnings
    - info: General operation info
    - debug: Detailed debugging info
+   
+**Note**: Always disable debug mode in production environments
 
 #### Reading Debug Logs
 Debug logs contain:

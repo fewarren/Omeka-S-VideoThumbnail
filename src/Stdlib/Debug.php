@@ -151,11 +151,71 @@ class Debug
         return self::$debugEnabled && self::$isInitialized && self::$logger !== null;
     }
 
+        /**
+     * Get PSR-3 logger instance from service manager if available
+     * 
+     * @return \Psr\Log\LoggerInterface|null
+     */
+    protected static function getPsrLogger()
+    {
+        // Try to get PSR logger from service manager
+        static $psrLogger = null;
+        
+        if ($psrLogger === null) {
+            try {
+                // Try to get PSR logger from service manager
+                if (class_exists('\Laminas\ServiceManager\ServiceManager') &&
+                    isset($GLOBALS['serviceManager']) && 
+                    $GLOBALS['serviceManager'] instanceof \Laminas\ServiceManager\ServiceManager) {
+                    
+                    $serviceManager = $GLOBALS['serviceManager'];
+                    if ($serviceManager->has('VideoThumbnail\Logger')) {
+                        $psrLogger = $serviceManager->get('VideoThumbnail\Logger');
+                    } elseif ($serviceManager->has('Omeka\Logger')) {
+                        // Try to wrap Omeka logger in PSR adapter
+                        $omekaLogger = $serviceManager->get('Omeka\Logger');
+                        if (class_exists('\Laminas\Log\PsrLoggerAdapter')) {
+                            $psrLogger = new \Laminas\Log\PsrLoggerAdapter($omekaLogger);
+                        } else {
+                            $psrLogger = $omekaLogger;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Silently fail - we'll use internal logger
+            }
+        }
+        
+        return $psrLogger;
+    }
+
     /**
-     * Log a message
+     * Log a message - PSR-compatible version
      */
     public static function log($message, $method = null)
     {
+        // Get PSR logger first if available
+        $psrLogger = self::getPsrLogger();
+        if ($psrLogger !== null) {
+            try {
+                // Add method to context
+                $context = [];
+                if ($method !== null) {
+                    $context['method'] = $method;
+                }
+                
+                // Add memory usage to context
+                $context['memory'] = self::formatBytes(memory_get_usage(true));
+                
+                // Log with PSR logger
+                $psrLogger->info($message, $context);
+                return;
+            } catch (\Exception $e) {
+                // Fall through to legacy implementation
+            }
+        }
+        
+        // Legacy implementation
         if (!self::isEnabled()) {
             return;
         }
@@ -174,6 +234,22 @@ class Debug
      */
     public static function logEntry($method, $params = null)
     {
+        // Get PSR logger first if available
+        $psrLogger = self::getPsrLogger();
+        if ($psrLogger !== null) {
+            try {
+                $context = ['method' => $method];
+                if ($params !== null) {
+                    $context['params'] = $params;
+                }
+                $psrLogger->debug("ENTRY: $method", $context);
+                return;
+            } catch (\Exception $e) {
+                // Fall through to legacy implementation
+            }
+        }
+        
+        // Legacy implementation
         if (!self::isEnabled()) {
             return;
         }
@@ -198,6 +274,22 @@ class Debug
      */
     public static function logExit($method, $result = null)
     {
+        // Get PSR logger first if available
+        $psrLogger = self::getPsrLogger();
+        if ($psrLogger !== null) {
+            try {
+                $context = ['method' => $method];
+                if ($result !== null) {
+                    $context['result'] = $result;
+                }
+                $psrLogger->debug("EXIT: $method", $context);
+                return;
+            } catch (\Exception $e) {
+                // Fall through to legacy implementation
+            }
+        }
+        
+        // Legacy implementation
         if (!self::isEnabled()) {
             return;
         }
@@ -222,6 +314,22 @@ class Debug
      */
     public static function logWarning($message, $method = null)
     {
+        // Get PSR logger first if available
+        $psrLogger = self::getPsrLogger();
+        if ($psrLogger !== null) {
+            try {
+                $context = [];
+                if ($method !== null) {
+                    $context['method'] = $method;
+                }
+                $psrLogger->warning($message, $context);
+                return;
+            } catch (\Exception $e) {
+                // Fall through to legacy implementation
+            }
+        }
+        
+        // Legacy implementation
         if (!self::isEnabled()) {
             return;
         }
@@ -240,8 +348,28 @@ class Debug
      */
     public static function logError($message, $method = null, $exception = null)
     {
+        // Get PSR logger first if available
+        $psrLogger = self::getPsrLogger();
+        if ($psrLogger !== null) {
+            try {
+                $context = [];
+                if ($method !== null) {
+                    $context['method'] = $method;
+                }
+                
+                if ($exception instanceof \Exception) {
+                    $context['exception'] = $exception;
+                }
+                
+                $psrLogger->error($message, $context);
+                return;
+            } catch (\Exception $e) {
+                // Fall through to legacy implementation
+            }
+        }
+
+        // Always log errors to PHP error log if debugging is disabled
         if (!self::isEnabled()) {
-            // Always log errors to PHP error log if debug is disabled
             error_log('VideoThumbnail Error: ' . $message);
             return;
         }

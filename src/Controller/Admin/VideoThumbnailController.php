@@ -220,6 +220,11 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Action to save a specific frame as the thumbnail
+     * 
+     * @return JsonModel Response with success/error status
+     */
     public function saveFrameAction()
     {
         // Conditional debug logging that's safe
@@ -239,12 +244,24 @@ class VideoThumbnailController extends AbstractActionController
         $mediaId = $this->params()->fromPost('media_id');
         $position = $this->params()->fromPost('position');
         
-        if (!$mediaId || !is_numeric($position)) {
+        // Validate mediaId
+        if (empty($mediaId) || !is_numeric($mediaId) || (int)$mediaId <= 0) {
             return new JsonModel([
                 'success' => false,
-                'message' => 'Invalid parameters',
+                'message' => 'Invalid media ID parameter',
             ]);
         }
+        
+        // Validate position
+        if (!is_numeric($position)) {
+            return new JsonModel([
+                'success' => false,
+                'message' => 'Position must be a numeric value',
+            ]);
+        }
+        
+        // Ensure position is within valid range (0-100)
+        $position = max(0, min(100, (float)$position));
         
         try {
             $media = $this->api()->read('media', $mediaId)->getContent();
@@ -253,6 +270,14 @@ class VideoThumbnailController extends AbstractActionController
                 return new JsonModel([
                     'success' => false,
                     'message' => 'Media not found',
+                ]);
+            }
+            
+            // Validate media type
+            if (strpos($media->mediaType(), 'video/') !== 0) {
+                return new JsonModel([
+                    'success' => false,
+                    'message' => 'Media is not a video file',
                 ]);
             }
             
@@ -314,17 +339,30 @@ class VideoThumbnailController extends AbstractActionController
         }
     }
 
+    /**
+     * Store an extracted video frame as a thumbnail
+     * 
+     * @param object $media The media representation
+     * @param string $framePath Path to the extracted frame
+     * @param float $position The position percentage in the video
+     * @param float $timeInSeconds The time in seconds
+     * @return array Result with success/error status
+     */
+    /**
+     * Store an extracted video frame as a thumbnail
+     * 
+     * @param object $media The media representation
+     * @param string $framePath Path to the extracted frame
+     * @param float $position The position percentage in the video
+     * @param float $timeInSeconds The time in seconds
+     * @return array Result with success/error status
+     */
     protected function storeThumbnail($media, $framePath, $position, $timeInSeconds)
     {
         try {
-            $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
-            $tempFile = $tempFileFactory->build();
-            
-            if (!copy($framePath, $tempFile->getTempPath())) {
-                return [
-                    'success' => false,
-                    'message' => 'Failed to process frame'
-                ];
+            // Verify we have the file storage
+            if (!$this->fileManager) {
+                throw new \RuntimeException('File storage not available');
             }
             
             // Get the media entity
@@ -336,9 +374,37 @@ class VideoThumbnailController extends AbstractActionController
                 ];
             }
             
-            // Store thumbnails
-            $tempFile->setStorageId($mediaEntity->getStorageId());
-            $hasThumbnails = $tempFile->storeThumbnails();
+            // Create a temp file using Omeka's proper API
+            $tempFileFactory = $this->serviceLocator->get('Omeka\File\TempFileFactory');
+            $tempFile = $tempFileFactory->build();
+            
+            // Copy the frame to temp file
+            if (!copy($framePath, $tempFile->getTempPath())) {
+                return [
+                    'success' => false,
+                    'message' => 'Failed to process frame'
+                ];
+            }
+            
+            // Try to get proper file manager if available
+            $fileManager = null;
+            $hasThumbnails = false;
+            
+            try {
+                if ($this->serviceLocator->has('Omeka\File\Manager')) {
+                    $fileManager = $this->serviceLocator->get('Omeka\File\Manager');
+                    // Generate thumbnails using the file manager directly
+                    $storageId = $mediaEntity->getStorageId();
+                    $hasThumbnails = $fileManager->storeThumbnails($tempFile->getTempPath(), $storageId);
+                } else {
+                    // Fallback: manually generate thumbnail sizes
+                    $hasThumbnails = $this->manuallyCreateThumbnails($tempFile->getTempPath(), $mediaEntity->getStorageId());
+                }
+            } catch (\Exception $e) {
+                // Fallback if there was an error
+                error_log('VideoThumbnail: Error with FileManager: ' . $e->getMessage() . ' - using fallback');
+                $hasThumbnails = $this->manuallyCreateThumbnails($tempFile->getTempPath(), $mediaEntity->getStorageId());
+            }
             
             // Update media data
             $mediaEntity->setHasThumbnails($hasThumbnails);
@@ -366,6 +432,123 @@ class VideoThumbnailController extends AbstractActionController
                 'success' => false,
                 'message' => 'Error storing thumbnail: ' . $e->getMessage()
             ];
+        }
+    }
+    
+    /**
+     * Manually create thumbnails when FileManager is not available
+     * 
+     * @param string $sourcePath Path to source image
+     * @param string $storageId Storage ID for the media
+     * @return bool True if successful
+     */
+    protected function manuallyCreateThumbnails($sourcePath, $storageId)
+    {
+        $thumbnailTypes = ['large', 'medium', 'square'];
+        $thumbnailSizes = [
+            'large' => [800, 800],
+            'medium' => [400, 400],
+            'square' => [200, 200, true] // Square thumbnail
+        ];
+        
+        try {
+            // Make sure image is readable
+            if (!is_readable($sourcePath)) {
+                error_log('VideoThumbnail: Source image not readable: ' . $sourcePath);
+                return false;
+            }
+            
+            // Use GD to resize the image
+            $sourceImg = imagecreatefromjpeg($sourcePath);
+            if (!$sourceImg) {
+                error_log('VideoThumbnail: Failed to create image from source');
+                return false;
+            }
+            
+            $sourceDimensions = [imagesx($sourceImg), imagesy($sourceImg)];
+            $success = true;
+            
+            foreach ($thumbnailTypes as $type) {
+                $width = $thumbnailSizes[$type][0];
+                $height = $thumbnailSizes[$type][1];
+                $square = isset($thumbnailSizes[$type][2]) ? $thumbnailSizes[$type][2] : false;
+                
+                // Calculate dimensions for resize
+                $sourceRatio = $sourceDimensions[0] / $sourceDimensions[1];
+                
+                if ($square) {
+                    // For square thumbnails, crop to square
+                    $targetWidth = $targetHeight = $width;
+                    
+                    // Create new image
+                    $targetImg = imagecreatetruecolor($targetWidth, $targetHeight);
+                    
+                    // Calculate crop dimensions
+                    if ($sourceRatio > 1) {
+                        $cropHeight = $sourceDimensions[1];
+                        $cropWidth = $cropHeight;
+                        $cropX = floor(($sourceDimensions[0] - $cropWidth) / 2);
+                        $cropY = 0;
+                    } else {
+                        $cropWidth = $sourceDimensions[0];
+                        $cropHeight = $cropWidth;
+                        $cropX = 0;
+                        $cropY = floor(($sourceDimensions[1] - $cropHeight) / 2);
+                    }
+                    
+                    // Resize and crop
+                    imagecopyresampled(
+                        $targetImg, $sourceImg,
+                        0, 0, $cropX, $cropY,
+                        $targetWidth, $targetHeight, $cropWidth, $cropHeight
+                    );
+                } else {
+                    // For non-square thumbnails, maintain aspect ratio
+                    if ($sourceRatio > ($width / $height)) {
+                        $targetWidth = $width;
+                        $targetHeight = round($width / $sourceRatio);
+                    } else {
+                        $targetHeight = $height;
+                        $targetWidth = round($height * $sourceRatio);
+                    }
+                    
+                    // Create target image
+                    $targetImg = imagecreatetruecolor($targetWidth, $targetHeight);
+                    
+                    // Resize
+                    imagecopyresampled(
+                        $targetImg, $sourceImg,
+                        0, 0, 0, 0,
+                        $targetWidth, $targetHeight, $sourceDimensions[0], $sourceDimensions[1]
+                    );
+                }
+                
+                // Create temp file for the resized image
+                $tempResized = tempnam(sys_get_temp_dir(), 'thumb');
+                imagejpeg($targetImg, $tempResized, 85);
+                imagedestroy($targetImg);
+                
+                // Define storage path
+                $storagePath = sprintf('%s/%s.jpg', $type, $storageId);
+                
+                // Store using file storage
+                try {
+                    $this->fileManager->put($tempResized, $storagePath);
+                } catch (\Exception $e) {
+                    error_log('VideoThumbnail: Failed to store ' . $type . ' thumbnail: ' . $e->getMessage());
+                    $success = false;
+                }
+                
+                // Cleanup
+                @unlink($tempResized);
+            }
+            
+            imagedestroy($sourceImg);
+            return $success;
+            
+        } catch (\Exception $e) {
+            error_log('VideoThumbnail: Manual thumbnail creation error: ' . $e->getMessage());
+            return false;
         }
     }
 
@@ -461,34 +644,55 @@ class VideoThumbnailController extends AbstractActionController
         return $framePath && file_exists($framePath) && filesize($framePath) > 0;
     }
 
+    /**
+     * Action to display frame selection interface
+     * 
+     * @return ViewModel|Response View model or redirect response
+     */
     public function selectFrameAction()
     {
         $id = $this->params('id');
         
-        if (!$id) {
+        // Validate ID parameter
+        if (empty($id) || !is_numeric($id) || (int)$id <= 0) {
+            $this->messenger()->addError('Invalid media ID');
             return $this->redirect()->toRoute('admin');
         }
         
         try {
-            $media = $this->api()->read('media', $id)->getContent();
+            $media = $this->api()->read('media', (int)$id)->getContent();
             
-            if (!$media || strpos($media->mediaType(), 'video/') !== 0) {
-                $this->messenger()->addError('Invalid media type or media not found');
+            // Validate media exists and is a video
+            if (!$media) {
+                $this->messenger()->addError('Media not found');
                 return $this->redirect()->toRoute('admin');
             }
             
-            // Get the file store service
+            if (strpos($media->mediaType(), 'video/') !== 0) {
+                $this->messenger()->addError('Media is not a video file');
+                return $this->redirect()->toRoute('admin');
+            }
+            
+            // Validate services
             if (!$this->serviceLocator) {
                 throw new \RuntimeException('Service locator is not available');
             }
+            
             $fileStore = $this->serviceLocator->get('Omeka\File\Store');
-                
-            // Get the video frame extractor
             $extractor = $this->serviceLocator->get('VideoThumbnail\VideoFrameExtractor');
                 
-            // Construct storage path
-            $storagePath = sprintf('original/%s', $media->filename());
+            // Construct and validate storage path
+            $filename = $media->filename();
+            if (empty($filename)) {
+                throw new \RuntimeException('Media has no filename');
+            }
+            
+            $storagePath = sprintf('original/%s', $filename);
             $filePath = $fileStore->getLocalPath($storagePath);
+            
+            if (!file_exists($filePath) || !is_readable($filePath)) {
+                throw new \RuntimeException('Video file not accessible');
+            }
             
             // Get video duration
             $duration = $extractor->getVideoDuration($filePath);
@@ -496,21 +700,34 @@ class VideoThumbnailController extends AbstractActionController
                 $duration = 1.0; // Use a minimal duration for very short videos
             }
             
-            // Get number of frames to extract
-            $frameCount = $this->settings->get('videothumbnail_frames_count', 5);
+            // Get number of frames to extract (with validation)
+            $frameCount = (int)$this->settings->get('videothumbnail_frames_count', 5);
+            $frameCount = max(1, min(20, $frameCount)); // Limit between 1-20 frames
             
             // Extract frames
             $extractedFrames = $extractor->extractFrames($filePath, $frameCount);
             
+            // Validate extracted frames
+            if (empty($extractedFrames)) {
+                throw new \RuntimeException('No frames could be extracted');
+            }
+            
             // Prepare frame data for the view
             $frames = [];
             foreach ($extractedFrames as $index => $framePath) {
+                // Validate frame path
+                if (!file_exists($framePath) || !is_readable($framePath)) {
+                    continue; // Skip invalid frames
+                }
+                
                 // Create a URL that can be accessed by the browser
                 $tempFilename = 'temp-' . basename($framePath);
                 $tempFilePath = OMEKA_PATH . '/files/temp/' . $tempFilename;
                 
                 // Copy the frame to the Omeka temp directory for web access
-                copy($framePath, $tempFilePath);
+                if (!copy($framePath, $tempFilePath)) {
+                    continue; // Skip if copy fails
+                }
                 
                 $frameUrl = $this->url()->fromRoute('asset', [
                     'asset' => $tempFilename,
@@ -518,6 +735,7 @@ class VideoThumbnailController extends AbstractActionController
                 
                 // Calculate the position as a percentage of video duration
                 $percentPosition = ($index + 1) * (100 / ($frameCount + 1));
+                $percentPosition = max(0, min(100, $percentPosition)); // Ensure 0-100 range
                 $timeInSeconds = ($duration * $percentPosition) / 100;
                 
                 // Add frame data
@@ -529,6 +747,11 @@ class VideoThumbnailController extends AbstractActionController
                 
                 // Clean up the original frame
                 @unlink($framePath);
+            }
+            
+            // Ensure we have frames to display
+            if (empty($frames)) {
+                throw new \RuntimeException('Failed to prepare frames for display');
             }
             
             $view = new ViewModel();

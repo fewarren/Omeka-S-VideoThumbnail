@@ -4,6 +4,7 @@ namespace VideoThumbnail\Service;
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Factory\FactoryInterface;
 use VideoThumbnail\Stdlib\VideoFrameExtractor;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 class VideoFrameExtractorFactory implements FactoryInterface
@@ -16,32 +17,45 @@ class VideoFrameExtractorFactory implements FactoryInterface
             $ffmpegPath = '';
             $logger = null;
 
-            // Get settings first since it's required
-            if (!$container->has('Omeka\Settings')) {
-                error_log('VideoThumbnail: Settings service not found, using defaults');
-            } else {
+            // Get PSR logger service if available
+            if ($container->has('VideoThumbnail\Logger')) {
+                try {
+                    $logger = $container->get('VideoThumbnail\Logger');
+                } catch (\Exception $e) {
+                    // Fallback to Omeka logger if module logger is unavailable
+                    if ($container->has('Omeka\Logger')) {
+                        try {
+                            $logger = $container->get('Omeka\Logger');
+                        } catch (\Exception $e) {
+                            // Will use NullLogger from trait
+                        }
+                    }
+                }
+            }
+
+            // Get settings
+            if ($container->has('Omeka\Settings')) {
                 try {
                     $settings = $container->get('Omeka\Settings');
                     $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path', '');
                 } catch (\Exception $e) {
-                    error_log('VideoThumbnail: Error getting settings: ' . $e->getMessage());
-                }
-            }
-
-            // Get logger if available but don't fail if not
-            if ($container->has('Omeka\Logger')) {
-                try {
-                    $logger = $container->get('Omeka\Logger');
-                } catch (\Exception $e) {
-                    error_log('VideoThumbnail: Error getting logger: ' . $e->getMessage());
+                    if ($logger instanceof LoggerInterface) {
+                        $logger->error('VideoThumbnail: Error getting settings: ' . $e->getMessage());
+                    }
                 }
             }
 
             // Create extractor with minimal dependencies
-            return new VideoFrameExtractor($ffmpegPath, $logger);
+            $extractor = new VideoFrameExtractor($ffmpegPath, $logger);
+            
+            return $extractor;
 
         } catch (\Exception $e) {
-            error_log('VideoThumbnail: Critical error in VideoFrameExtractorFactory: ' . $e->getMessage());
+            // Critical error - log and return minimal instance
+            if (isset($logger) && $logger instanceof LoggerInterface) {
+                $logger->critical('VideoThumbnail: Critical error in VideoFrameExtractorFactory: ' . $e->getMessage());
+            }
+            
             // Return bare minimum instance to prevent complete failure
             return new VideoFrameExtractor('', null);
         } finally {

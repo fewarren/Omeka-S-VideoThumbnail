@@ -84,10 +84,26 @@ class Module extends AbstractModule
         // Log POST data for debugging
         error_log('VideoThumbnail: POST data received: ' . json_encode(array_keys($postData)));
         
+        // Find the CSRF element name from the form
+        $csrfElement = null;
+        foreach ($form->getElements() as $element) {
+            if ($element instanceof \Laminas\Form\Element\Csrf) {
+                $csrfElement = $element;
+                break;
+            }
+        }
+        
         // Check if csrf token is present
-        if (!isset($postData['csrf'])) {
-            error_log('VideoThumbnail: CSRF token missing in POST data');
-            $controller->messenger()->addError('Security token missing. Please try again.');
+        if ($csrfElement) {
+            $csrfName = $csrfElement->getName();
+            if (!isset($postData[$csrfName])) {
+                error_log('VideoThumbnail: CSRF token missing in POST data (element name: ' . $csrfName . ')');
+                $controller->messenger()->addError('Security token missing. Please try again.');
+                return false;
+            }
+        } else {
+            error_log('VideoThumbnail: No CSRF element found in form');
+            $controller->messenger()->addError('Form validation error: security element not found.');
             return false;
         }
         
@@ -171,7 +187,8 @@ class Module extends AbstractModule
         try {
             $output = [];
             $returnVar = 0;
-            $command = escapeshellcmd($ffmpegPath) . ' -version';
+            // Use properly quoted command, especially important for Windows paths with spaces
+            $command = sprintf('%s -version', escapeshellarg($ffmpegPath));
             exec($command, $output, $returnVar);
             
             if ($returnVar !== 0) {
@@ -594,9 +611,23 @@ class Module extends AbstractModule
         try {
             $serviceLocator = $this->getServiceLocator();
             $settings = $serviceLocator->get('Omeka\Settings');
-            $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path');
-
-            $extractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
+            // Get the VideoFrameExtractor service from service manager instead of instantiating directly
+            $extractor = null;
+            try {
+                if ($serviceLocator->has('VideoThumbnail\Stdlib\VideoFrameExtractor')) {
+                    $extractor = $serviceLocator->get('VideoThumbnail\Stdlib\VideoFrameExtractor');
+                } else {
+                    // Fallback to direct instantiation only if service is not available
+                    $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path');
+                    error_log('VideoThumbnail: Service not found, creating extractor directly');
+                    $extractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
+                }
+            } catch (\Exception $e) {
+                // Final fallback
+                $ffmpegPath = $settings->get('videothumbnail_ffmpeg_path');
+                error_log('VideoThumbnail: Error getting extractor service: ' . $e->getMessage());
+                $extractor = new \VideoThumbnail\Stdlib\VideoFrameExtractor($ffmpegPath);
+            }
             $fileStore = $serviceLocator->get('Omeka\File\Store');
             if ($media instanceof MediaRepresentation) {
                 // For MediaRepresentation objects
