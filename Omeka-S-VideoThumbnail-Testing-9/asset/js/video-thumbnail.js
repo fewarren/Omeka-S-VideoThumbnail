@@ -150,20 +150,22 @@
         },
 
         showLoading: function() {
-            const $loading = $(this.settings.loadingSelector);
-            if (!$loading.length) {
-                $('body').append(`
-                    <div class="${this.settings.loadingSelector.substring(1)}">
+            if (!this.$loadingElement) {
+                this.$loadingElement = $(`
+                    <div id="video-thumbnail-loading" class="${this.settings.loadingSelector.substring(1)}">
                         <div class="loading-spinner"></div>
                         <p>Processing video frames...</p>
                     </div>
                 `);
+                $('body').append(this.$loadingElement);
             }
-            $(this.settings.loadingSelector).show();
+            this.$loadingElement.show();
         },
 
         hideLoading: function() {
-            $(this.settings.loadingSelector).hide();
+            if (this.$loadingElement) {
+                this.$loadingElement.hide();
+            }
         },
 
         showError: function(message, details, help) {
