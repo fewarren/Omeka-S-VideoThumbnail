@@ -44,7 +44,7 @@ class VideoThumbnailControllerFactory implements FactoryInterface
         $services = [];
         $required = [
             'entityManager' => 'Omeka\EntityManager',
-            'fileManager' => 'Omeka\File\Store', // Changed from 'Omeka\File\Manager' to 'Omeka\File\Store' which is available in Omeka S
+            'fileManager' => 'Omeka\File\Store',
             'settings' => 'Omeka\Settings'
         ];
         

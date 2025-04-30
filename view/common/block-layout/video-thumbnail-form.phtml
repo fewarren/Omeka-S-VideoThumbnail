@@ -25,7 +25,7 @@ $mediaTitle = isset($mediaTitle) ? $mediaTitle : '';
 </div>
 
 <div class="video-thumbnail-block enhanced-style">
-    <?php if (isset($thumbnailHtml) && $thumbnailHtml): ?>
+    <?php if ($thumbnailHtml): ?>
         <div class="thumbnail">
             <?= $thumbnailHtml ?>
         </div>

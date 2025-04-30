@@ -2,171 +2,164 @@
 namespace VideoThumbnail\Form;
 
 use Laminas\Form\Form;
-use Laminas\Form\Element;
+use Laminas\Form\Element\Text;
+use Laminas\Form\Element\Number;
+use Laminas\Form\Element\Checkbox;
 
-/**
- * Configuration form for VideoThumbnail module
- */
 class ConfigForm extends Form
 {
+    protected $supportedFormats = [
+        'video/mp4' => 'MP4',
+        'video/webm' => 'WebM',
+        'video/quicktime' => 'QuickTime/MOV',
+        'video/x-msvideo' => 'AVI',
+        'video/x-ms-wmv' => 'WMV',
+        'video/x-matroska' => 'MKV',
+        'video/3gpp' => '3GP',
+        'video/3gpp2' => '3G2',
+        'video/x-flv' => 'FLV'
+    ];
+
     public function init()
     {
-        // FFmpeg path
         $this->add([
             'name' => 'videothumbnail_ffmpeg_path',
-            'type' => Element\Text::class,
+            'type' => Text::class,
             'options' => [
-                'label' => 'FFmpeg Path',
-                'info' => 'Full path to FFmpeg executable (e.g., /usr/bin/ffmpeg)',
+                'label' => 'FFmpeg Path', // @translate
+                'info' => 'Full path to FFmpeg executable (e.g., /usr/bin/ffmpeg)', // @translate
             ],
             'attributes' => [
-                'id' => 'videothumbnail_ffmpeg_path',
                 'required' => true,
+                'id' => 'videothumbnail_ffmpeg_path',
             ],
         ]);
 
-        // Frames count
         $this->add([
             'name' => 'videothumbnail_frames_count',
-            'type' => Element\Number::class,
+            'type' => Number::class,
             'options' => [
-                'label' => 'Number of Frames',
-                'info' => 'Number of frames to extract for selection',
+                'label' => 'Number of Frames', // @translate
+                'info' => 'Number of frames to extract for selection (higher values require more processing time)', // @translate
             ],
             'attributes' => [
-                'id' => 'videothumbnail_frames_count',
                 'required' => true,
                 'min' => 3,
                 'max' => 20,
+                'step' => 1,
                 'value' => 5,
+                'id' => 'videothumbnail_frames_count',
             ],
         ]);
 
-        // Default frame position
         $this->add([
             'name' => 'videothumbnail_default_frame',
-            'type' => Element\Number::class,
+            'type' => Number::class,
             'options' => [
-                'label' => 'Default Frame Position (%)',
-                'info' => 'Default position as percentage of video duration',
+                'label' => 'Default Frame Position (% of video duration)', // @translate
+                'info' => 'Default position for thumbnail extraction as percentage of video duration. Must be between 0 and 100. Values outside this range will be clamped.', // @translate
             ],
             'attributes' => [
-                'id' => 'videothumbnail_default_frame',
                 'required' => true,
                 'min' => 0,
                 'max' => 100,
+                'step' => 1,
                 'value' => 10,
+                'id' => 'videothumbnail_default_frame',
             ],
         ]);
 
-        // Memory limit
         $this->add([
-            'name' => 'videothumbnail_memory_limit',
-            'type' => Element\Number::class,
+            'name' => 'videothumbnail_supported_formats',
+            'type' => 'multiCheckbox',
             'options' => [
-                'label' => 'Memory Limit (MB)',
-                'info' => 'Maximum memory usage in MB',
+                'label' => 'Supported Video Formats', // @translate
+                'value_options' => $this->supportedFormats,
+                'info' => 'Select which video formats to process', // @translate,
             ],
             'attributes' => [
-                'id' => 'videothumbnail_memory_limit',
+                'required' => true,
+                'id' => 'videothumbnail_supported_formats',
+            ],
+        ]);
+
+        // Add memory limit for batch processing
+        $this->add([
+            'name' => 'videothumbnail_memory_limit',
+            'type' => Number::class,
+            'options' => [
+                'label' => 'Memory Limit for Batch Processing (MB)', // @translate
+                'info' => 'Maximum allowed memory usage for batch thumbnail generation in MB. Increase for processing large batches or videos, decrease for limited environments.', // @translate
+            ],
+            'attributes' => [
                 'required' => true,
                 'min' => 50,
                 'max' => 1024,
-                'value' => 512,
+                'step' => 10,
+                'value' => 100,
+                'id' => 'videothumbnail_memory_limit',
             ],
         ]);
 
-        // Debug mode
+        // Add debug mode checkbox - consolidated definition
         $this->add([
             'name' => 'videothumbnail_debug_mode',
-            'type' => Element\Checkbox::class,
+            'type' => Checkbox::class,
             'options' => [
-                'label' => 'Enable Debug Mode',
-                'info' => 'Log detailed debug information',
+                'label' => 'Enable Debug Mode', // @translate
+                'info' => 'Log detailed debug information to videothumbnail.log in the Omeka S logs directory.', // @translate
+                'checked_value' => '1',
+                'unchecked_value' => '0',
+                'use_hidden_element' => true,
             ],
             'attributes' => [
                 'id' => 'videothumbnail_debug_mode',
+                'value' => '1', // Default to enabled
             ],
         ]);
 
-        // Log level
         $this->add([
             'name' => 'videothumbnail_log_level',
-            'type' => Element\Select::class,
+            'type' => 'select',
             'options' => [
-                'label' => 'Log Level',
-                'info' => 'Minimum log level to record',
+                'label' => 'Log Level', // @translate
                 'value_options' => [
                     'error' => 'Error',
                     'warning' => 'Warning',
                     'info' => 'Info',
-                    'debug' => 'Debug',
+                    'debug' => 'Debug'
                 ],
+                'info' => 'Minimum log level to record', // @translate,
             ],
             'attributes' => [
                 'id' => 'videothumbnail_log_level',
+                'value' => 'info',
             ],
         ]);
 
-        // Timestamp property
         $this->add([
             'name' => 'video_thumbnail_timestamp_property',
-            'type' => Element\Text::class,
+            'type' => Text::class,
             'options' => [
-                'label' => 'Timestamp metadata field',
-                'info' => 'Metadata field containing timestamp',
+                'label' => 'Timestamp metadata field', // @translate
+                'info' => 'Enter the term (e.g., dcterms:temporal) of the metadata field containing the desired thumbnail timestamp (in seconds or HH:MM:SS format). Leave blank to disable.', // @translate
             ],
             'attributes' => [
                 'id' => 'video_thumbnail_timestamp_property',
             ],
         ]);
 
-        // Supported formats - as a MultiCheckbox
-        $this->add([
-            'name' => 'videothumbnail_supported_formats',
-            'type' => Element\MultiCheckbox::class,
-            'options' => [
-                'label' => 'Supported Video Formats',
-                'info' => 'Select which video formats to process',
-                'value_options' => [
-                    'video/mp4' => 'MP4',
-                    'video/webm' => 'WebM',
-                    'video/quicktime' => 'QuickTime/MOV',
-                    'video/x-msvideo' => 'AVI',
-                    'video/x-ms-wmv' => 'WMV',
-                    'video/x-matroska' => 'MKV',
-                    'video/3gpp' => '3GP',
-                    'video/3gpp2' => '3G2',
-                    'video/x-flv' => 'FLV',
-                ],
-            ],
-            'attributes' => [
-                'id' => 'videothumbnail_supported_formats',
-            ],
-        ]);
-
-        // Submit button
+        // Add submit button
         $this->add([
             'name' => 'submit',
-            'type' => Element\Submit::class,
+            'type' => 'Submit',
             'attributes' => [
-                'id' => 'submitbutton',
-                'value' => 'Save Settings',
+                'value' => 'Save Settings', // @translate
+                'id' => 'submit',
+                'class' => 'button',
             ],
         ]);
 
-        // Add CSRF protection for form security
-        $this->add([
-            'name' => 'csrf',
-            'type' => Element\Csrf::class,
-            'options' => [
-                'csrf_options' => [
-                    'timeout' => 3600,
-                ],
-            ],
-        ]);
-
-        // Apply input filters
         $inputFilter = $this->getInputFilter();
 
         $inputFilter->add([
@@ -177,32 +170,15 @@ class ConfigForm extends Form
             ],
             'validators' => [
                 [
-                    'name' => 'NotEmpty',
+                    'name' => 'Callback',
                     'options' => [
+                        'callback' => [$this, 'validateFfmpegPath'],
                         'messages' => [
-                            'isEmpty' => 'FFmpeg path is required',
-                        ],
-                    ],
-                ],
-            ],
-        ]);
-
-        $inputFilter->add([
-            'name' => 'videothumbnail_frames_count',
-            'required' => true,
-            'filters' => [
-                ['name' => 'ToInt'],
-            ],
-            'validators' => [
-                [
-                    'name' => 'Between',
-                    'options' => [
-                        'min' => 3,
-                        'max' => 20,
-                        'inclusive' => true,
-                    ],
-                ],
-            ],
+                            'callbackValue' => 'FFmpeg executable not found or not executable'
+                        ]
+                    ]
+                ]
+            ]
         ]);
 
         $inputFilter->add([
@@ -217,10 +193,10 @@ class ConfigForm extends Form
                     'options' => [
                         'min' => 0,
                         'max' => 100,
-                        'inclusive' => true,
-                    ],
-                ],
-            ],
+                        'inclusive' => true
+                    ]
+                ]
+            ]
         ]);
 
         $inputFilter->add([
@@ -233,30 +209,12 @@ class ConfigForm extends Form
                 [
                     'name' => 'Between',
                     'options' => [
-                        'min' => 50,
+                        'min' => 64,
                         'max' => 2048,
-                        'inclusive' => true,
-                    ],
-                ],
-            ],
-        ]);
-
-        $inputFilter->add([
-            'name' => 'videothumbnail_log_level',
-            'required' => false,
-        ]);
-
-        $inputFilter->add([
-            'name' => 'video_thumbnail_timestamp_property',
-            'required' => false,
-            'filters' => [
-                ['name' => 'StringTrim'],
-            ],
-        ]);
-
-        $inputFilter->add([
-            'name' => 'videothumbnail_debug_mode',
-            'required' => false,
+                        'inclusive' => true
+                    ]
+                ]
+            ]
         ]);
 
         $inputFilter->add([
@@ -267,11 +225,57 @@ class ConfigForm extends Form
                     'name' => 'NotEmpty',
                     'options' => [
                         'messages' => [
-                            'isEmpty' => 'At least one video format must be selected',
-                        ],
-                    ],
-                ],
+                            'isEmpty' => 'At least one video format must be selected'
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+        
+        // Add input filter for debug mode
+        $inputFilter->add([
+            'name' => 'videothumbnail_debug_mode',
+            'required' => false,
+            'filters' => [
+                ['name' => 'Boolean'],
             ],
         ]);
+    }
+
+    public function validateFfmpegPath($value)
+    {
+        if (empty($value)) {
+            return false;
+        }
+
+        // Check if path exists and is executable
+        if (!file_exists($value)) {
+            return false;
+        }
+        
+        if (!is_executable($value)) {
+            return false;
+        }
+
+        // Try to execute ffmpeg -version
+        try {
+            $output = [];
+            $returnVar = 0;
+            $command = escapeshellcmd($value) . ' -version 2>&1';
+            exec($command, $output, $returnVar);
+
+            if ($returnVar !== 0) {
+                return false;
+            }
+
+            // Verify ffmpeg version string in output
+            $versionString = implode("\n", $output);
+            $result = strpos($versionString, 'ffmpeg version') !== false;
+            
+            return $result;
+        } catch (\Exception $e) {
+            error_log('Exception while testing FFmpeg: ' . $e->getMessage());
+            return false;
+        }
     }
 }

@@ -1,95 +1,81 @@
 <?php
-// Ensure form is prepared
 $form->prepare();
+$formLabel = $this->plugin('formLabel');
+$formElement = $this->plugin('formElement');
+$formErrors = $this->plugin('formElementErrors');
 ?>
 
-<div id="page-actions">
-    <?php echo $this->formSubmit($form->get('submit')); ?>
+<h3><?= $this->translate('Video Thumbnail Configuration') ?></h3>
+
+<div class="configuration-section">
+    <?php if ($this->messenger()->hasMessages()): ?>
+        <div class="admin-feedback-messages" role="alert" aria-live="assertive">
+            <?php foreach ($this->messenger()->getMessages() as $message): ?>
+                <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+    <?= $this->form()->openTag($form) ?>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_ffmpeg_path')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_ffmpeg_path')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_ffmpeg_path')) ?>
+            <?= $formErrors($form->get('videothumbnail_ffmpeg_path')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_frames_count')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_frames_count')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_frames_count')) ?>
+            <?= $formErrors($form->get('videothumbnail_frames_count')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_default_frame')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_default_frame')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_default_frame')) ?>
+            <?= $formErrors($form->get('videothumbnail_default_frame')) ?>
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_timestamp_property')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_timestamp_property')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_timestamp_property')) ?>
+            <?= $formErrors($form->get('videothumbnail_timestamp_property')) ?>
+        </div>
+    </div>
+
+    <?php if ($form->has('videothumbnail_debug_mode')): ?>
+    <div class="field">
+        <div class="field-meta">
+            <?= $formLabel($form->get('videothumbnail_debug_mode')) ?>
+            <div class="field-description"><?= $this->translate($form->get('videothumbnail_debug_mode')->getOption('info')) ?></div>
+        </div>
+        <div class="inputs">
+            <?= $formElement($form->get('videothumbnail_debug_mode')) ?>
+            <?= $formErrors($form->get('videothumbnail_debug_mode')) ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?= $this->formElement($form->get('csrf')) ?>
+    <?= $this->formSubmit($form->get('submit')) ?>
+    <?= $this->form()->closeTag() ?>
 </div>
-
-<?php echo $this->form()->openTag($form); ?>
-
-<?php echo $this->formHidden($form->get('csrf')); ?>
-
-<div id="settings-fieldset-wrapper">
-    <fieldset id="fieldset-general">
-        <legend><?php echo $this->translate('Basic Settings'); ?></legend>
-        
-        <?php foreach(['videothumbnail_ffmpeg_path', 'videothumbnail_frames_count', 'videothumbnail_default_frame', 'videothumbnail_memory_limit'] as $elementName): ?>
-            <div class="field">
-                <div class="field-meta">
-                    <?php echo $this->formLabel($form->get($elementName)); ?>
-                    <?php if ($info = $form->get($elementName)->getOption('info')): ?>
-                        <div class="field-description"><?php echo $this->translate($info); ?></div>
-                    <?php endif; ?>
-                </div>
-                <div class="inputs">
-                    <?php echo $this->formElement($form->get($elementName)); ?>
-                    <?php echo $this->formElementErrors($form->get($elementName)); ?>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </fieldset>
-    
-    <fieldset id="fieldset-formats">
-        <legend><?php echo $this->translate('Format Settings'); ?></legend>
-        
-        <div class="field">
-            <div class="field-meta">
-                <?php echo $this->formLabel($form->get('videothumbnail_supported_formats')); ?>
-                <?php if ($info = $form->get('videothumbnail_supported_formats')->getOption('info')): ?>
-                    <div class="field-description"><?php echo $this->translate($info); ?></div>
-                <?php endif; ?>
-            </div>
-            <div class="inputs">
-                <?php echo $this->formElement($form->get('videothumbnail_supported_formats')); ?>
-                <?php echo $this->formElementErrors($form->get('videothumbnail_supported_formats')); ?>
-            </div>
-        </div>
-        
-        <div class="field">
-            <div class="field-meta">
-                <?php echo $this->formLabel($form->get('video_thumbnail_timestamp_property')); ?>
-                <?php if ($info = $form->get('video_thumbnail_timestamp_property')->getOption('info')): ?>
-                    <div class="field-description"><?php echo $this->translate($info); ?></div>
-                <?php endif; ?>
-            </div>
-            <div class="inputs">
-                <?php echo $this->formElement($form->get('video_thumbnail_timestamp_property')); ?>
-                <?php echo $this->formElementErrors($form->get('video_thumbnail_timestamp_property')); ?>
-            </div>
-        </div>
-    </fieldset>
-    
-    <fieldset id="fieldset-debug">
-        <legend><?php echo $this->translate('Debug Settings'); ?></legend>
-        
-        <div class="field">
-            <div class="field-meta">
-                <?php echo $this->formLabel($form->get('videothumbnail_debug_mode')); ?>
-                <?php if ($info = $form->get('videothumbnail_debug_mode')->getOption('info')): ?>
-                    <div class="field-description"><?php echo $this->translate($info); ?></div>
-                <?php endif; ?>
-            </div>
-            <div class="inputs">
-                <?php echo $this->formElement($form->get('videothumbnail_debug_mode')); ?>
-                <?php echo $this->formElementErrors($form->get('videothumbnail_debug_mode')); ?>
-            </div>
-        </div>
-        
-        <div class="field">
-            <div class="field-meta">
-                <?php echo $this->formLabel($form->get('videothumbnail_log_level')); ?>
-                <?php if ($info = $form->get('videothumbnail_log_level')->getOption('info')): ?>
-                    <div class="field-description"><?php echo $this->translate($info); ?></div>
-                <?php endif; ?>
-            </div>
-            <div class="inputs">
-                <?php echo $this->formElement($form->get('videothumbnail_log_level')); ?>
-                <?php echo $this->formElementErrors($form->get('videothumbnail_log_level')); ?>
-            </div>
-        </div>
-    </fieldset>
-</div>
-
-<?php echo $this->form()->closeTag(); ?>

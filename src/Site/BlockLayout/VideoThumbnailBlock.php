@@ -50,8 +50,6 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
         $mediaId = $block ? ($block->dataValue('media_id')) : null;
         $mediaTitle = '';
         $framePercent = $block ? $block->dataValue('frame_percent') : 10;
-        $media = null;
-        $thumbnailHtml = null; // Initialize the variable
         
         Debug::log(sprintf(
             'Block form parameters: mediaId=%s, framePercent=%s',
@@ -63,7 +61,6 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
             try {
                 $media = $view->api()->read('media', $mediaId)->getContent();
                 $mediaTitle = $media->displayTitle();
-                $thumbnailHtml = $media->thumbnail(null, 'medium'); // Generate thumbnail HTML
                 Debug::log(sprintf('Found media: %s (ID: %d)', $mediaTitle, $mediaId), __METHOD__);
             } catch (\Exception $e) {
                 $mediaTitle = $view->translate('Unknown media');
@@ -80,8 +77,6 @@ class VideoThumbnailBlock extends AbstractBlockLayout implements BlockLayoutInte
             'mediaId' => $mediaId,
             'mediaTitle' => $mediaTitle,
             'framePercent' => $framePercent,
-            'media' => $media,
-            'thumbnailHtml' => $thumbnailHtml, // Pass thumbnail HTML to template
         ]);
     }
 

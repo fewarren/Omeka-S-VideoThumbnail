@@ -265,47 +265,22 @@ class VideoThumbnail implements MutableIngesterInterface, IngesterInterface
                     // Need to get the thumbnails stored via Omeka's core system
                     // Since we can't use getServiceLocator() anymore, we'll use a direct approach
                     try {
-                        // Use Omeka's FileManager to handle the thumbnail creation
-                        // Get the proper file manager service if possible
-                        $fileManager = null;
+                        // Let Omeka's FileManager handle the thumbnail creation
+                        // This is a simple approach that avoids the need for the service locator
                         
-                        try {
-                            // Check for the file manager in the service container
-                            if (method_exists($this, 'getServiceLocator') && $this->getServiceLocator()->has('Omeka\File\Manager')) {
-                                $fileManager = $this->getServiceLocator()->get('Omeka\File\Manager');
-                            } else if (class_exists('Omeka\File\Manager')) {
-                                // Try to create a stock instance if we can't get from service locator
-                                $fileManager = new \Omeka\File\Manager();
-                            }
-                        } catch (\Exception $e) {
-                            \VideoThumbnail\Stdlib\Debug::logError('Failed to get File Manager: ' . $e->getMessage(), __METHOD__);
-                        }
+                        // Copy the extracted frame to the media's storage location as a thumbnail
+                        $thumbnailTypes = ['large', 'medium', 'square'];
+                        $hasThumbnails = true;
                         
-                        // If we have a file manager, use it to create thumbnails
-                        $hasThumbnails = false;
-                        if ($fileManager) {
+                        // Store thumbnail at each standard size location
+                        foreach ($thumbnailTypes as $type) {
+                            $storagePath = sprintf('%s/%s.jpg', $type, $media->getStorageId());
                             try {
-                                $hasThumbnails = $fileManager->storeThumbnails($tempFile, $media->getStorageId());
-                                \VideoThumbnail\Stdlib\Debug::log("Generated thumbnails using FileManager", __METHOD__);
+                                $this->fileStore->put($tempFile, $storagePath);
+                                \VideoThumbnail\Stdlib\Debug::log("Stored $type thumbnail at $storagePath", __METHOD__);
                             } catch (\Exception $e) {
-                                \VideoThumbnail\Stdlib\Debug::logError('FileManager failed to store thumbnails: ' . $e->getMessage(), __METHOD__);
-                            }
-                        } else {
-                            // Fallback: manually copy the extracted frame to thumbnail locations
-                            \VideoThumbnail\Stdlib\Debug::log("Using fallback thumbnail storage method", __METHOD__);
-                            $thumbnailTypes = ['large', 'medium', 'square'];
-                            $hasThumbnails = true;
-                            
-                            // Store thumbnail at each standard size location
-                            foreach ($thumbnailTypes as $type) {
-                                $storagePath = sprintf('%s/%s.jpg', $type, $media->getStorageId());
-                                try {
-                                    $this->fileStore->put($tempFile, $storagePath);
-                                    \VideoThumbnail\Stdlib\Debug::log("Stored $type thumbnail at $storagePath", __METHOD__);
-                                } catch (\Exception $e) {
-                                    \VideoThumbnail\Stdlib\Debug::logError("Failed to store $type thumbnail: " . $e->getMessage(), __METHOD__);
-                                    $hasThumbnails = false;
-                                }
+                                \VideoThumbnail\Stdlib\Debug::logError("Failed to store $type thumbnail: " . $e->getMessage(), __METHOD__);
+                                $hasThumbnails = false;
                             }
                         }
                         

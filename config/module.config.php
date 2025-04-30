@@ -96,7 +96,7 @@ return [
                     'video-thumbnail-media' => [
                         'type' => 'Segment',
                         'options' => [
-                            'route' => '/video-thumbnail/media/:id[/:action]',
+                            'route' => '/video-thumbnail/media/:id/:action',
                             'defaults' => [
                                 '__NAMESPACE__' => 'VideoThumbnail\Controller\Admin',
                                 '__CONTROLLER__' => 'VideoThumbnail',
@@ -154,7 +154,6 @@ return [
                     'js/video-thumbnail.js',
                     'js/video-thumbnail-monitor.js',
                     'js/video-thumbnail-block-admin.js',
-                    'js/video-thumbnail-form.js',
                 ],
             ],
         ],
@@ -168,9 +167,6 @@ return [
     ],
     'service_manager' => [
         'factories' => [
-            // Module-specific PSR-3 logger implementation
-            'VideoThumbnail\Logger' => 'VideoThumbnail\Service\LoggerFactory',
-            
             // Core services first
             'VideoThumbnail\Stdlib\VideoFrameExtractor' => 'VideoThumbnail\Service\VideoFrameExtractorFactory',
             
@@ -195,15 +191,22 @@ return [
         ],
     ],
     'videothumbnail' => [
+        'debug' => [
+            'enabled' => false,  // Ensure debugging is disabled by default
+            'log_dir' => OMEKA_PATH . '/logs',
+            'log_file' => 'videothumbnail.log',
+            'max_size' => 10485760, // 10MB
+            'max_files' => 5
+        ],
         'job_dispatch' => [
-            'memory_limit' => '512M', // Reduced to more conservative default
+            'memory_limit' => '1024M', // Increased from 512M
             'timeout' => 3600,
             'status_file' => OMEKA_PATH . '/logs/video_thumbnail_jobs.json'
         ],
         'memory_management' => [
-            'min_free_memory' => '128M',
-            'gc_probability' => 10, // Reduced from 100 to prevent performance impact
-            'memory_reset_threshold' => '768M'
+            'min_free_memory' => '128M', // Increased from 64M
+            'gc_probability' => 100,
+            'memory_reset_threshold' => '768M' // Increased from 384M
         ],
         'supported_formats' => [
             'video/mp4' => ['mp4'],
@@ -230,13 +233,8 @@ return [
             'frame_count' => 5,
             'default_position' => 50,
             'memory_limit' => 512,
-            'debug_mode' => false, // Set to false by default for production
+            'debug_mode' => false,
             'log_level' => 'error',
-            // Debug settings moved here for consolidation
-            'debug_log_dir' => OMEKA_PATH . '/logs',
-            'debug_log_file' => 'videothumbnail.log',
-            'debug_max_size' => 10485760, // 10MB
-            'debug_max_files' => 5,
             'allowed_formats' => [
                 'video/mp4',
                 'video/webm',
