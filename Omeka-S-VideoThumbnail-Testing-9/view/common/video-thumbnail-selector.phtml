@@ -1,0 +1,75 @@
+<?php
+$translate = $this->plugin('translate');
+$escapeAttr = $this->plugin('escapeHtmlAttr');
+?>
+<div class="video-thumbnail-container" data-media-id="<?php echo $escapeAttr($media->id()); ?>">
+    <div class="video-info">
+        <h3><?php echo $translate('Current Thumbnail'); ?></h3>
+        <?php if ($media->hasThumbnails()): ?>
+            <div class="current-thumbnail">
+                <img src="<?php echo $escapeAttr($media->thumbnailUrl('medium')); ?>" 
+                     alt="<?php echo $translate('Current video thumbnail'); ?>">
+            </div>
+        <?php else: ?>
+            <p class="no-thumbnail"><?php echo $translate('No thumbnail set'); ?></p>
+        <?php endif; ?>
+
+        <div class="video-metadata">
+            <h4><?php echo $translate('Video Information'); ?></h4>
+            <dl>
+                <dt><?php echo $translate('Format'); ?></dt>
+                <dd><?php echo $escapeAttr($media->mediaType()); ?></dd>
+                
+                <?php if ($mediaData = $media->data()): ?>
+                    <?php if (isset($mediaData['video_metadata'])): ?>
+                        <dt><?php echo $translate('Duration'); ?></dt>
+                        <dd><?php echo $this->formatDuration($mediaData['video_metadata']['duration'] ?? 0); ?></dd>
+                        
+                        <dt><?php echo $translate('Size'); ?></dt>
+                        <dd><?php echo $this->formatFileSize($mediaData['video_metadata']['size'] ?? 0); ?></dd>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </dl>
+        </div>
+    </div>
+
+    <div class="frame-selector">
+        <h3><?php echo $translate('Select Thumbnail Frame'); ?></h3>
+        <p class="selector-help">
+            <?php echo $translate('Click on a frame to set it as the video thumbnail.'); ?>
+        </p>
+
+        <div class="video-thumbnail-error" role="alert" aria-live="assertive" style="display:none;"></div>
+        <div class="video-thumbnail-preview" role="list" aria-label="<?php echo $translate('Video frame previews'); ?>">
+            <!-- Frame previews will be dynamically inserted here by JavaScript -->
+        </div>
+
+        <div class="video-thumbnail-loading" style="display: none;">
+            <div class="loading-spinner" role="progressbar" aria-label="<?php echo $translate('Loading video frames'); ?>"></div>
+            <p><?php echo $translate('Processing video frames...'); ?></p>
+        </div>
+    </div>
+
+    <?php if ($this->status()->isAdminRequest()): ?>
+        <div class="advanced-options">
+            <h4><?php echo $translate('Advanced Options'); ?></h4>
+            <button type="button" 
+                    class="regenerate-thumbnails" 
+                    data-media-id="<?php echo $escapeAttr($media->id()); ?>"
+                    title="<?php echo $translate('Regenerate all thumbnails for this video'); ?>">
+                <?php echo $translate('Regenerate Thumbnails'); ?>
+            </button>
+
+            <?php if ($this->userIsAllowed('VideoThumbnail\Controller\Admin\VideoThumbnail', 'batch-edit')): ?>
+                <button type="button" 
+                        class="batch-regenerate" 
+                        title="<?php echo $translate('Regenerate thumbnails for all videos'); ?>">
+                    <?php echo $translate('Regenerate All Video Thumbnails'); ?>
+                </button>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+</div>
+
+<?php $this->headScript()->appendFile($this->assetUrl('js/video-thumbnail.js', 'VideoThumbnail')); ?>
+<?php $this->headLink()->appendStylesheet($this->assetUrl('css/video-thumbnail.css', 'VideoThumbnail')); ?>

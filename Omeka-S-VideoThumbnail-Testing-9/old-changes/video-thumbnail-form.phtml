@@ -1,0 +1,128 @@
+<?php
+/**
+ * Video Thumbnail Block layout form
+ *
+ * @var \Laminas\View\Renderer\PhpRenderer $this
+ * @var \Omeka\Api\Representation\SiteRepresentation $site
+ * @var \Omeka\Api\Representation\SitePageRepresentation $page
+ * @var \Omeka\Api\Representation\SitePageBlockRepresentation $block
+ */
+
+$escape = $this->plugin('escapeHtml');
+?>
+
+<div class="block-attachment">
+    <h4><?php echo $escape($this->translate('Video Thumbnail')); ?></h4>
+    <div class="attachments-form">
+        <?php
+        // Get the current attachment if it exists
+        $attachments = $block->attachments();
+        ?>
+        
+        <div class="field">
+            <div class="field-meta">
+                <label><?php echo $escape($this->translate('Select a video file to create a thumbnail from')); ?></label>
+                <div class="field-description"><?php echo $escape($this->translate('Only one video can be selected. The module will automatically extract a thumbnail from the video.')); ?></div>
+            </div>
+            
+            <div class="inputs">
+                <?= $this->blockAttachmentsForm($block, [
+                    'itemOnly' => false,
+                    'attachmentText' => $this->translate('Add video'),
+                    'itemText' => $this->translate('Select video'),
+                    'mediaText' => $this->translate('Select'),
+                    'itemQuery' => ['resource_class_id' => ''],
+                    'limit' => 1, // Only allow one attachment - critical for proper operation
+                    'mediaTypes' => ['video'] // Further restrict to only video media types
+                ]); ?>
+            </div>
+            
+            <?php if (count($attachments) > 1): ?>
+            <div class="warning">
+                <p><?php echo $escape($this->translate('Warning: Multiple video files are attached. Only the first valid video will be used.')); ?></p>
+            </div>
+            <?php endif; ?>
+        </div>
+        
+        <div class="thumbnail-position field">
+            <div class="field-meta">
+                <label><?php echo $escape($this->translate('Thumbnail position')); ?></label>
+                <div class="field-description"><?php echo $escape($this->translate('Choose the position in the video to extract the thumbnail from. If a thumbnail cannot be extracted at the chosen position, other positions will be tried automatically.')); ?></div>
+            </div>
+            
+            <div class="inputs">
+                <?php
+                $position = $block->dataValue('position', 25);
+                ?>
+                <select name="o:block[__blockIndex__][o:data][position]" aria-label="<?php echo $escape($this->translate('Thumbnail position')); ?>">
+                    <option value="10" <?php echo $position == 10 ? 'selected' : ''; ?>><?php echo $escape($this->translate('10% of video duration')); ?></option>
+                    <option value="25" <?php echo $position == 25 ? 'selected' : ''; ?>><?php echo $escape($this->translate('25% of video duration')); ?></option>
+                    <option value="50" <?php echo $position == 50 ? 'selected' : ''; ?>><?php echo $escape($this->translate('50% of video duration (middle)')); ?></option>
+                    <option value="75" <?php echo $position == 75 ? 'selected' : ''; ?>><?php echo $escape($this->translate('75% of video duration')); ?></option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="thumbnail-caption field">
+            <div class="field-meta">
+                <label><?php echo $escape($this->translate('Caption')); ?></label>
+                <div class="field-description"><?php echo $escape($this->translate('Add an optional caption for the thumbnail image')); ?></div>
+            </div>
+            <div class="inputs">
+                <?php 
+                $caption = $block->dataValue('caption', '');
+                ?>
+                <input type="text" name="o:block[__blockIndex__][o:data][caption]" aria-label="<?php echo $escape($this->translate('Caption')); ?>" value="<?php echo $escape($caption); ?>">
+            </div>
+        </div>
+        
+        <div class="thumbnail-link field">
+            <div class="field-meta">
+                <label><?php echo $escape($this->translate('Link to')); ?></label>
+                <div class="field-description"><?php echo $escape($this->translate('Choose where the thumbnail should link to')); ?></div>
+            </div>
+            
+            <div class="inputs">
+                <?php
+                $linkType = $block->dataValue('link_type', 'resource');
+                ?>
+                <select name="o:block[__blockIndex__][o:data][link_type]" class="link-type-select" aria-label="<?php echo $escape($this->translate('Link type')); ?>">
+                    <option value="none" <?php echo $linkType == 'none' ? 'selected' : ''; ?>><?php echo $escape($this->translate('No link')); ?></option>
+                    <option value="resource" <?php echo $linkType == 'resource' ? 'selected' : ''; ?>><?php echo $escape($this->translate('Link to resource')); ?></option>
+                    <option value="custom" <?php echo $linkType == 'custom' ? 'selected' : ''; ?>><?php echo $escape($this->translate('Custom URL')); ?></option>
+                </select>
+                
+                <div class="custom-url" style="<?php echo $linkType != 'custom' ? 'display: none;' : ''; ?>">
+                    <input type="text" name="o:block[__blockIndex__][o:data][custom_url]" aria-label="<?php echo $escape($this->translate('Custom URL')); ?>" value="<?php echo $escape($block->dataValue('custom_url', '')); ?>">
+                </div>
+            </div>
+        </div>
+        
+        <div class="thumbnail-regenerate field">
+            <div class="field-meta">
+                <label><?php echo $escape($this->translate('Regenerate thumbnail')); ?></label>
+                <div class="field-description"><?php echo $escape($this->translate('Check this box to regenerate the thumbnail when saving this page. Only use if the thumbnail is missing or incorrect.')); ?></div>
+            </div>
+            
+            <div class="inputs">
+                <input type="checkbox" name="o:block[__blockIndex__][o:data][regenerate]" aria-label="<?php echo $escape($this->translate('Regenerate thumbnail')); ?>" value="1">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Handle showing/hiding the custom URL field based on link type selection
+        $(document).on('change', '.link-type-select', function() {
+            var $select = $(this);
+            var $customUrl = $select.closest('.inputs').find('.custom-url');
+            
+            if ($select.val() === 'custom') {
+                $customUrl.show();
+            } else {
+                $customUrl.hide();
+            }
+        });
+    });
+</script>

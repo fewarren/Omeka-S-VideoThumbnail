@@ -1,0 +1,14 @@
+<div class="video-thumbnail-block">
+    <?php if (isset($thumbnailHtml) && $thumbnailHtml): ?>
+        <div class="thumbnail">
+            <?= $thumbnailHtml ?>
+        </div>
+        <?php if (isset($media) && $media): ?>
+        <div class="caption">
+            <?= $media->displayTitle() ?>
+        </div>
+        <?php endif; ?>
+    <?php else: ?>
+        <div class="error"><?= $this->translate('No thumbnail available for this video') ?></div>
+    <?php endif; ?>
+</div>

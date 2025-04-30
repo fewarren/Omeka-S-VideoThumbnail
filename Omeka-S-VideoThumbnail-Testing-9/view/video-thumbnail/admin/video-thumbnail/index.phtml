@@ -1,0 +1,90 @@
+<?php
+$this->headTitle($this->translate('Video Thumbnail Configuration'));
+$this->htmlElement('body')->appendAttribute('class', 'video-thumbnail configuration');
+$form->prepare();
+?>
+
+<div id="page-actions">
+    <a href="<?= $this->escapeHtml($this->url('admin/default', ['controller' => 'module'])) ?>" class="button"><?= $this->translate('Back to modules'); ?></a>
+</div>
+
+<h1><?= $this->translate('Video Thumbnail Configuration'); ?></h1>
+
+<?php if ($this->flashMessenger()->hasMessages()): ?>
+    <div class="admin-feedback-messages" role="alert" aria-live="assertive">
+        <?php foreach ($this->flashMessenger()->getMessages() as $message): ?>
+            <div class="admin-feedback-message"><?php echo $this->escapeHtml($message); ?></div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
+
+<div class="configuration-section">
+    <h2><?= $this->translate('Statistics'); ?></h2>
+    <p><?= $this->translate('Total video files in the system'); ?>: <strong><?= $totalVideos ?></strong></p>
+    <p><?= $this->translate('Supported video formats'); ?>: <strong><?= $supportedFormats ?></strong></p>
+</div>
+
+<div class="configuration-section">
+    <h2><?= $this->translate('Settings'); ?></h2>
+    
+    <?php echo $this->form()->openTag($form); ?>
+    
+    <?php 
+    // Manually render form elements instead of using formCollection to avoid passing string values to FormInput
+    foreach ($form as $element):
+        if ($element->getName() != 'submit' && $element instanceof \Laminas\Form\ElementInterface) {
+    ?>
+        <div class="field">
+            <div class="field-meta">
+                <?php echo $this->formLabel($element); ?>
+                <?php if ($element->getOption('info')): ?>
+                <div class="field-description"><?php echo $this->translate($element->getOption('info')); ?></div>
+                <?php endif; ?>
+            </div>
+            <div class="inputs">
+                <?php echo $this->formElement($element); ?>
+                <?php echo $this->formElementErrors($element); ?>
+            </div>
+        </div>
+    <?php
+        }
+    endforeach;
+    ?>
+    
+    <div class="form-actions">
+        <?php echo $this->formElement($form->get('submit')); ?>
+    </div>
+    
+    <?php echo $this->form()->closeTag(); ?>
+</div>
+
+<style>
+.configuration-section {
+    margin-bottom: 2em;
+    background: #f8f8f8;
+    padding: 1em;
+    border-radius: 4px;
+}
+
+.field {
+    margin-bottom: 1.5em;
+}
+
+.field .field-meta {
+    margin-bottom: 0.5em;
+}
+
+.field .field-meta label {
+    font-weight: bold;
+}
+
+.field .field-meta .field-description {
+    font-style: italic;
+    color: #666;
+    margin-top: 0.25em;
+}
+
+.field .inputs {
+    margin-left: 0.5em;
+}
+</style>
